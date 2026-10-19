@@ -18,6 +18,10 @@ Tất cả các thay đổi quan trọng của dự án **FamShield Windows Agen
   - Hỗ trợ chế độ Interactive Console tự động khi chạy trực tiếp ngoài Service Control Manager.
   - Named Pipe Server với cơ chế framing độ dài tiền tố (4-byte LE length, trần an toàn 256 KiB chống tràn RAM).
   - Chuỗi SDDL bảo mật nghiêm ngặt `D:(A;;GRGW;;;AU)(A;;GA;;;SY)(A;;GA;;;BA)` phân quyền chặt chẽ giữa Authenticated Users và Administrators / LocalSystem.
+- **Báo cáo Đánh giá Khoảng trống Hệ sinh thái & Lộ trình Hoàn thiện (`docs/14-GAP-ANALYSIS-AND-ROADMAP.md`)**:
+  - Rà soát toàn diện hiện trạng kết nối giữa Windows Agent (`child_monitor`) và Cloud Server/Web Console (`famshield-server`).
+  - Lập ma trận tính năng chi tiết, phân loại 4 khoảng trống kỹ thuật cốt lõi (Database PostgreSQL cho server, API thật cho Web Console, Agent live networking, và Local Admin GUI cho bản StandaloneFree).
+  - Hoàn thiện tài liệu chỉ dẫn lộ trình 4 giai đoạn thực thi đưa hệ sinh thái FamShield vào vận hành hoàn chỉnh.
 - **Giám sát Tiến trình Kernel Thời gian thực qua ETW (`famshield-windows`)**:
   - Triển khai `EtwTraceSession` lắng nghe trực tiếp Win32 ETW Provider `Microsoft-Windows-Kernel-Process` (`{22fb2c4e-47c2-4eea-b0bf-478f0f9d874f}`).
   - Bắt sự kiện tạo và hủy tiến trình tại thời điểm `0ms`.
