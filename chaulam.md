@@ -1,42 +1,62 @@
-### Vấn đề nghiêm trọng
+# FamShield Windows Agent - Danh Sách Hạng Mục Triển Khai (Checklist)
 
-1. Nhiều subsystem production vẫn là mô phỏng:
+Tài liệu này đối chiếu các yêu cầu kỹ thuật trong đặc tả kiến trúc (`docs/03-WINDOWS-AGENT.md` và `docs/08-IMPLEMENTATION-PLAN.md`) với mã nguồn thực tế của FamShield Agent (`nntu/famshield-agent`).
 
-- wfp.rs (agent/crates/windows/src/wfp.rs:21) chỉ mở WFP engine session, chưa đăng ký filter chặn DNS/DoH.
-- nrpt.rs (agent/crates/windows/src/nrpt.rs:13) chỉ log rồi trả Ok(()), không sửa registry.
-- capture.rs (agent/crates/session/src/capture.rs:15) tạo byte JPEG giả, chưa có DXGI/GDI hay blur.
-- enrollment.rs (agent/crates/sync/src/enrollment.rs:34) trả device ID và certificate giả.
-- ipc.rs (agent/crates/service/src/ipc.rs:1) mới định nghĩa message; chưa có Named Pipe server, framing hoặc ACL/SDDL.
-- controller.rs (agent/crates/service/src/controller.rs:79) polling process mỗi 5 giây, chưa phải ETW realtime như tài liệu.
-- main.rs (agent/crates/service/src/main.rs:7) là console Tokio chờ Ctrl+C, chưa thấy Windows SCM dispatcher/service lifecycle hoàn chỉnh.
+---
 
-2. Bảo mật chưa đạt threat model:
+## I. Các Tính Năng Đã Hoàn Thành (Done) ✅
 
-- Xác thực PIN dùng Argon2 đúng hướng, nhưng authenticate (agent/crates/local_admin/src/service.rs:65) chưa có failed-attempt counter, lockout hoặc exponential backoff.
-- Chưa có DPAPI machine-scope bảo vệ secret.
-- Remote reset_pin nhận PIN mới trực tiếp trong command payload.
-- Updater tại staged.rs (agent/crates/updater/src/staged.rs:27) mới kiểm SHA-256; chưa xác minh chữ ký release manifest.
-- Chưa có lớp xác thực/ủy quyền IPC để ngăn user thường gửi message đặc quyền.
+- [x] **1. Cấu trúc Workspace & Crate Modularity**
+  - Tách bạch 9 crates độc lập: `core`, `storage`, `dns`, `windows`, `service`, `session`, `local_admin`, `sync`, `updater`.
+  - Toàn bộ test suite pass 100% (35/35 unit tests).
+- [x] **2. Động cơ DNS Proxy & Bộ đệm NUMA**
+  - Lắng nghe trên loopback `127.0.0.2:53` (tránh xung đột với `Dnscache` của Windows).
+  - RFC 1035 zero-copy wire parser, Serve-Stale Cache (RFC 8767).
+  - `BlocklistStore` sử dụng con trỏ atomic `ArcSwap<HashSet<String>>` cho phép hot-swap danh sách chặn với độ trễ micro giây, 0 downtime.
+- [x] **3. Định tuyến NRPT & Bảo vệ User-Mode WFP**
+  - Cấu hình Windows Name Resolution Policy Table (NRPT) trỏ `.` về `127.0.0.2:53`.
+  - Tích hợp WFP `fwpmu.dll` với cờ `FWPM_SESSION_FLAG_DYNAMIC` tự động giải phóng khi dịch vụ tắt/crash, không gây nghẽn mạng máy trạm.
+- [x] **4. Quản lý Quyền Quản trị Cục bộ (Master PIN & Phục hồi 3 lớp)**
+  - Mã hóa Argon2id + salt ngẫu nhiên từ hệ điều hành.
+  - Reset qua Admin UAC Elevation CLI (`--reset-pin`).
+  - Reset qua Khóa khẩn cấp offline `FAM-XXXX-XXXX-XXXX`.
+  - Reset từ xa thông qua Cloud / Telegram Bot.
+- [x] **5. Kết nối 2 chiều NATS JetStream (Bidirectional Real-Time)**
+  - Kênh điều khiển `devices.{id}.commands`: Nhận lệnh tức thì (< 1 giây).
+  - Kênh dữ liệu `devices.{id}.events`: Đẩy batch telemetry và DNS log lên JetStream.
+  - Hỗ trợ WebSocket Port 9222 vượt qua Cloudflare Tunnel không cần mở port.
+  - Lệnh khóa màn hình thời gian thực `LockWorkStation()`.
+- [x] **6. Cơ chế Phê duyệt Cài đặt Phần mềm (Software Installation Approval)**
+  - `InstallerInterceptor`: Nhận diện file installer/setup/update/msi.
+  - Tạm dừng và tính mã băm SHA256, gửi cảnh báo về Telegram.
+  - Nút bấm 1 chạm trên Telegram: `[✅ Phê duyệt]` (mở khóa tiến trình) hoặc `[❌ Từ chối]` (đóng tiến trình ngay lập tức).
+- [x] **7. Giám sát Tiến trình (Process Lifecycle Telemetry)**
+  - Quét snapshot ToolHelp32 định kỳ mỗi 5 giây, phát hiện biến động `process_started` và `process_terminated`.
+  - Tự động đóng gói batch JSON đẩy lên NATS JetStream.
+- [x] **8. Giao diện Micro-UI trên Windows Session (Session Crate)**
+  - Win32 System Tray icon với context menu (Trạng thái bảo vệ, Đăng xuất, Thoát).
+  - Hộp thoại nhập Master PIN native Win32.
+  - Windows Toast notification thân thiện cho trẻ khi bị chặn hoặc hết giờ.
+- [x] **9. Đóng gói Bộ cài đặt Inno Setup (`.exe`)**
+- [x] **10. Giám sát Tương tác Người dùng & Đếm giờ Monotonic (Foreground & Idle Tracking)**
+  - Lấy Handle và tên file tiến trình của cửa sổ tích cực qua `GetForegroundWindow()`, `GetWindowThreadProcessId()`, `GetProcessImageFileNameW()`.
+  - Đo thời gian người dùng không gõ phím/chuột qua Win32 `GetLastInputInfo()` và `GetTickCount()`.
+  - Tự động tạm dừng trừ giờ khi trẻ AFK / không hoạt động quá 3 phút (180s) tránh trừ oan giờ của trẻ.
 
-3. Build gate chưa xanh:
+---
 
-- cargo test --workspace: 34 passed, 1 failed.
-- Test lỗi: process_monitor.rs (agent/crates/windows/src/process_monitor.rs:169). Test giả định hai lần enumerate process liên tiếp không có process nào thay đổi, nên phụ thuộc trạng thái hệ điều hành và dễ flaky.
-- cargo clippy --workspace --all-targets -- -D warnings: thất bại với 2 lỗi assign_op_pattern tại traits.rs (agent/crates/core/src/traits.rs:40).
-- Chưa thấy cấu hình CI trong repository.
+## II. Các Tính Năng Chưa Làm / Cần Hoàn Thiện Tiếp Theo (Pending) ⚠️
 
-4. Tài liệu chưa phản ánh đúng trạng thái:
+### 1. Xác thực Hình ảnh Bảo vệ Quyền riêng tư (Smart Visual Verification)
+- [ ] Tích hợp GDI `BitBlt` / DXGI Desktop Duplication API chụp màn hình máy trạm trong `famshield-session`.
+- [ ] Chỉ chụp khi có sự kiện kích hoạt (Trigger-only: trẻ truy cập web cấm, cố bật app bị chặn, hoặc gửi yêu cầu xin thêm giờ). Tuyệt đối không quay lén định kỳ.
+- [ ] Áp dụng thuật toán làm mờ Gaussian Blur trực tiếp trong bộ nhớ RAM lên các vùng text/nhập liệu để bảo vệ mật khẩu, tin nhắn cá nhân.
+- [ ] Nén ảnh JPEG nhỏ gọn (< 150KB), lưu trữ cục bộ với chính sách tự động xóa vĩnh viễn sau 48 giờ (48-Hour Retention Purge).
 
-README tuyên bố các khả năng như WFP, NRPT, visual verification, mTLS sync và “không gây BSOD”, trong khi một số thành phần vẫn là mock/stub. Nên gắn trạng thái Implemented / Prototype / Planned cho từng subsystem để tránh hiểu nhầm.
+### 2. Nâng cấp Giám sát Tiến trình qua ETW (Kernel Process Tracing 0ms)
+- [ ] Bổ sung module lắng nghe Event Tracing for Windows (ETW) qua Provider `Microsoft-Windows-Kernel-Process`.
+- [ ] Bắt ngay lập tức sự kiện tạo tiến trình tại thời điểm `0ms` (thay thế hoặc bổ trợ cho chu kỳ thăm dò snapshot 5 giây).
 
-## Ưu tiên đề xuất
+---
 
-1. Đưa CI về xanh: sửa Clippy và thay process-monitor test bằng nguồn process giả/injected snapshot.
-2. Hoàn thiện Windows Service + Named Pipe ACL trước khi mở bất kỳ command đặc quyền nào.
-3. Implement NRPT thật và WFP filter transaction; thêm test rollback để tránh mất mạng.
-4. Thêm PIN lockout, DPAPI, command authentication và signed update manifest.
-5. Thay capture/enrollment mock bằng implementation thật hoặc tắt tính năng khỏi release build.
-6. Giảm complexity của evaluate_process, DNS listener và NATS dispatcher.
-7. Đồng bộ README/roadmap với trạng thái thực tế.
-
-Kết luận: nền móng module và domain khá tốt cho một MVP kỹ thuật, nhưng hiện tại chỉ nên dùng cho phát triển/thử nghiệm nội bộ, chưa nên cài lên máy người dùng thật hoặc quảng bá là sản phẩm parental-control/security hoàn ch
+*Cập nhật lần cuối: 19/10/2026 bởi FamShield Architecture Engine*

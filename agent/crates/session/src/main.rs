@@ -15,14 +15,31 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Ok(());
     }
 
-    // 1. Start foreground app monitor
-    let _tracker = ForegroundTracker::new(300);
+    // 1. Start foreground app & idle monitor
+    let mut tracker = ForegroundTracker::new(180); // 3-minute idle threshold
 
     // 2. Start lightweight System Tray with context menu & toast support
     SystemTray::start();
     info!("System Tray icon active at taskbar notification area.");
 
-    // 3. Keep session helper active until terminated
+    // 3. Periodic foreground and idle tracking loop (every 1 second)
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(1));
+        loop {
+            interval.tick().await;
+            let idle_ms = ForegroundTracker::get_system_idle_millis();
+            let is_idle = idle_ms >= 180_000; // 3 minutes
+
+            if let Some(proc_name) = ForegroundTracker::get_foreground_process_name() {
+                if let Ok(exe) = famshield_core::domain::ExecutableName::parse(&proc_name) {
+                    tracker.switch_active_window(exe, std::time::Instant::now());
+                }
+            }
+            tracker.tick_usage(1, is_idle);
+        }
+    });
+
+    // 4. Keep session helper active until terminated
     info!("Session Helper initialized and active.");
     tokio::signal::ctrl_c().await?;
     info!("Session Helper terminating.");
