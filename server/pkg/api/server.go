@@ -1,15 +1,17 @@
-﻿package api
+package api
 
 import (
 	"encoding/json"
 	"net/http"
 
 	"famshield-server/pkg/model"
+	"famshield-server/pkg/queue"
 	"famshield-server/pkg/store"
 )
 
 type Server struct {
 	store *store.MemoryStore
+	queue *queue.QueueManager
 	mux   *http.ServeMux
 }
 
@@ -20,6 +22,10 @@ func NewServer(s *store.MemoryStore) *Server {
 	}
 	srv.registerRoutes()
 	return srv
+}
+
+func (s *Server) SetQueue(q *queue.QueueManager) {
+	s.queue = q
 }
 
 func (s *Server) Handler() http.Handler {
@@ -120,6 +126,10 @@ func (s *Server) handleEventsBatch(w http.ResponseWriter, r *http.Request) {
 		e := event
 		if s.store.SaveEvent(&e) {
 			accepted = append(accepted, e.EventID)
+			// Asynchronously publish to NATS JetStream
+			if s.queue != nil {
+				_ = s.queue.PublishEvent(r.Context(), &e)
+			}
 		} else {
 			duplicates = append(duplicates, e.EventID)
 		}
