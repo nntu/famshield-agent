@@ -1,3 +1,5 @@
+#![windows_subsystem = "windows"]
+
 use famshield_session::{ForegroundTracker, PinDialog, SystemTray};
 use tracing::info;
 
@@ -22,7 +24,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     SystemTray::start();
     info!("System Tray icon active at taskbar notification area.");
 
-    // 3. Periodic foreground and idle tracking loop (every 1 second)
+    // 3. Initialize Sensitive Keystroke Keyword Monitor
+    let keyboard_monitor = std::sync::Arc::new(famshield_session::KeyboardMonitor::default());
+    famshield_session::keyboard_monitor::start_keyboard_monitor_hook(keyboard_monitor.clone());
+    info!("Sensitive keyword monitor hook active in user session.");
+
+    // 4. Periodic foreground and idle tracking loop (every 1 second)
+    let km_for_tracker = keyboard_monitor.clone();
     tokio::spawn(async move {
         let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(1));
         loop {
@@ -33,13 +41,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             if let Some(proc_name) = ForegroundTracker::get_foreground_process_name() {
                 if let Ok(exe) = famshield_core::domain::ExecutableName::parse(&proc_name) {
                     tracker.switch_active_window(exe, std::time::Instant::now());
+                    km_for_tracker.set_active_app(&proc_name);
                 }
             }
             tracker.tick_usage(1, is_idle);
         }
     });
 
-    // 4. Keep session helper active until terminated
+    // 5. Keep session helper active until terminated
     info!("Session Helper initialized and active.");
     tokio::signal::ctrl_c().await?;
     info!("Session Helper terminating.");

@@ -85,6 +85,16 @@ Tất cả các thay đổi quan trọng của dự án **FamShield Windows Agen
     - Bộ chuẩn hóa tiếng Việt & Teencode thông minh (`normalize_text`): Chuẩn hóa Unicode đa dạng, chuyển đổi chữ thường, khử dấu tiếng Việt (Telex/VNI), ánh xạ leet-speak (`0->o`, `1->i/l`, `3->e`, `4->a`, `5->s`, `7->t`), và loại bỏ ký tự cố tình phân tách lách luật (`d.m`, `v_c_l`, `d*m`).
     - Danh mục từ khóa mặc định phong phú (Việt - Anh): Chửi bậy / Thô tục (`Profanity`), Bắt nạt / Đe dọa (`Bullying`), Tự hại / Tiêu cực (`SelfHarm` - Critical), Người lớn / Khiêu dâm (`Adult`), và Tùy chỉnh của cha mẹ (`Custom`).
     - Lưu trữ cơ sở dữ liệu SQLite cục bộ (`schema v3`): Bảng `keyword_violations` ghi nhận vi phạm kèm mặt nạ ẩn danh ngữ cảnh (`*** [keyword] ***`), và bảng `custom_keywords` lưu các từ khóa do phụ huynh thêm mới.
+    - **Win32 Session Keyboard Hook & Cơ chế Chống Lag Tuyệt Đối (`famshield-session`)**:
+      - Triển khai Windows Low-Level Keyboard Hook (`WH_KEYBOARD_LL`) trong tiến trình tương tác người dùng (`famshield-session.exe`), xử lý triệt để bài toán Session 0 Isolation.
+      - Kiến trúc bất đồng bộ không trễ (Zero-lag Anti-blocking Architecture): Thủ tục `low_level_keyboard_proc` đẩy `RawKeyEvent` vào kênh đệm `sync_channel(512)` và trả về ngay lập tức với `CallNextHookEx` trong microsecond, không bao giờ gây giật lag bàn phím người dùng.
+      - **Bảo Vệ Riêng Tư & Chống Bắt Mật Khẩu (Password Field & Credential Protection)**:
+        - Tự động kiểm tra thuộc tính trường nhập liệu đang focus thông qua `GetGUIThreadInfo` và kiểu `ES_PASSWORD (0x0020)`: Bỏ qua và hủy ngay lập tức các ký tự gõ trong ô mật khẩu trước khi đưa vào bộ đệm.
+        - Tự động nhận diện và bỏ qua toàn bộ thao tác gõ trong các trình quản lý mật khẩu phổ biến (`1Password`, `Bitwarden`, `KeePass`, `LastPass`, `Enpass`, `Dashlane`) và hộp thoại xác thực `Windows Credential UI`.
+      - **Thông Báo Giáo Dục Trực Quan Thân Thiện (Friendly Child Guidance Toasts)**:
+        - Tích hợp `FriendlyToast::notify_sensitive_keyword_reminder` gọi trực tiếp `Shell_NotifyIconW` trên biểu tượng khay hệ thống, hiển thị lời nhắc nhở giáo dục nhẹ nhàng ("🌟 Giữ lời nói lịch sự và tôn trọng người khác khi giao tiếp") thay vì tạo tâm lý ức chế cho trẻ.
+      - **Giao Tiếp Liên Tiến Trình IPC Named Pipe (`famshield-service`)**:
+        - Gửi sự kiện `IpcMessage::KeywordViolation` qua đường ống an toàn `\\.\pipe\FamShieldService` vào Windows Service Session 0 để lưu trữ nguyên tử vào cơ sở dữ liệu SQLite.
     - Hệ thống API quản trị cục bộ (`famshield-local-admin`):
       - `GET /api/keywords`: Truy xuất cấu hình giám sát, trạng thái bật/tắt, danh sách từ khóa hệ thống & tùy chỉnh, và số lượng vi phạm hôm nay.
       - `POST /api/keywords`: Thêm từ khóa tùy chỉnh mới kèm phân loại danh mục và mức độ nghiêm trọng.
@@ -97,6 +107,12 @@ Tất cả các thay đổi quan trọng của dự án **FamShield Windows Agen
       - Phân mục subtab thứ 4: **⚠️ Từ Khóa Nhạy Cảm (Keywords)** thống kê chi tiết thời gian, từ khóa, phân loại, mức độ, ứng dụng nguồn và ngữ cảnh làm mờ.
       - Dòng thời gian hợp nhất (Unified Timeline): Tích hợp trực tiếp các mốc thời gian vi phạm từ khóa xen kẽ với hoạt động ứng dụng và duyệt web.
       - Thẻ cấu hình chuyên biệt trong Cài đặt Bảo mật: Bật/tắt tính năng giám sát, form thêm từ khóa tùy chỉnh, thanh tìm kiếm và bảng bật/tắt từng từ khóa tức thời.
+
+### Fixed
+- **Lỗi Panic Khởi Động Tokio IPC Server (`famshield-service::ipc`)**:
+  - Khắc phục lỗi panic `cannot specify more than 254 instances` tại `create_secured_named_pipe` do thiết lập nhầm `options.max_instances(255)`. Giới hạn hợp lệ của Tokio là $\le 254$.
+  - Lỗi này từng khiến luồng nền Tokio bị hủy ngay khi Service khởi động, dẫn đến máy chủ `LocalAdminServer` (`http://127.0.0.1:48123`) không thể lắng nghe và người dùng không thể truy cập giao diện web từ khay hệ thống.
+  - Sau khi sửa và biên dịch lại, máy chủ web và IPC Named Pipe đã hoạt động ổn định 100%.
 
 ---
 

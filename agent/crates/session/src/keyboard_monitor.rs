@@ -198,6 +198,330 @@ impl KeyboardMonitor {
     }
 }
 
+/// Raw key event captured by the low-level hook.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RawKeyEvent {
+    pub vk_code: u32,
+    pub scan_code: u32,
+}
+
+#[cfg(windows)]
+static HOOK_HANDLE: std::sync::atomic::AtomicIsize = std::sync::atomic::AtomicIsize::new(0);
+
+#[cfg(windows)]
+static KEY_EVENT_TX: std::sync::OnceLock<std::sync::mpsc::SyncSender<RawKeyEvent>> =
+    std::sync::OnceLock::new();
+
+/// Low-level keyboard hook callback.
+/// CRITICAL: Must return immediately with minimal latency (<1ms).
+/// Evaluates password field status before sending, drops if in password input.
+#[cfg(windows)]
+unsafe extern "system" fn low_level_keyboard_proc(
+    n_code: i32,
+    wparam: windows::Win32::Foundation::WPARAM,
+    lparam: windows::Win32::Foundation::LPARAM,
+) -> windows::Win32::Foundation::LRESULT {
+    use windows::Win32::UI::WindowsAndMessaging::{
+        CallNextHookEx, HHOOK, KBDLLHOOKSTRUCT, WM_KEYDOWN, WM_SYSKEYDOWN,
+    };
+
+    if n_code >= 0 && (wparam.0 as u32 == WM_KEYDOWN || wparam.0 as u32 == WM_SYSKEYDOWN) {
+        let kbd_struct = *(lparam.0 as *const KBDLLHOOKSTRUCT);
+        if !is_focused_password_field() {
+            if let Some(tx) = KEY_EVENT_TX.get() {
+                let _ = tx.try_send(RawKeyEvent {
+                    vk_code: kbd_struct.vkCode,
+                    scan_code: kbd_struct.scanCode,
+                });
+            }
+        }
+    }
+
+    let hook_val = HOOK_HANDLE.load(std::sync::atomic::Ordering::Relaxed);
+    CallNextHookEx(HHOOK(hook_val as *mut _), n_code, wparam, lparam)
+}
+
+/// Checks whether the currently focused control is a password input field or password manager.
+/// Adheres strictly to Privacy-by-Design:
+/// 1. Queries Win32 GUI thread info for focused window style with `ES_PASSWORD (0x0020)`.
+/// 2. Checks active foreground process name against known password managers / credential prompts.
+#[cfg(windows)]
+pub fn is_focused_password_field() -> bool {
+    use windows::Win32::UI::WindowsAndMessaging::{
+        GetForegroundWindow, GetGUIThreadInfo, GetWindowLongW, GetWindowThreadProcessId,
+        GUITHREADINFO, GWL_STYLE,
+    };
+
+    unsafe {
+        let fg_hwnd = GetForegroundWindow();
+        if fg_hwnd.0.is_null() {
+            return false;
+        }
+
+        // Fast check: Known password manager apps
+        if let Some(proc_name) = crate::tracker::ForegroundTracker::get_foreground_process_name() {
+            let lower = proc_name.to_lowercase();
+            if lower.contains("credential")
+                || lower.contains("keepass")
+                || lower.contains("bitwarden")
+                || lower.contains("1password")
+                || lower.contains("lastpass")
+                || lower.contains("enpass")
+                || lower.contains("dashlane")
+            {
+                return true;
+            }
+        }
+
+        let mut pid = 0u32;
+        let thread_id = GetWindowThreadProcessId(fg_hwnd, Some(&mut pid));
+        if thread_id == 0 {
+            return false;
+        }
+
+        let mut gui_info = GUITHREADINFO {
+            cbSize: std::mem::size_of::<GUITHREADINFO>() as u32,
+            ..Default::default()
+        };
+
+        if GetGUIThreadInfo(thread_id, &mut gui_info).is_ok() && !gui_info.hwndFocus.0.is_null() {
+            let style = GetWindowLongW(gui_info.hwndFocus, GWL_STYLE) as u32;
+            const ES_PASSWORD: u32 = 0x0020;
+            if (style & ES_PASSWORD) != 0 {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+#[cfg(not(windows))]
+pub fn is_focused_password_field() -> bool {
+    false
+}
+
+/// Translates a virtual key code to a character.
+#[cfg(windows)]
+pub fn vk_to_char(vk_code: u32, scan_code: u32) -> Option<char> {
+    use windows::Win32::UI::Input::KeyboardAndMouse::{GetKeyboardState, ToUnicode};
+
+    let mut key_state = [0u8; 256];
+    let mut char_buf = [0u16; 16];
+
+    let count = unsafe {
+        if GetKeyboardState(&mut key_state).is_ok() {
+            ToUnicode(vk_code, scan_code, Some(&key_state), &mut char_buf, 0)
+        } else {
+            0
+        }
+    };
+
+    if count > 0 {
+        if let Some(ch) = char::decode_utf16(char_buf[..count as usize].iter().cloned())
+            .next()
+            .and_then(|r| r.ok())
+        {
+            if !ch.is_control() {
+                return Some(ch);
+            }
+        }
+    }
+
+    // Direct mapping fallback for standard ASCII keys
+    match vk_code {
+        0x30..=0x39 => Some((b'0' + (vk_code as u8 - 0x30)) as char),
+        0x41..=0x5A => Some((b'a' + (vk_code as u8 - 0x41)) as char),
+        0x20 => Some(' '),
+        0x60..=0x69 => Some((b'0' + (vk_code as u8 - 0x60)) as char), // NumPad 0-9
+        0x6A => Some('*'),
+        0x6B => Some('+'),
+        0x6D => Some('-'),
+        0x6E => Some('.'),
+        0x6F => Some('/'),
+        0xBA => Some(';'),
+        0xBB => Some('='),
+        0xBC => Some(','),
+        0xBD => Some('-'),
+        0xBE => Some('.'),
+        0xBF => Some('/'),
+        _ => None,
+    }
+}
+
+#[cfg(not(windows))]
+pub fn vk_to_char(vk_code: u32, _scan_code: u32) -> Option<char> {
+    match vk_code {
+        0x30..=0x39 => Some((b'0' + (vk_code as u8 - 0x30)) as char),
+        0x41..=0x5A => Some((b'a' + (vk_code as u8 - 0x41)) as char),
+        0x20 => Some(' '),
+        _ => None,
+    }
+}
+
+/// Retrieves the Windows session ID for current process.
+#[cfg(windows)]
+pub fn get_current_session_id() -> u32 {
+    #[link(name = "kernel32")]
+    extern "system" {
+        fn WTSGetActiveConsoleSessionId() -> u32;
+    }
+    unsafe {
+        let sid = WTSGetActiveConsoleSessionId();
+        if sid == 0xFFFFFFFF {
+            1
+        } else {
+            sid
+        }
+    }
+}
+
+#[cfg(not(windows))]
+pub fn get_current_session_id() -> u32 {
+    1
+}
+
+/// Dispatches detected violation to the Windows Service Session 0 over IPC Named Pipe.
+pub async fn send_violation_via_ipc(
+    session_id: u32,
+    app_name: String,
+    keyword_matched: String,
+    category: String,
+    severity: String,
+    snippet_masked: String,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    #[cfg(windows)]
+    {
+        use famshield_service::ipc::{
+            read_framed_message, write_framed_message, IpcMessage, IPC_PIPE_NAME,
+        };
+        use tokio::net::windows::named_pipe::ClientOptions;
+
+        let mut client = ClientOptions::new().open(IPC_PIPE_NAME)?;
+        let msg = IpcMessage::KeywordViolation {
+            session_id,
+            app_name,
+            keyword_matched,
+            category,
+            severity,
+            snippet_masked,
+        };
+        write_framed_message(&mut client, &msg).await?;
+        let _ = read_framed_message(&mut client).await?;
+        Ok(())
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = (
+            session_id,
+            app_name,
+            keyword_matched,
+            category,
+            severity,
+            snippet_masked,
+        );
+        Ok(())
+    }
+}
+
+/// Starts the Win32 low-level keyboard hook and spawns worker thread.
+pub fn start_keyboard_monitor_hook(monitor: Arc<KeyboardMonitor>) {
+    #[cfg(windows)]
+    {
+        use std::sync::mpsc::sync_channel;
+        use windows::Win32::System::LibraryLoader::GetModuleHandleW;
+        use windows::Win32::UI::WindowsAndMessaging::{
+            DispatchMessageW, GetMessageW, SetWindowsHookExW, TranslateMessage,
+            UnhookWindowsHookEx, MSG, WH_KEYBOARD_LL,
+        };
+
+        let (tx, rx) = sync_channel::<RawKeyEvent>(512);
+        let _ = KEY_EVENT_TX.set(tx);
+
+        // Spawn worker thread for asynchronous keystroke processing & matching
+        let worker_monitor = monitor.clone();
+        std::thread::spawn(move || {
+            let session_id = get_current_session_id();
+            while let Ok(event) = rx.recv() {
+                if event.vk_code == 0x08 {
+                    // VK_BACK
+                    worker_monitor.process_backspace();
+                } else if let Some(ch) = vk_to_char(event.vk_code, event.scan_code) {
+                    if let Some(violation) = worker_monitor.process_char(ch) {
+                        tracing::warn!(
+                            "Sensitive keyword violation detected: pattern='{}', category={:?}, app='{}'",
+                            violation.pattern,
+                            violation.category,
+                            violation.app_name
+                        );
+
+                        // Trigger friendly educational toast
+                        let tray_hwnd = crate::tray::SystemTray::get_tray_hwnd();
+                        crate::toast::FriendlyToast::notify_sensitive_keyword_reminder(
+                            tray_hwnd,
+                            &format!("{:?}", violation.category),
+                        );
+
+                        // Asynchronously send to Windows Service
+                        tokio::spawn(async move {
+                            if let Err(e) = send_violation_via_ipc(
+                                session_id,
+                                violation.app_name,
+                                violation.pattern,
+                                format!("{:?}", violation.category),
+                                format!("{:?}", violation.severity),
+                                violation.snippet_masked,
+                            )
+                            .await
+                            {
+                                tracing::warn!("Failed to dispatch keyword violation IPC: {}", e);
+                            }
+                        });
+                    }
+                }
+            }
+        });
+
+        // Spawn Hook thread with Windows message loop
+        std::thread::spawn(move || unsafe {
+            let instance = match GetModuleHandleW(None) {
+                Ok(h) => h,
+                Err(e) => {
+                    tracing::error!("Failed to get module handle: {}", e);
+                    return;
+                }
+            };
+            let hook =
+                match SetWindowsHookExW(WH_KEYBOARD_LL, Some(low_level_keyboard_proc), instance, 0)
+                {
+                    Ok(h) => h,
+                    Err(e) => {
+                        tracing::error!("Failed to register WH_KEYBOARD_LL hook: {}", e);
+                        return;
+                    }
+                };
+
+            HOOK_HANDLE.store(hook.0 as isize, std::sync::atomic::Ordering::Relaxed);
+            tracing::info!("Win32 WH_KEYBOARD_LL hook registered successfully.");
+
+            let mut msg = MSG::default();
+            while GetMessageW(&mut msg, None, 0, 0).as_bool() {
+                let _ = TranslateMessage(&msg);
+                DispatchMessageW(&msg);
+            }
+
+            let _ = UnhookWindowsHookEx(hook);
+            HOOK_HANDLE.store(0, std::sync::atomic::Ordering::Relaxed);
+            tracing::info!("Win32 WH_KEYBOARD_LL hook unregistered.");
+        });
+    }
+
+    #[cfg(not(windows))]
+    {
+        let _ = monitor;
+        tracing::info!("Keyboard hook is not supported on non-Windows platforms.");
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -258,5 +582,25 @@ mod tests {
         for ch in "vcl".chars() {
             assert!(monitor.process_char(ch).is_none());
         }
+    }
+
+    #[test]
+    fn test_raw_key_event_and_vk_to_char_translation() {
+        let event = RawKeyEvent {
+            vk_code: 0x41, // 'A'
+            scan_code: 0x1E,
+        };
+        assert_eq!(event.vk_code, 0x41);
+
+        // Test ASCII characters mapping fallback
+        assert_eq!(vk_to_char(0x41, 0x1E), Some('a'));
+        assert_eq!(vk_to_char(0x30, 0x0B), Some('0'));
+        assert_eq!(vk_to_char(0x20, 0x39), Some(' '));
+    }
+
+    #[test]
+    fn test_session_id_retrieval() {
+        let session_id = get_current_session_id();
+        assert!(session_id >= 1);
     }
 }

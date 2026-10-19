@@ -88,4 +88,20 @@ impl FriendlyToast {
             Self::show(HWND(hwnd as *mut _), title, &msg, false);
         }
     }
+
+    /// 5. Nhắc nhở từ ngữ nhạy cảm / xúc phạm
+    pub fn notify_sensitive_keyword_reminder(#[allow(unused)] hwnd: isize, category: &str) {
+        #[cfg(windows)]
+        {
+            if hwnd == 0 {
+                return;
+            }
+            let title = "FamShield - Nhắc nhở lời nói văn minh 🌟";
+            let msg = format!(
+                "Bạn vừa gõ từ ngữ thuộc nhóm '{}'. Hãy giữ lời nói lịch sự và tôn trọng người khác khi giao tiếp nhé!",
+                category
+            );
+            Self::show(HWND(hwnd as *mut _), title, &msg, true);
+        }
+    }
 }

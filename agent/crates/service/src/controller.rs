@@ -68,10 +68,7 @@ impl ServiceController {
             Some(dns_blocklist.clone()),
         ));
 
-        let telemetry_pipeline = Arc::new(TelemetryPipeline::new(
-            device_id,
-            storage.clone(),
-        ));
+        let telemetry_pipeline = Arc::new(TelemetryPipeline::new(device_id, storage.clone()));
 
         let server_url = storage
             .get_meta("server_url")

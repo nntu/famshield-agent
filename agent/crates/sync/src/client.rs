@@ -114,13 +114,10 @@ impl CloudSyncClient {
         let url = format!("{}/v1/device/enroll", self.base_url);
         info!("Sending enrollment request to {}", url);
 
-        let res = self
-            .client
-            .post(&url)
-            .json(req)
-            .send()
-            .await
-            .map_err(|e| SyncError::Network(format!("Failed to reach enrollment server: {}", e)))?;
+        let res =
+            self.client.post(&url).json(req).send().await.map_err(|e| {
+                SyncError::Network(format!("Failed to reach enrollment server: {}", e))
+            })?;
 
         if !res.status().is_success() {
             let status = res.status();
@@ -131,10 +128,9 @@ impl CloudSyncClient {
             )));
         }
 
-        let resp: EnrollmentResponse = res
-            .json()
-            .await
-            .map_err(|e| SyncError::Enrollment(format!("Invalid enrollment response JSON: {}", e)))?;
+        let resp: EnrollmentResponse = res.json().await.map_err(|e| {
+            SyncError::Enrollment(format!("Invalid enrollment response JSON: {}", e))
+        })?;
 
         info!("Device enrolled successfully. ID: {}", resp.device_id);
         Ok(resp)

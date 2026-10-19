@@ -48,9 +48,7 @@ pub enum IpcMessage {
         snippet_masked: String,
     },
     /// Command from service to reload keyword rules or toggle status.
-    ReloadKeywordRules {
-        enabled: bool,
-    },
+    ReloadKeywordRules { enabled: bool },
     /// Service response / acknowledgement.
     Response {
         request_id: String,
@@ -222,7 +220,7 @@ fn create_secured_named_pipe(
 
     let mut options = ServerOptions::new();
     options.first_pipe_instance(first_instance);
-    options.max_instances(255); // PIPE_UNLIMITED_INSTANCES
+    options.max_instances(254); // Tokio max is 254 (unlimited instances in Win32)
 
     let pipe = unsafe {
         options.create_with_security_attributes_raw(pipe_name, &mut sa as *mut _ as *mut _)

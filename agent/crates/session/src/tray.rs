@@ -32,9 +32,18 @@ const IDM_REQUEST_TIME: usize = 1002;
 const IDM_STATUS_INFO: usize = 1003;
 const IDM_EXIT_TRAY: usize = 1004;
 
+use std::sync::atomic::{AtomicIsize, Ordering};
+
+static TRAY_HWND: AtomicIsize = AtomicIsize::new(0);
+
 pub struct SystemTray;
 
 impl SystemTray {
+    /// Returns the HWND of the tray window if active, or 0 if not active
+    pub fn get_tray_hwnd() -> isize {
+        TRAY_HWND.load(Ordering::Relaxed)
+    }
+
     /// Start the System Tray loop in a dedicated thread
     pub fn start() {
         #[cfg(windows)]
@@ -81,6 +90,8 @@ impl SystemTray {
             Err(_) => return,
         };
 
+        TRAY_HWND.store(hwnd.0 as isize, Ordering::Relaxed);
+
         let icon = match LoadIconW(None, IDI_APPLICATION) {
             Ok(i) => i,
             Err(_) => return,
@@ -122,6 +133,7 @@ impl SystemTray {
 
         // Cleanup tray icon on termination
         let _ = Shell_NotifyIconW(NIM_DELETE, &nid);
+        TRAY_HWND.store(0, Ordering::Relaxed);
     }
 
     #[cfg(windows)]
