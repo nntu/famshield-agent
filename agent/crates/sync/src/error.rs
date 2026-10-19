@@ -17,6 +17,9 @@ pub enum SyncError {
     #[error("Storage error: {0}")]
     Storage(#[from] famshield_storage::StorageError),
 
+    #[error("Authentication failed: {0}")]
+    Authentication(String),
+
     #[error("Command execution error: {0}")]
     Command(String),
 }

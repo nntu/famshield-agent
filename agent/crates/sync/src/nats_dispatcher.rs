@@ -15,7 +15,63 @@ pub struct RemoteCommand {
     pub device_id: String,
     pub command_type: String, // "lock_session", "update_blacklist", "reset_pin", "update_policy", "approve_install", "deny_install"
     #[serde(default)]
+    pub timestamp: i64, // Unix epoch seconds
+    #[serde(default)]
     pub payload: serde_json::Value,
+    #[serde(default)]
+    pub signature: Option<String>, // HMAC-SHA256 signature
+}
+
+/// Canonical HMAC-SHA256 signature calculation over RemoteCommand fields:
+/// `command_id:device_id:command_type:timestamp:payload_json`
+pub fn compute_command_hmac(secret_key: &str, cmd: &RemoteCommand) -> String {
+    use sha2::{Digest, Sha256};
+    let payload_str = cmd.payload.to_string();
+    let message = format!(
+        "{}:{}:{}:{}:{}",
+        cmd.command_id, cmd.device_id, cmd.command_type, cmd.timestamp, payload_str
+    );
+
+    let block_size = 64;
+    let mut key = secret_key.as_bytes().to_vec();
+    if key.len() > block_size {
+        let mut hasher = Sha256::new();
+        hasher.update(&key);
+        key = hasher.finalize().to_vec();
+    }
+    if key.len() < block_size {
+        key.resize(block_size, 0);
+    }
+
+    let mut o_key_pad = vec![0x5cu8; block_size];
+    let mut i_key_pad = vec![0x36u8; block_size];
+    for i in 0..block_size {
+        o_key_pad[i] ^= key[i];
+        i_key_pad[i] ^= key[i];
+    }
+
+    let mut inner = Sha256::new();
+    inner.update(&i_key_pad);
+    inner.update(message.as_bytes());
+    let inner_hash = inner.finalize();
+
+    let mut outer = Sha256::new();
+    outer.update(&o_key_pad);
+    outer.update(inner_hash);
+    let result = outer.finalize();
+
+    format!("{:x}", result)
+}
+
+fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
+    if a.len() != b.len() {
+        return false;
+    }
+    let mut diff = 0u8;
+    for (x, y) in a.iter().zip(b.iter()) {
+        diff |= x ^ y;
+    }
+    diff == 0
 }
 
 /// NatsDispatcher orchestrates real-time top-down commands received from NATS
@@ -25,6 +81,7 @@ pub struct NatsDispatcher {
     storage: StorageEngine,
     blocklist: Arc<BlocklistStore>,
     installer: Arc<InstallerInterceptor>,
+    signing_key: Option<String>,
 }
 
 impl NatsDispatcher {
@@ -39,7 +96,17 @@ impl NatsDispatcher {
             storage,
             blocklist,
             installer,
+            signing_key: None,
         }
+    }
+
+    pub fn with_signing_key(mut self, signing_key: impl Into<String>) -> Self {
+        self.signing_key = Some(signing_key.into());
+        self
+    }
+
+    pub fn set_signing_key(&mut self, signing_key: Option<String>) {
+        self.signing_key = signing_key;
     }
 
     pub fn device_id(&self) -> &str {
@@ -129,8 +196,54 @@ impl NatsDispatcher {
         serde_json::to_string(&batch).map_err(SyncError::Serialization)
     }
 
+    /// Verify command authenticity, integrity, and anti-replay window
+    pub fn verify_command(&self, cmd: &RemoteCommand) -> Result<(), SyncError> {
+        // 1. Verify target device
+        if cmd.device_id != self.device_id {
+            return Err(SyncError::Authentication(format!(
+                "Device ID mismatch: expected '{}', got '{}'",
+                self.device_id, cmd.device_id
+            )));
+        }
+
+        // 2. If signing key is configured (Managed Cloud Mode), enforce cryptographic checks
+        if let Some(ref key) = self.signing_key {
+            let now = chrono::Utc::now().timestamp();
+            if cmd.timestamp <= 0 {
+                return Err(SyncError::Authentication(
+                    "Missing or invalid command timestamp".into(),
+                ));
+            }
+
+            let drift = (now - cmd.timestamp).abs();
+            if drift > 300 {
+                return Err(SyncError::Authentication(format!(
+                    "Command timestamp expired or clock drift exceeded (drift: {}s, max: 300s)",
+                    drift
+                )));
+            }
+
+            let sig = cmd.signature.as_deref().ok_or_else(|| {
+                SyncError::Authentication(
+                    "Missing required HMAC signature for remote command".into(),
+                )
+            })?;
+
+            let expected_sig = compute_command_hmac(key, cmd);
+            if !constant_time_eq(sig.as_bytes(), expected_sig.as_bytes()) {
+                return Err(SyncError::Authentication(
+                    "Invalid HMAC command signature".into(),
+                ));
+            }
+        }
+
+        Ok(())
+    }
+
     /// Execute incoming command immediately without polling or latency
     pub fn dispatch_command(&self, cmd: &RemoteCommand) -> Result<(), SyncError> {
+        self.verify_command(cmd)?;
+
         info!(
             "Processing remote command '{}' (ID: {}) for device '{}'",
             cmd.command_type, cmd.command_id, self.device_id
@@ -277,9 +390,11 @@ mod tests {
             command_id: "cmd-001".into(),
             device_id: "dev-123456".into(),
             command_type: "update_blacklist".into(),
+            timestamp: 0,
             payload: serde_json::json!({
                 "domains": ["tiktok.com", "facebook.com", "youtube.com"]
             }),
+            signature: None,
         };
 
         dispatcher.dispatch_command(&cmd).unwrap();
@@ -301,9 +416,11 @@ mod tests {
             command_id: "cmd-002".into(),
             device_id: "dev-123456".into(),
             command_type: "reset_pin".into(),
+            timestamp: 0,
             payload: serde_json::json!({
                 "new_pin": "9876"
             }),
+            signature: None,
         };
 
         dispatcher.dispatch_command(&cmd).unwrap();
@@ -322,7 +439,9 @@ mod tests {
             command_id: "cmd-003".into(),
             device_id: "dev-123456".into(),
             command_type: "lock_session".into(),
+            timestamp: 0,
             payload: serde_json::json!({}),
+            signature: None,
         };
 
         let res = dispatcher.dispatch_command(&cmd);
@@ -352,10 +471,130 @@ mod tests {
             command_id: "cmd-004".into(),
             device_id: "dev-123456".into(),
             command_type: "approve_install".into(),
+            timestamp: 0,
             payload: serde_json::json!({ "request_id": "req-app-01" }),
+            signature: None,
         };
         dispatcher.dispatch_command(&approve_cmd).unwrap();
         assert!(installer.is_hash_approved("hash-game-123"));
+    }
+
+    #[test]
+    fn test_command_hmac_verification_success() {
+        let storage = StorageEngine::in_memory().unwrap();
+        let blocklist = Arc::new(BlocklistStore::new());
+        let installer = Arc::new(InstallerInterceptor::new());
+        let signing_key = "secure-command-signing-key-998877";
+
+        let dispatcher = NatsDispatcher::new("dev-verified-01", storage, blocklist.clone(), installer)
+            .with_signing_key(signing_key);
+
+        let mut cmd = RemoteCommand {
+            command_id: "cmd-sec-101".into(),
+            device_id: "dev-verified-01".into(),
+            command_type: "update_blacklist".into(),
+            timestamp: chrono::Utc::now().timestamp(),
+            payload: serde_json::json!({ "domains": ["evil-site.com"] }),
+            signature: None,
+        };
+
+        // Compute valid signature
+        let sig = compute_command_hmac(signing_key, &cmd);
+        cmd.signature = Some(sig);
+
+        // Verification should succeed and command executes
+        assert!(dispatcher.dispatch_command(&cmd).is_ok());
+        assert!(blocklist.is_blocked("evil-site.com"));
+    }
+
+    #[test]
+    fn test_command_hmac_tampered_payload_rejected() {
+        let storage = StorageEngine::in_memory().unwrap();
+        let blocklist = Arc::new(BlocklistStore::new());
+        let installer = Arc::new(InstallerInterceptor::new());
+        let signing_key = "secret-key-123";
+
+        let dispatcher = NatsDispatcher::new("dev-tamper-01", storage, blocklist, installer)
+            .with_signing_key(signing_key);
+
+        let mut cmd = RemoteCommand {
+            command_id: "cmd-sec-102".into(),
+            device_id: "dev-tamper-01".into(),
+            command_type: "lock_session".into(),
+            timestamp: chrono::Utc::now().timestamp(),
+            payload: serde_json::json!({ "reason": "bedtime" }),
+            signature: None,
+        };
+
+        let sig = compute_command_hmac(signing_key, &cmd);
+        cmd.signature = Some(sig);
+
+        // Tamper payload after signing
+        cmd.payload = serde_json::json!({ "reason": "tampered_evil_instruction" });
+
+        let res = dispatcher.dispatch_command(&cmd);
+        assert!(res.is_err());
+        match res.unwrap_err() {
+            SyncError::Authentication(msg) => assert!(msg.contains("Invalid HMAC command signature")),
+            other => panic!("Expected Authentication error, got: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_command_replay_window_expired() {
+        let storage = StorageEngine::in_memory().unwrap();
+        let blocklist = Arc::new(BlocklistStore::new());
+        let installer = Arc::new(InstallerInterceptor::new());
+        let signing_key = "secret-key-123";
+
+        let dispatcher = NatsDispatcher::new("dev-replay-01", storage, blocklist, installer)
+            .with_signing_key(signing_key);
+
+        // Timestamp from 10 minutes ago (> 300s window)
+        let old_timestamp = chrono::Utc::now().timestamp() - 600;
+        let mut cmd = RemoteCommand {
+            command_id: "cmd-sec-103".into(),
+            device_id: "dev-replay-01".into(),
+            command_type: "lock_session".into(),
+            timestamp: old_timestamp,
+            payload: serde_json::json!({}),
+            signature: None,
+        };
+
+        let sig = compute_command_hmac(signing_key, &cmd);
+        cmd.signature = Some(sig);
+
+        let res = dispatcher.dispatch_command(&cmd);
+        assert!(res.is_err());
+        match res.unwrap_err() {
+            SyncError::Authentication(msg) => assert!(msg.contains("drift exceeded")),
+            other => panic!("Expected Authentication error, got: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_command_device_mismatch() {
+        let storage = StorageEngine::in_memory().unwrap();
+        let blocklist = Arc::new(BlocklistStore::new());
+        let installer = Arc::new(InstallerInterceptor::new());
+
+        let dispatcher = NatsDispatcher::new("dev-mine", storage, blocklist, installer);
+
+        let cmd = RemoteCommand {
+            command_id: "cmd-sec-104".into(),
+            device_id: "dev-other".into(),
+            command_type: "lock_session".into(),
+            timestamp: 0,
+            payload: serde_json::json!({}),
+            signature: None,
+        };
+
+        let res = dispatcher.dispatch_command(&cmd);
+        assert!(res.is_err());
+        match res.unwrap_err() {
+            SyncError::Authentication(msg) => assert!(msg.contains("Device ID mismatch")),
+            other => panic!("Expected Authentication error, got: {:?}", other),
+        }
     }
 
     #[test]

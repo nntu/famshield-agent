@@ -110,7 +110,16 @@ impl ServiceController {
             self.dns_cache.clone(),
         );
 
-        // 3. Periodic Process Monitoring Task (every 5 seconds)
+        // 3. Start Secure Named Pipe Server (Session 0 <-> User Session)
+        let ipc_server = crate::ipc::NamedPipeServer::new(self.ipc_dispatcher.clone());
+        let ipc_shutdown_rx = shutdown_rx.resubscribe();
+        tokio::spawn(async move {
+            if let Err(e) = ipc_server.run(ipc_shutdown_rx).await {
+                tracing::warn!("Named Pipe IPC server encountered error: {}", e);
+            }
+        });
+
+        // 4. Periodic Process Monitoring Task (every 5 seconds)
         let proc_monitor = self.process_monitor.clone();
         let nats = self.nats_dispatcher.clone();
         let storage = self.storage.clone();
