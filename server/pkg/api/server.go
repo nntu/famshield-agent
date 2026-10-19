@@ -50,8 +50,10 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("/v1/auth/activate", s.handleActivate)
 	s.mux.HandleFunc("/v1/auth/status", s.handleAuthStatus)
 	s.mux.HandleFunc("/v1/telegram/webhook", s.handleTelegramWebhook)
+	s.mux.HandleFunc("/v1/download/agent", s.handleDownloadAgent)
 	s.mux.HandleFunc("/healthz", s.handleHealthz)
 }
+
 
 
 func (s *Server) handleHealthz(w http.ResponseWriter, r *http.Request) {
@@ -381,5 +383,40 @@ func (s *Server) handleTelegramWebhook(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusOK)
 }
+
+func (s *Server) handleDownloadAgent(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// 1. Check if custom download URL is configured in environment
+	customURL := os.Getenv("AGENT_DOWNLOAD_URL")
+	if customURL != "" {
+		http.Redirect(w, r, customURL, http.StatusFound)
+		return
+	}
+
+	// 2. Check local built binary paths
+	candidates := []string{
+		"installer/Output/FamShieldSetup-0.1.0.exe",
+		"../installer/Output/FamShieldSetup-0.1.0.exe",
+		"target/release/famshield-service.exe",
+		"../target/release/famshield-service.exe",
+	}
+
+	for _, path := range candidates {
+		if fi, err := os.Stat(path); err == nil && !fi.IsDir() {
+			w.Header().Set("Content-Disposition", "attachment; filename=\"FamShieldSetup.exe\"")
+			http.ServeFile(w, r, path)
+			return
+		}
+	}
+
+	// 3. Fallback to GitHub Release download URL
+	githubReleaseURL := "https://github.com/nntu/famshield/releases/latest/download/FamShieldSetup-0.1.0.exe"
+	http.Redirect(w, r, githubReleaseURL, http.StatusFound)
+}
+
 
 

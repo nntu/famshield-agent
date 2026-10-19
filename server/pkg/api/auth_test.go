@@ -81,3 +81,18 @@ func TestAuthRegisterAndActivate(t *testing.T) {
 		t.Errorf("Expected active status, got %v", statusResp["status"])
 	}
 }
+
+func TestDownloadAgent(t *testing.T) {
+	st := store.NewMemoryStore()
+	srv := NewServer(st)
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/download/agent", nil)
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	// Either serves local file (200) or redirects to GitHub (302)
+	if w.Code != http.StatusOK && w.Code != http.StatusFound {
+		t.Errorf("Expected 200 OK or 302 Found, got %d", w.Code)
+	}
+}
+

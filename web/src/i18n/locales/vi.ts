@@ -61,7 +61,18 @@ export const vi = {
   auth_or_otp_code: 'Hoặc nhập mã OTP sau: {code}',
   auth_activated_success: '🎉 Tài khoản đã kích hoạt thành công! Chào mừng bạn.',
   auth_close: 'Đóng',
+
+  // Download Agent
+  nav_download_agent: 'Tải Agent Windows',
+  download_agent_title: 'Tải Bộ Cài Đặt FamShield Agent',
+  download_agent_desc: 'Cài đặt trực tiếp trên máy tính con để bắt đầu bảo vệ (Windows 10, 11 64-bit).',
+  download_exe_btn: 'Tải FamShieldSetup.exe',
+  download_instructions: 'Hướng dẫn cài đặt nhanh:',
+  download_step1: '1. Nhấp tải bộ cài FamShieldSetup.exe về máy tính của con.',
+  download_step2: '2. Chạy cài đặt và mở Bảng điều khiển cục bộ để nhập mã ghép đôi 6 số.',
+  download_step3: '3. Máy tính của con sẽ được kích hoạt chế độ bảo vệ mạng WFP và DNS an toàn ngay lập tức.',
 };
 
 export type TranslationKeys = keyof typeof vi;
+
 

@@ -63,5 +63,16 @@ export const en: Record<TranslationKeys, string> = {
   auth_or_otp_code: 'Or send this OTP code to Bot: {code}',
   auth_activated_success: '🎉 Account activated successfully! Welcome to FamShield.',
   auth_close: 'Close',
+
+  // Download Agent
+  nav_download_agent: 'Download Windows Agent',
+  download_agent_title: 'Download FamShield Agent Installer',
+  download_agent_desc: 'Install directly on child device to begin automated protection (Windows 10, 11 64-bit).',
+  download_exe_btn: 'Download FamShieldSetup.exe',
+  download_instructions: 'Quick Installation Guide:',
+  download_step1: '1. Download and run FamShieldSetup.exe with Administrator privileges.',
+  download_step2: '2. Launch the session helper and enter the 6-digit enrollment code from "Enroll New Device".',
+  download_step3: '3. Child computer will immediately enforce network WFP drop rules and DNS proxy.',
 };
+
 
