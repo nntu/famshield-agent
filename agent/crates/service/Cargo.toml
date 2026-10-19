@@ -12,7 +12,8 @@ famshield-storage = { workspace = true }
 famshield-dns = { workspace = true }
 famshield-windows = { workspace = true }
 famshield-local-admin = { workspace = true }
-famshield-sync = { path = "../sync" }
+famshield-sync = { workspace = true }
+famshield-updater = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
@@ -22,7 +23,7 @@ serde_json = { workspace = true }
 chrono = { workspace = true }
 
 [target.'cfg(windows)'.dependencies]
-windows-service = "0.8"
+windows-service = { workspace = true }
 windows = { version = "0.58", features = [
     "Win32_Foundation",
     "Win32_Security",

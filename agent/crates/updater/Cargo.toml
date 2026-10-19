@@ -1,4 +1,4 @@
-﻿[package]
+[package]
 name = "famshield-updater"
 version.workspace = true
 edition.workspace = true
@@ -14,6 +14,6 @@ tracing = { workspace = true }
 thiserror = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
-p256 = { version = "0.13", features = ["ecdsa"] }
-semver = "1.0"
+p256 = { workspace = true }
+semver = { workspace = true }
 

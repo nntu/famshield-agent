@@ -65,7 +65,9 @@ Tất cả các thay đổi quan trọng của dự án **FamShield Windows Agen
   - Bộ mẫu GitHub: Pull Request Template, Bug Report Template, Feature Request Template.
 
 ### Changed
-- Nâng cấp bộ test suite lên **57 unit tests** trên 29 test suites, đạt trạng thái pass 100%.
+- Hợp nhất và chuẩn hóa toàn bộ dependencies về `[workspace.dependencies]` tại file gốc `Cargo.toml`, loại bỏ hoàn toàn hiện tượng phân mảnh phiên bản (version drift) và tối ưu hóa thời gian biên dịch cho mục tiêu phát triển lâu dài.
+- Rà soát toàn diện 17 thư viện bên thứ ba: 100% các gói đều thuộc phiên bản mới nhất, ổn định và được hỗ trợ tích cực bởi cộng đồng Rust (Tokio 1.38+, Windows 0.58, Rusqlite 0.31, RustCrypto 0.10/0.13, Thiserror 1.0, Tracing 0.1, Serde 1.0).
+- Nâng cấp bộ test suite lên **60 unit tests** trên 29 test suites, đạt trạng thái pass 100%.
 - Thay thế các timer quét tiến trình flaky trong kiểm thử bằng injected snapshot.
 - Định dạng toàn bộ mã nguồn theo chuẩn `cargo fmt`.
 
