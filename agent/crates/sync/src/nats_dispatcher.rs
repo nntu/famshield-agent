@@ -5,7 +5,7 @@ use tracing::{info, warn};
 use famshield_dns::blocklist::BlocklistStore;
 use famshield_local_admin::MasterPinAuthenticator;
 use famshield_storage::StorageEngine;
-use famshield_windows::SessionManager;
+use famshield_windows::{InstallerInterceptor, SessionManager};
 use crate::error::SyncError;
 
 /// Command payload pushed from Server via NATS JetStream: `devices.{device_id}.commands`
@@ -13,7 +13,7 @@ use crate::error::SyncError;
 pub struct RemoteCommand {
     pub command_id: String,
     pub device_id: String,
-    pub command_type: String, // "lock_session", "update_blacklist", "reset_pin", "update_policy"
+    pub command_type: String, // "lock_session", "update_blacklist", "reset_pin", "update_policy", "approve_install", "deny_install"
     #[serde(default)]
     pub payload: serde_json::Value,
 }
@@ -24,14 +24,21 @@ pub struct NatsDispatcher {
     device_id: String,
     storage: StorageEngine,
     blocklist: Arc<BlocklistStore>,
+    installer: Arc<InstallerInterceptor>,
 }
 
 impl NatsDispatcher {
-    pub fn new(device_id: impl Into<String>, storage: StorageEngine, blocklist: Arc<BlocklistStore>) -> Self {
+    pub fn new(
+        device_id: impl Into<String>,
+        storage: StorageEngine,
+        blocklist: Arc<BlocklistStore>,
+        installer: Arc<InstallerInterceptor>,
+    ) -> Self {
         Self {
             device_id: device_id.into(),
             storage,
             blocklist,
+            installer,
         }
     }
 
@@ -122,6 +129,36 @@ impl NatsDispatcher {
                 Ok(())
             }
 
+            "approve_install" => {
+                let id_or_hash = cmd
+                    .payload
+                    .get("request_id")
+                    .or_else(|| cmd.payload.get("file_hash"))
+                    .and_then(|v| v.as_str())
+                    .ok_or_else(|| SyncError::Command("Missing 'request_id' or 'file_hash'".into()))?;
+
+                info!("Server approved installation for: {}", id_or_hash);
+                self.installer
+                    .approve_installation(id_or_hash)
+                    .map_err(|e| SyncError::Command(format!("Failed to approve install: {}", e)))?;
+                Ok(())
+            }
+
+            "deny_install" => {
+                let id_or_hash = cmd
+                    .payload
+                    .get("request_id")
+                    .or_else(|| cmd.payload.get("file_hash"))
+                    .and_then(|v| v.as_str())
+                    .ok_or_else(|| SyncError::Command("Missing 'request_id' or 'file_hash'".into()))?;
+
+                info!("Server denied installation for: {}", id_or_hash);
+                self.installer
+                    .deny_installation(id_or_hash)
+                    .map_err(|e| SyncError::Command(format!("Failed to deny install: {}", e)))?;
+                Ok(())
+            }
+
             unknown => {
                 warn!("Received unknown remote command type: '{}'", unknown);
                 Err(SyncError::Command(format!("Unknown command type: {}", unknown)))
@@ -138,7 +175,8 @@ mod tests {
     fn test_nats_command_subjects() {
         let storage = StorageEngine::in_memory().unwrap();
         let blocklist = Arc::new(BlocklistStore::new());
-        let dispatcher = NatsDispatcher::new("dev-999888", storage, blocklist);
+        let installer = Arc::new(InstallerInterceptor::new());
+        let dispatcher = NatsDispatcher::new("dev-999888", storage, blocklist, installer);
 
         assert_eq!(dispatcher.command_subject(), "devices.dev-999888.commands");
         assert_eq!(dispatcher.event_subject(), "devices.dev-999888.events");
@@ -149,7 +187,8 @@ mod tests {
     fn test_dispatch_update_blacklist() {
         let storage = StorageEngine::in_memory().unwrap();
         let blocklist = Arc::new(BlocklistStore::new());
-        let dispatcher = NatsDispatcher::new("dev-123456", storage, blocklist.clone());
+        let installer = Arc::new(InstallerInterceptor::new());
+        let dispatcher = NatsDispatcher::new("dev-123456", storage, blocklist.clone(), installer);
 
         assert!(!blocklist.is_blocked("tiktok.com"));
 
@@ -174,7 +213,8 @@ mod tests {
     fn test_dispatch_reset_pin() {
         let storage = StorageEngine::in_memory().unwrap();
         let blocklist = Arc::new(BlocklistStore::new());
-        let dispatcher = NatsDispatcher::new("dev-123456", storage.clone(), blocklist);
+        let installer = Arc::new(InstallerInterceptor::new());
+        let dispatcher = NatsDispatcher::new("dev-123456", storage.clone(), blocklist, installer);
 
         let cmd = RemoteCommand {
             command_id: "cmd-002".into(),
@@ -194,7 +234,8 @@ mod tests {
     fn test_dispatch_lock_session() {
         let storage = StorageEngine::in_memory().unwrap();
         let blocklist = Arc::new(BlocklistStore::new());
-        let dispatcher = NatsDispatcher::new("dev-123456", storage, blocklist);
+        let installer = Arc::new(InstallerInterceptor::new());
+        let dispatcher = NatsDispatcher::new("dev-123456", storage, blocklist, installer);
 
         let cmd = RemoteCommand {
             command_id: "cmd-003".into(),
@@ -203,10 +244,36 @@ mod tests {
             payload: serde_json::json!({}),
         };
 
-        // Verifies the dispatch logic executes cleanly
         let res = dispatcher.dispatch_command(&cmd);
-        // Note: On Windows desktop LockWorkStation() will trigger or return ok;
-        // inside an interactive non-elevated or elevated process it succeeds.
         assert!(res.is_ok());
+    }
+
+    #[test]
+    fn test_dispatch_approve_deny_install() {
+        use famshield_windows::InstallationRequest;
+        let storage = StorageEngine::in_memory().unwrap();
+        let blocklist = Arc::new(BlocklistStore::new());
+        let installer = Arc::new(InstallerInterceptor::new());
+        let dispatcher = NatsDispatcher::new("dev-123456", storage, blocklist, installer.clone());
+
+        installer.submit_request(InstallationRequest {
+            request_id: "req-app-01".into(),
+            process_id: 9999,
+            executable_path: "C:\\Downloads\\GameSetup.exe".into(),
+            file_hash_sha256: "hash-game-123".into(),
+            publisher: Some("Epic Games".into()),
+        });
+
+        assert!(!installer.is_hash_approved("hash-game-123"));
+
+        // Approve command from server
+        let approve_cmd = RemoteCommand {
+            command_id: "cmd-004".into(),
+            device_id: "dev-123456".into(),
+            command_type: "approve_install".into(),
+            payload: serde_json::json!({ "request_id": "req-app-01" }),
+        };
+        dispatcher.dispatch_command(&approve_cmd).unwrap();
+        assert!(installer.is_hash_approved("hash-game-123"));
     }
 }

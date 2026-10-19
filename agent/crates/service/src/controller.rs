@@ -8,7 +8,7 @@ use famshield_dns::{
 };
 use famshield_storage::StorageEngine;
 use famshield_sync::NatsDispatcher;
-use famshield_windows::wfp::WfpSessionGuard;
+use famshield_windows::{wfp::WfpSessionGuard, InstallerInterceptor};
 use crate::dispatcher::IpcDispatcher;
 
 /// Core service controller orchestrating DNS, WFP, Local IPC, Storage, and NATS JetStream dispatcher.
@@ -17,6 +17,7 @@ pub struct ServiceController {
     ipc_dispatcher: Arc<IpcDispatcher>,
     dns_blocklist: Arc<BlocklistStore>,
     dns_cache: Arc<DnsCache>,
+    installer: Arc<InstallerInterceptor>,
     nats_dispatcher: Arc<NatsDispatcher>,
 }
 
@@ -25,6 +26,7 @@ impl ServiceController {
         let ipc_dispatcher = Arc::new(IpcDispatcher::new(storage.clone()));
         let dns_blocklist = Arc::new(BlocklistStore::new());
         let dns_cache = Arc::new(DnsCache::new());
+        let installer = Arc::new(InstallerInterceptor::new());
 
         // Read enrolled device_id from storage meta or fallback to standalone ID
         let device_id = storage
@@ -37,6 +39,7 @@ impl ServiceController {
             device_id,
             storage.clone(),
             dns_blocklist.clone(),
+            installer.clone(),
         ));
 
         Self {
@@ -44,6 +47,7 @@ impl ServiceController {
             ipc_dispatcher,
             dns_blocklist,
             dns_cache,
+            installer,
             nats_dispatcher,
         }
     }
