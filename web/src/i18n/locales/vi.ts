@@ -47,6 +47,21 @@ export const vi = {
 
   // Quick Action & Footer
   footer_status: 'Hệ thống bảo vệ chủ động FamShield đang hoạt động bình thường.',
+
+  // User Auth & Telegram Activation
+  auth_register_btn: 'Đăng ký Phụ huynh',
+  auth_register_title: 'Đăng Ký Tài Khoản FamShield',
+  auth_email_label: 'Email phụ huynh',
+  auth_password_label: 'Mật khẩu',
+  auth_telegram_label: 'Telegram Username (Tùy chọn)',
+  auth_submit_register: 'Đăng ký & Kích hoạt qua Telegram',
+  auth_activation_pending: 'Chờ Kích Hoạt Qua Telegram',
+  auth_activation_desc: 'FamShield kích hoạt tài khoản qua Telegram Bot để đảm bảo nhận thông báo vi phạm và yêu cầu xin thêm giờ tức thì, không bị giới hạn gửi thư của Gmail.',
+  auth_open_telegram_btn: '👉 Kích Hoạt Ngay Qua Telegram (1 chạm)',
+  auth_or_otp_code: 'Hoặc nhập mã OTP sau: {code}',
+  auth_activated_success: '🎉 Tài khoản đã kích hoạt thành công! Chào mừng bạn.',
+  auth_close: 'Đóng',
 };
 
 export type TranslationKeys = keyof typeof vi;
+

@@ -2,10 +2,13 @@ import React, { useState } from 'react';
 import { Device, ChildProfile, VisualEvidence } from './types';
 import { useI18n } from './i18n/I18nContext';
 import { LanguageSwitcher } from './components/LanguageSwitcher';
+import { RegisterModal } from './components/RegisterModal';
 
 export const App: React.FC = () => {
   const { t } = useI18n();
   const [activeTab, setActiveTab] = useState<'overview' | 'children' | 'devices' | 'evidence'>('overview');
+  const [isRegisterOpen, setIsRegisterOpen] = useState(false);
+
 
   const [devices] = useState<Device[]>([
     {
@@ -101,12 +104,33 @@ export const App: React.FC = () => {
           <div style={{ fontSize: '0.875rem', color: '#94a3b8' }}>
             {t('footer_status')}
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+            <button
+              onClick={() => setIsRegisterOpen(true)}
+              style={{
+                background: '#0284c7',
+                color: '#fff',
+                border: 'none',
+                padding: '6px 14px',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                fontSize: '0.85rem',
+                fontWeight: 600,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+              }}
+            >
+              <span>✈️</span> {t('auth_register_btn')}
+            </button>
             <span style={{ fontSize: '0.8rem', background: 'rgba(74, 222, 128, 0.15)', color: '#4ade80', padding: '4px 12px', borderRadius: '9999px', fontWeight: 600 }}>
               {t('devices_status_online')}
             </span>
           </div>
         </header>
+
+        <RegisterModal isOpen={isRegisterOpen} onClose={() => setIsRegisterOpen(false)} />
+
 
         {activeTab === 'overview' && (
           <div>

@@ -25,6 +25,9 @@ services:
       - PORT=8080
       - LOG_LEVEL=info
       - NATS_URL=nats://nats:4222
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
+      - TELEGRAM_BOT_USERNAME=${TELEGRAM_BOT_USERNAME:-FamShieldBot}
+
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8080/healthz || exit 1"]
       interval: 10s

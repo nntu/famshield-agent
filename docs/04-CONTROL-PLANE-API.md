@@ -85,3 +85,33 @@ Draft editing validates the policy schema but has no endpoint effect. Publishing
 List and report endpoints default to 50 rows and cap at 500. Report ranges default to seven days and cap at 90 days. CSV export is an asynchronous audited operation when the result may exceed a normal response limit.
 
 Application inventory responses distinguish `running`, `foreground`, and historical `last_seen_at`. A device that has stopped reporting must never show stale process state as currently running. Each classification returns its source—guardian, signed catalog, suggested, or unknown—and catalog version when applicable.
+
+## User Registration and Telegram Activation
+
+To eliminate Gmail daily sending quotas and deliverability failures, FamShield utilizes Telegram Bot API for account activation and real-time alert delivery:
+
+### 1. `POST /v1/auth/register`
+- **Request Body:** `{ "email": "parent@example.com", "password": "...", "telegram_username": "optional" }`
+- **Response:**
+  ```json
+  {
+    "user_id": "usr-8f7b3e1a",
+    "email": "parent@example.com",
+    "status": "pending_activation",
+    "telegram_bot_url": "https://t.me/FamShieldBot?start=act_8f7b3e1a90c21345",
+    "activation_token": "act_8f7b3e1a90c21345",
+    "activation_code": "582910",
+    "expires_at": "2026-10-20T19:35:00Z"
+  }
+  ```
+
+### 2. Telegram Bot Deep-Link Activation Workflow
+1. User clicks `telegram_bot_url` (`https://t.me/FamShieldBot?start=act_...`).
+2. Telegram opens and user clicks **START**.
+3. Telegram Bot API sends update `/start act_...` to `POST /v1/telegram/webhook`.
+4. Control Plane validates token, marks user `active`, pairs `telegram_chat_id`, and sends a welcome confirmation message.
+5. Web Console polling `GET /v1/auth/status?user_id=...` immediately transitions to active and signs the guardian in.
+
+### 3. `POST /v1/auth/activate`
+Fallback endpoint supporting direct activation with either `token` or 6-digit `code`.
+

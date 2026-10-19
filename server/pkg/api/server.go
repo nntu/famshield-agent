@@ -3,22 +3,26 @@ package api
 import (
 	"encoding/json"
 	"net/http"
+	"os"
 
 	"famshield-server/pkg/model"
 	"famshield-server/pkg/queue"
 	"famshield-server/pkg/store"
+	"famshield-server/pkg/telegram"
 )
 
 type Server struct {
-	store *store.MemoryStore
-	queue *queue.QueueManager
-	mux   *http.ServeMux
+	store    *store.MemoryStore
+	queue    *queue.QueueManager
+	telegram *telegram.Service
+	mux      *http.ServeMux
 }
 
 func NewServer(s *store.MemoryStore) *Server {
 	srv := &Server{
-		store: s,
-		mux:   http.NewServeMux(),
+		store:    s,
+		telegram: telegram.NewService(os.Getenv("TELEGRAM_BOT_TOKEN"), os.Getenv("TELEGRAM_BOT_USERNAME"), s),
+		mux:      http.NewServeMux(),
 	}
 	srv.registerRoutes()
 	return srv
@@ -26,6 +30,10 @@ func NewServer(s *store.MemoryStore) *Server {
 
 func (s *Server) SetQueue(q *queue.QueueManager) {
 	s.queue = q
+}
+
+func (s *Server) SetTelegram(t *telegram.Service) {
+	s.telegram = t
 }
 
 func (s *Server) Handler() http.Handler {
@@ -38,8 +46,13 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("/v1/device/heartbeat", s.handleHeartbeat)
 	s.mux.HandleFunc("/v1/releases/latest", s.handleGetLatestRelease)
 	s.mux.HandleFunc("/v1/admin/enrollment-codes", s.handleGenerateEnrollmentCode)
+	s.mux.HandleFunc("/v1/auth/register", s.handleRegister)
+	s.mux.HandleFunc("/v1/auth/activate", s.handleActivate)
+	s.mux.HandleFunc("/v1/auth/status", s.handleAuthStatus)
+	s.mux.HandleFunc("/v1/telegram/webhook", s.handleTelegramWebhook)
 	s.mux.HandleFunc("/healthz", s.handleHealthz)
 }
+
 
 func (s *Server) handleHealthz(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
@@ -223,4 +236,150 @@ func (s *Server) handleGetLatestRelease(w http.ResponseWriter, r *http.Request) 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(rel)
 }
+
+type RegisterRequest struct {
+	Email            string `json:"email"`
+	Password         string `json:"password"`
+	TelegramUsername string `json:"telegram_username,omitempty"`
+}
+
+type RegisterResponse struct {
+	UserID          string `json:"user_id"`
+	Email           string `json:"email"`
+	Status          string `json:"status"`
+	TelegramBotURL  string `json:"telegram_bot_url"`
+	ActivationToken string `json:"activation_token"`
+	ActivationCode  string `json:"activation_code"`
+	ExpiresAt       string `json:"expires_at"`
+}
+
+func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req RegisterRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Email == "" || req.Password == "" {
+		http.Error(w, "Email and password are required", http.StatusBadRequest)
+		return
+	}
+
+	// Simple hash for password
+	user, err := s.store.RegisterUser(req.Email, "hash_"+req.Password, req.TelegramUsername)
+	if err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusConflict)
+		json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		return
+	}
+
+	botURL := s.telegram.GetActivationDeepLink(user.ActivationToken)
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(RegisterResponse{
+		UserID:          user.ID,
+		Email:           user.Email,
+		Status:          user.Status,
+		TelegramBotURL:  botURL,
+		ActivationToken: user.ActivationToken,
+		ActivationCode:  user.ActivationCode,
+		ExpiresAt:       user.TokenExpiresAt.Format("2006-01-02T15:04:05Z07:00"),
+	})
+}
+
+type ActivateRequest struct {
+	Token string `json:"token,omitempty"`
+	Code  string `json:"code,omitempty"`
+}
+
+func (s *Server) handleActivate(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req ActivateRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Bad request", http.StatusBadRequest)
+		return
+	}
+
+	var user *model.User
+	var err error
+	if req.Token != "" {
+		user, err = s.store.ActivateUserByToken(req.Token, 0, "")
+	} else if req.Code != "" {
+		user, err = s.store.ActivateUserByCode(req.Code)
+	} else {
+		http.Error(w, "Either token or code is required", http.StatusBadRequest)
+		return
+	}
+
+	if err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{
+		"status":  user.Status,
+		"user_id": user.ID,
+		"email":   user.Email,
+		"message": "Tài khoản FamShield đã được kích hoạt thành công!",
+	})
+}
+
+func (s *Server) handleAuthStatus(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	userID := r.URL.Query().Get("user_id")
+	email := r.URL.Query().Get("email")
+
+	var user *model.User
+	var ok bool
+	if userID != "" {
+		user, ok = s.store.GetUserByID(userID)
+	} else if email != "" {
+		user, ok = s.store.GetUserByEmail(email)
+	}
+
+	if !ok {
+		w.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(w).Encode(map[string]string{"error": "user not found"})
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{
+		"user_id":      user.ID,
+		"email":        user.Email,
+		"status":       user.Status,
+		"activated_at": user.ActivatedAt,
+	})
+}
+
+func (s *Server) handleTelegramWebhook(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var update telegram.Update
+	if err := json.NewDecoder(r.Body).Decode(&update); err != nil {
+		http.Error(w, "Invalid payload", http.StatusBadRequest)
+		return
+	}
+
+	_ = s.telegram.HandleUpdate(&update)
+
+	w.WriteHeader(http.StatusOK)
+}
+
 

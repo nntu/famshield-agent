@@ -1,4 +1,4 @@
-﻿package store
+package store
 
 import (
 	"crypto/rand"
@@ -18,6 +18,11 @@ type MemoryStore struct {
 	events          map[string]*model.IngestedEvent
 	evidence        map[string]*model.VisualEvidenceMetadata
 	latestRelease   *model.ReleaseManifest
+	users           map[string]*model.User
+	usersByEmail    map[string]*model.User
+	usersByToken    map[string]*model.User
+	usersByCode     map[string]*model.User
+	usersByChatID   map[int64]*model.User
 }
 
 func NewMemoryStore() *MemoryStore {
@@ -27,6 +32,11 @@ func NewMemoryStore() *MemoryStore {
 		commands:        make(map[string]*model.DeviceCommand),
 		events:          make(map[string]*model.IngestedEvent),
 		evidence:        make(map[string]*model.VisualEvidenceMetadata),
+		users:           make(map[string]*model.User),
+		usersByEmail:    make(map[string]*model.User),
+		usersByToken:    make(map[string]*model.User),
+		usersByCode:     make(map[string]*model.User),
+		usersByChatID:   make(map[int64]*model.User),
 		latestRelease: &model.ReleaseManifest{
 			ManifestVersion:     1,
 			Version:             "0.1.1",
@@ -39,6 +49,7 @@ func NewMemoryStore() *MemoryStore {
 		},
 	}
 }
+
 
 // GenerateEnrollmentCode creates a 6-digit random code valid for 15 minutes.
 func (s *MemoryStore) GenerateEnrollmentCode(tenantID string, childID *string) (*model.EnrollmentCode, error) {
@@ -129,4 +140,126 @@ func (s *MemoryStore) PublishRelease(release *model.ReleaseManifest) {
 	defer s.mu.Unlock()
 	s.latestRelease = release
 }
+
+// RegisterUser creates a new user in pending_activation status with an activation token and OTP code.
+func (s *MemoryStore) RegisterUser(email, passwordHash, telegramUsername string) (*model.User, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if _, exists := s.usersByEmail[email]; exists {
+		return nil, fmt.Errorf("user with email %s already exists", email)
+	}
+
+	// Generate activation token (random 16 hex chars)
+	tokenBytes := make([]byte, 8)
+	if _, err := rand.Read(tokenBytes); err != nil {
+		return nil, err
+	}
+	token := fmt.Sprintf("act_%x", tokenBytes)
+
+	// Generate 6-digit OTP code
+	n, err := rand.Int(rand.Reader, big.NewInt(900000))
+	if err != nil {
+		return nil, err
+	}
+	code := fmt.Sprintf("%06d", n.Int64()+100000)
+
+	userID := fmt.Sprintf("usr-%x", tokenBytes[:4])
+	tenantID := fmt.Sprintf("tenant-%s", userID)
+
+	now := time.Now().UTC()
+	user := &model.User{
+		ID:               userID,
+		Email:            email,
+		PasswordHash:     passwordHash,
+		Status:           model.UserStatusPendingActivation,
+		TenantID:         tenantID,
+		TelegramUsername: telegramUsername,
+		ActivationToken:  token,
+		ActivationCode:   code,
+		TokenExpiresAt:   now.Add(24 * time.Hour), // Valid for 24 hours
+		CreatedAt:        now,
+	}
+
+	s.users[userID] = user
+	s.usersByEmail[email] = user
+	s.usersByToken[token] = user
+	s.usersByCode[code] = user
+
+	return user, nil
+}
+
+// ActivateUserByToken activates user via Telegram deep link /start <token>.
+func (s *MemoryStore) ActivateUserByToken(token string, telegramChatID int64, telegramUsername string) (*model.User, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	user, exists := s.usersByToken[token]
+	if !exists {
+		return nil, fmt.Errorf("invalid activation token")
+	}
+
+	now := time.Now().UTC()
+	if !user.IsTokenValid(now) {
+		return nil, fmt.Errorf("activation token expired or already used")
+	}
+
+	user.Status = model.UserStatusActive
+	user.ActivatedAt = &now
+	user.TelegramChatID = telegramChatID
+	if telegramUsername != "" {
+		user.TelegramUsername = telegramUsername
+	}
+
+	if telegramChatID != 0 {
+		s.usersByChatID[telegramChatID] = user
+	}
+
+	return user, nil
+}
+
+// ActivateUserByCode activates user via 6-digit OTP code.
+func (s *MemoryStore) ActivateUserByCode(code string) (*model.User, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	user, exists := s.usersByCode[code]
+	if !exists {
+		return nil, fmt.Errorf("invalid activation code")
+	}
+
+	now := time.Now().UTC()
+	if !user.IsTokenValid(now) {
+		return nil, fmt.Errorf("activation code expired or already used")
+	}
+
+	user.Status = model.UserStatusActive
+	user.ActivatedAt = &now
+	return user, nil
+}
+
+// GetUserByID retrieves a user by their user ID.
+func (s *MemoryStore) GetUserByID(userID string) (*model.User, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	u, ok := s.users[userID]
+	return u, ok
+}
+
+// GetUserByEmail retrieves a user by email.
+func (s *MemoryStore) GetUserByEmail(email string) (*model.User, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	u, ok := s.usersByEmail[email]
+	return u, ok
+}
+
+// GetUserByTelegramChatID retrieves a user by Telegram Chat ID.
+func (s *MemoryStore) GetUserByTelegramChatID(chatID int64) (*model.User, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	u, ok := s.usersByChatID[chatID]
+	return u, ok
+}
+
 

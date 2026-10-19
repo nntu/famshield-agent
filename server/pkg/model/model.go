@@ -79,3 +79,31 @@ type ReleaseManifest struct {
 	SignatureHex        string    `json:"signature_hex"`
 }
 
+// UserStatus constants
+const (
+	UserStatusPendingActivation = "pending_activation"
+	UserStatusActive            = "active"
+	UserStatusSuspended         = "suspended"
+)
+
+// User represents a registered parent/guardian account.
+type User struct {
+	ID               string     `json:"id"`
+	Email            string     `json:"email"`
+	PasswordHash     string     `json:"-"`
+	Status           string     `json:"status"` // pending_activation, active, suspended
+	TenantID         string     `json:"tenant_id"`
+	TelegramUsername string     `json:"telegram_username,omitempty"`
+	TelegramChatID   int64      `json:"telegram_chat_id,omitempty"`
+	ActivationToken  string     `json:"activation_token,omitempty"` // For deep-link: https://t.me/Bot?start=token
+	ActivationCode   string     `json:"activation_code,omitempty"`  // 6-digit OTP code
+	TokenExpiresAt   time.Time  `json:"token_expires_at"`
+	CreatedAt        time.Time  `json:"created_at"`
+	ActivatedAt      *time.Time `json:"activated_at,omitempty"`
+}
+
+func (u *User) IsTokenValid(now time.Time) bool {
+	return u.Status == UserStatusPendingActivation && now.Before(u.TokenExpiresAt)
+}
+
+
