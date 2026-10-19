@@ -145,3 +145,53 @@ fn test_error_logs_smart_deduplication() {
     assert_eq!(re_emerged[0].occurrence_count, 4);
     assert!(!re_emerged[0].synced);
 }
+
+#[test]
+fn test_outbox_lifecycle_and_retry_backoff() {
+    use chrono::Duration;
+
+    let storage = StorageEngine::in_memory().unwrap();
+    let t0 = Utc::now();
+
+    // 1. Enqueue two events
+    storage
+        .enqueue_outbox("evt-01", "heartbeat", t0, r#"{"uptime": 100}"#)
+        .unwrap();
+    storage
+        .enqueue_outbox("evt-02", "dns_query", t0 + Duration::seconds(1), r#"{"domain": "safe.org"}"#)
+        .unwrap();
+
+    assert_eq!(storage.count_outbox().unwrap(), 2);
+
+    // 2. Peek outbox
+    let pending = storage.peek_outbox_at(10, t0 + Duration::seconds(2)).unwrap();
+    assert_eq!(pending.len(), 2);
+    assert_eq!(pending[0].event_id, "evt-01");
+    assert_eq!(pending[0].attempts, 0);
+    assert_eq!(pending[1].event_id, "evt-02");
+
+    // 3. Fail evt-01 with backoff 30s
+    storage
+        .fail_outbox_events(&["evt-01".to_string()], t0 + Duration::seconds(30))
+        .unwrap();
+
+    // At t0 + 10s: only evt-02 is ready, evt-01 is backing off
+    let ready_t10 = storage.peek_outbox_at(10, t0 + Duration::seconds(10)).unwrap();
+    assert_eq!(ready_t10.len(), 1);
+    assert_eq!(ready_t10[0].event_id, "evt-02");
+
+    // Dequeue evt-02 on success
+    storage.dequeue_outbox(&["evt-02".to_string()]).unwrap();
+    assert_eq!(storage.count_outbox().unwrap(), 1);
+
+    // At t0 + 35s: evt-01 becomes ready again with attempt count = 1
+    let ready_t35 = storage.peek_outbox_at(10, t0 + Duration::seconds(35)).unwrap();
+    assert_eq!(ready_t35.len(), 1);
+    assert_eq!(ready_t35[0].event_id, "evt-01");
+    assert_eq!(ready_t35[0].attempts, 1);
+
+    // Dequeue evt-01 -> outbox is empty
+    storage.dequeue_outbox(&["evt-01".to_string()]).unwrap();
+    assert_eq!(storage.count_outbox().unwrap(), 0);
+}
+
