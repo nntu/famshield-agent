@@ -330,6 +330,32 @@ Các chỉ số giám sát bắt buộc phải theo dõi trên hệ thống:
 
 ---
 
+### 4.5. Runbook 5: Quy Trình Đặt Lại / Khôi Phục Mã PIN Phụ Huynh (Master PIN Reset)
+
+Khi phụ huynh quên mã Master PIN quản trị trên máy trạm, hệ thống hỗ trợ 3 cơ chế khôi phục đa tầng:
+
+#### Cách 1: Đặt Lại Bằng Quyền Quản Trị Hệ Thống Windows (UAC / Administrator Elevation)
+Do trẻ em chỉ sử dụng tài khoản thường (Standard User), phụ huynh là người nắm tài khoản Administrator của máy tính có thể đặt lại PIN tức thì:
+```powershell
+# Chạy PowerShell bằng Run as Administrator:
+.\build.ps1 reset-pin -NewPin "8888"
+
+# Hoặc thực thi trực tiếp qua nhị phân Service:
+"C:\Program Files\FamShield\famshield-service.exe" --reset-pin 8888
+```
+*Hệ thống tự động cập nhật mã hash Argon2id mới vào CSDL SQLite `%ProgramData%\FamShield\famshield.db`.*
+
+#### Cách 2: Khôi Phục Bằng Khóa Cứu Hộ Khẩn Cấp (Emergency Recovery Key)
+- Trong lần đầu tiên thiết lập Master PIN, hệ thống tự động sinh khóa cứu hộ ngẫu nhiên 16 ký tự định dạng `FAM-XXXX-XXXX-XXXX`.
+- Khi quên PIN, tại màn hình xác thực, phụ huynh chọn *"Quên mã PIN?"* và nhập Khóa cứu hộ để đặt mã PIN mới mà không cần kết nối mạng.
+
+#### Cách 3: Đặt Lại Từ Xa Qua Đám Mây & Telegram Bot (Cloud Managed Mode)
+- Khi máy đã ghép đôi với Cloud, phụ huynh đăng nhập Web Console -> chọn máy con -> bấm *"Reset Master PIN"*.
+- Lệnh được ký số và gửi xuống máy trạm qua cơ chế bảo mật mTLS / Polling để cập nhật PIN mới trong vòng 10 giây.
+
+
+---
+
 ## 5. Phần 4: Quy Trình Gỡ Bỏ Hoàn Toàn và Phục Hồi Mạng (Clean Uninstallation)
 
 Nhằm đảm bảo an toàn tuyệt đối, quy trình gỡ bỏ cài đặt phải trả lại 100% trạng thái mạng nguyên bản của Windows, không bao giờ để lại "DNS mồ côi".

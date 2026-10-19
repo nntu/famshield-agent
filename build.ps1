@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
     Build and Installation Script for FamShield Windows Agent.
 
@@ -13,14 +13,19 @@
     install    - Build and install Windows service & NRPT policy (Requires Administrator privileges).
     uninstall  - Stop and remove Windows service & NRPT policy.
     status     - Check service and NRPT status.
+    reset-pin  - Reset Master PIN with Administrator elevation.
 #>
 
 [CmdletBinding()]
 param (
     [Parameter(Position = 0)]
-    [ValidateSet("build", "install", "uninstall", "status")]
-    [string]$Action = "install"
+    [ValidateSet("build", "install", "uninstall", "status", "reset-pin")]
+    [string]$Action = "install",
+
+    [Parameter(Position = 1)]
+    [string]$NewPin = "1234"
 )
+
 
 $ErrorActionPreference = "Stop"
 
@@ -146,10 +151,32 @@ function Show-Status {
     }
 }
 
+function Reset-Pin {
+    Assert-Administrator
+    $SvcBin = Join-Path $InstallDir "famshield-service.exe"
+    if (-not (Test-Path $SvcBin)) {
+        $SvcBin = Join-Path $TargetDir "famshield-service.exe"
+    }
+
+    if (-not (Test-Path $SvcBin)) {
+        Write-Error "Could not find famshield-service.exe to perform PIN reset. Run '.\build.ps1 build' first."
+    }
+
+    Write-Host "==> Resetting FamShield Master PIN with Administrator Privileges..." -ForegroundColor Cyan
+    & $SvcBin --reset-pin $NewPin
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "Master PIN successfully updated to: $NewPin" -ForegroundColor Green
+    } else {
+        Write-Error "Failed to reset Master PIN."
+    }
+}
+
 # Execute requested action
 switch ($Action) {
     "build"     { Build-Agent }
     "install"   { Install-Agent }
     "uninstall" { Uninstall-Agent }
     "status"    { Show-Status }
+    "reset-pin" { Reset-Pin }
 }
+

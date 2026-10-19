@@ -1,4 +1,4 @@
-﻿use famshield_local_admin::{
+use famshield_local_admin::{
     auth::MasterPinAuthenticator,
     service::{CreateRuleRequest, LocalAdminService},
 };
@@ -35,3 +35,39 @@ fn test_local_admin_rule_creation_and_listing() {
     assert!(deleted);
     assert_eq!(service.list_rules().unwrap().len(), 0);
 }
+
+#[test]
+fn test_master_pin_reset_workflows() {
+    let storage = StorageEngine::in_memory().unwrap();
+    let service = LocalAdminService::new(storage);
+
+    // 1. Initial default PIN is "1234"
+    assert!(service.authenticate_storage("1234").unwrap());
+    assert!(!service.authenticate_storage("9999").unwrap());
+
+    // 2. Set new PIN "5678" -> Generates Recovery Key
+    let recovery_key = service.set_master_pin("5678").unwrap();
+    assert!(recovery_key.starts_with("FAM-"));
+    assert_eq!(recovery_key.len(), 18); // "FAM-XXXX-XXXX-XXXX"
+
+    // Verify new PIN works and old default fails
+    assert!(service.authenticate_storage("5678").unwrap());
+    assert!(!service.authenticate_storage("1234").unwrap());
+
+    // 3. Reset PIN using Recovery Key -> Reset to "9012"
+    service
+        .reset_pin_with_recovery_key(&recovery_key, "9012")
+        .unwrap();
+    assert!(service.authenticate_storage("9012").unwrap());
+    assert!(!service.authenticate_storage("5678").unwrap());
+
+    // Attempt reset with invalid recovery key fails
+    let err = service.reset_pin_with_recovery_key("FAM-INVALID-KEY", "0000");
+    assert!(err.is_err());
+
+    // 4. Elevated Administrator Reset (UAC / Windows Admin CLI) -> Reset to "4444"
+    service.reset_pin_elevated("4444").unwrap();
+    assert!(service.authenticate_storage("4444").unwrap());
+    assert!(!service.authenticate_storage("9012").unwrap());
+}
+

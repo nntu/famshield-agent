@@ -1,4 +1,4 @@
-﻿use chrono::Utc;
+use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -37,11 +37,36 @@ impl LocalAdminService {
         Self { storage }
     }
 
+    /// Authenticate guardian using Master PIN against local storage.
+    pub fn authenticate_storage(&self, pin: &str) -> Result<bool, LocalAdminError> {
+        let valid = MasterPinAuthenticator::verify_storage_pin(&self.storage, pin)?;
+        Ok(valid)
+    }
+
+    /// Set initial or new Master PIN, returning Emergency Recovery Key.
+    pub fn set_master_pin(&self, pin: &str) -> Result<String, LocalAdminError> {
+        let key = MasterPinAuthenticator::set_master_pin(&self.storage, pin)?;
+        Ok(key)
+    }
+
+    /// Reset Master PIN using Emergency Recovery Key.
+    pub fn reset_pin_with_recovery_key(&self, recovery_key: &str, new_pin: &str) -> Result<(), LocalAdminError> {
+        MasterPinAuthenticator::reset_pin_with_recovery_key(&self.storage, recovery_key, new_pin)?;
+        Ok(())
+    }
+
+    /// Reset Master PIN with elevated Administrator authorization.
+    pub fn reset_pin_elevated(&self, new_pin: &str) -> Result<(), LocalAdminError> {
+        MasterPinAuthenticator::reset_pin_elevated(&self.storage, new_pin)?;
+        Ok(())
+    }
+
     /// Authenticate guardian using Master PIN.
     pub fn authenticate(&self, pin: &str, stored_hash: &str) -> Result<bool, LocalAdminError> {
         let valid = MasterPinAuthenticator::verify_pin(pin, stored_hash)?;
         Ok(valid)
     }
+
 
     /// Save a local rule in SQLite after verifying structure.
     pub fn create_rule(&self, req: CreateRuleRequest) -> Result<(), LocalAdminError> {

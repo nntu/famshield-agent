@@ -1,4 +1,4 @@
-﻿use std::path::Path;
+use std::path::Path;
 use std::sync::{Arc, Mutex};
 use chrono::{DateTime, Utc};
 use rusqlite::{params, Connection};
@@ -242,4 +242,27 @@ impl StorageEngine {
         )?;
         Ok(affected)
     }
+
+    // Metadata & Master PIN Storage
+    pub fn get_meta(&self, key: &str) -> Result<Option<String>, StorageError> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare("SELECT value FROM agent_meta WHERE key = ?1")?;
+        let mut rows = stmt.query(params![key])?;
+        if let Some(row) = rows.next()? {
+            let val: String = row.get(0)?;
+            Ok(Some(val))
+        } else {
+            Ok(None)
+        }
+    }
+
+    pub fn set_meta(&self, key: &str, value: &str) -> Result<(), StorageError> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "INSERT OR REPLACE INTO agent_meta (key, value) VALUES (?1, ?2)",
+            params![key, value],
+        )?;
+        Ok(())
+    }
 }
+

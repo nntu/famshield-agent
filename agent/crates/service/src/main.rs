@@ -1,4 +1,4 @@
-﻿use std::path::PathBuf;
+use std::path::PathBuf;
 use tracing::info;
 use famshield_service::ServiceController;
 use famshield_storage::StorageEngine;
@@ -6,7 +6,6 @@ use famshield_storage::StorageEngine;
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt::init();
-    info!("Starting FamShield Service runtime...");
 
     // Store database under ProgramData on Windows
     let data_dir = std::env::var("ProgramData")
@@ -17,6 +16,29 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let db_path = data_dir.join("famshield.db");
 
     let storage = StorageEngine::open(&db_path)?;
+
+    // Handle command-line elevated Master PIN reset
+    let args: Vec<String> = std::env::args().collect();
+    if let Some(pos) = args.iter().position(|a| a == "--reset-pin") {
+        if let Some(new_pin) = args.get(pos + 1) {
+            println!("==> [FamShield Administrator Elevation] Resetting Master PIN...");
+            match famshield_local_admin::MasterPinAuthenticator::reset_pin_elevated(&storage, new_pin) {
+                Ok(()) => {
+                    println!("[FamShield] SUCCESS: Master PIN has been successfully reset!");
+                    return Ok(());
+                }
+                Err(e) => {
+                    eprintln!("[FamShield] ERROR: Failed to reset Master PIN: {}", e);
+                    std::process::exit(1);
+                }
+            }
+        } else {
+            eprintln!("[FamShield] ERROR: Missing new PIN. Usage: famshield-service.exe --reset-pin <NEW_PIN>");
+            std::process::exit(1);
+        }
+    }
+
+    info!("Starting FamShield Service runtime...");
     let controller = ServiceController::new(storage);
 
     let (shutdown_tx, shutdown_rx) = tokio::sync::broadcast::channel(1);
