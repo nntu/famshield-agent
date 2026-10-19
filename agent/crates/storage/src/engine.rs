@@ -42,6 +42,17 @@ pub struct VisualEvidenceRecord {
     pub expires_at: DateTime<Utc>,
 }
 
+#[derive(Clone, Debug)]
+pub struct ErrorLogRecord {
+    pub error_id: String,
+    pub module: String,
+    pub severity: String, // 'WARN', 'ERROR', 'FATAL'
+    pub message: String,
+    pub stack_trace: Option<String>,
+    pub occurred_at: DateTime<Utc>,
+    pub synced: bool,
+}
+
 impl StorageEngine {
     pub fn open<P: AsRef<Path>>(path: P) -> Result<Self, StorageError> {
         let mut conn = Connection::open(path)?;
@@ -281,6 +292,72 @@ impl StorageEngine {
             "INSERT OR REPLACE INTO agent_meta (key, value) VALUES (?1, ?2)",
             params![key, value],
         )?;
+        Ok(())
+    }
+
+    // Centralized Error Logging & Remote Telemetry Sync
+    pub fn record_error_log(
+        &self,
+        module: &str,
+        severity: &str,
+        message: &str,
+        stack_trace: Option<&str>,
+    ) -> Result<String, StorageError> {
+        let conn = self.conn.lock().unwrap();
+        let error_id = format!("err-{}-{}", module, Utc::now().timestamp_millis());
+        let occurred_at = Utc::now().to_rfc3339();
+
+        conn.execute(
+            "INSERT INTO error_logs (error_id, module, severity, message, stack_trace, occurred_at, synced)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, 0)",
+            params![
+                error_id,
+                module,
+                severity,
+                message,
+                stack_trace,
+                occurred_at,
+            ],
+        )?;
+        Ok(error_id)
+    }
+
+    pub fn list_unsynced_errors(&self, limit: usize) -> Result<Vec<ErrorLogRecord>, StorageError> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT error_id, module, severity, message, stack_trace, occurred_at, synced
+             FROM error_logs WHERE synced = 0 ORDER BY occurred_at ASC LIMIT ?1",
+        )?;
+        let rows = stmt.query_map(params![limit as i64], |row| {
+            let occ_str: String = row.get(5)?;
+            Ok(ErrorLogRecord {
+                error_id: row.get(0)?,
+                module: row.get(1)?,
+                severity: row.get(2)?,
+                message: row.get(3)?,
+                stack_trace: row.get(4)?,
+                occurred_at: DateTime::parse_from_rfc3339(&occ_str).unwrap().with_timezone(&Utc),
+                synced: row.get::<_, i32>(6)? == 1,
+            })
+        })?;
+
+        let mut list = Vec::new();
+        for r in rows {
+            list.push(r?);
+        }
+        Ok(list)
+    }
+
+    pub fn mark_errors_synced(&self, error_ids: &[String]) -> Result<(), StorageError> {
+        let mut conn = self.conn.lock().unwrap();
+        let tx = conn.transaction()?;
+        {
+            let mut stmt = tx.prepare("UPDATE error_logs SET synced = 1 WHERE error_id = ?1")?;
+            for id in error_ids {
+                stmt.execute(params![id])?;
+            }
+        }
+        tx.commit()?;
         Ok(())
     }
 }

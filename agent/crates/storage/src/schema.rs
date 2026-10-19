@@ -1,7 +1,7 @@
 use crate::error::StorageError;
 use rusqlite::Connection;
 
-pub const CURRENT_SCHEMA_VERSION: u32 = 1;
+pub const CURRENT_SCHEMA_VERSION: u32 = 2;
 
 pub fn initialize_database(conn: &mut Connection) -> Result<(), StorageError> {
     // 1. Configure SQLite pragmas for high resilience, concurrency and performance
@@ -39,8 +39,35 @@ pub fn initialize_database(conn: &mut Connection) -> Result<(), StorageError> {
             [],
         )?;
     }
+    if v < 2 {
+        apply_v2_schema(&tx)?;
+        tx.execute(
+            "INSERT INTO schema_migrations (version, applied_at) VALUES (2, datetime('now'))",
+            [],
+        )?;
+    }
 
     tx.commit()?;
+    Ok(())
+}
+
+fn apply_v2_schema(conn: &Connection) -> Result<(), StorageError> {
+    conn.execute_batch(
+        "
+        -- Centralized Error & Exception logs for remote telemetry synchronization
+        CREATE TABLE IF NOT EXISTS error_logs (
+            error_id TEXT PRIMARY KEY,
+            module TEXT NOT NULL,
+            severity TEXT NOT NULL, -- 'WARN', 'ERROR', 'FATAL'
+            message TEXT NOT NULL,
+            stack_trace TEXT,
+            occurred_at TEXT NOT NULL,
+            synced INTEGER NOT NULL DEFAULT 0
+        );
+        CREATE INDEX IF NOT EXISTS idx_error_logs_synced ON error_logs(synced);
+        CREATE INDEX IF NOT EXISTS idx_error_logs_occurred ON error_logs(occurred_at);
+        ",
+    )?;
     Ok(())
 }
 

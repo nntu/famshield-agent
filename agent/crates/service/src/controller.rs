@@ -100,7 +100,9 @@ impl ServiceController {
         // 3. Periodic Process Monitoring Task (every 5 seconds)
         let proc_monitor = self.process_monitor.clone();
         let nats = self.nats_dispatcher.clone();
+        let storage = self.storage.clone();
         let mut proc_interval = tokio::time::interval(std::time::Duration::from_secs(5));
+        let mut err_interval = tokio::time::interval(std::time::Duration::from_secs(15));
 
         tokio::select! {
             _ = dns_proxy.run_udp_listener() => {
@@ -108,12 +110,28 @@ impl ServiceController {
             }
             _ = async {
                 loop {
-                    proc_interval.tick().await;
-                    if let Ok(events) = proc_monitor.detect_changes() {
-                        if !events.is_empty() {
-                            info!("Detected {} process lifecycle changes", events.len());
-                            if let Ok(batch_json) = nats.format_process_events_batch(&events) {
-                                info!("Queued process telemetry batch for NATS JetStream: {} bytes", batch_json.len());
+                    tokio::select! {
+                        _ = proc_interval.tick() => {
+                            if let Ok(events) = proc_monitor.detect_changes() {
+                                if !events.is_empty() {
+                                    info!("Detected {} process lifecycle changes", events.len());
+                                    if let Ok(batch_json) = nats.format_process_events_batch(&events) {
+                                        info!("Queued process telemetry batch for NATS JetStream: {} bytes", batch_json.len());
+                                    }
+                                }
+                            }
+                        }
+                        _ = err_interval.tick() => {
+                            // Check for unsynced error logs and prepare telemetry batch
+                            if let Ok(unsynced_errors) = storage.list_unsynced_errors(50) {
+                                if !unsynced_errors.is_empty() {
+                                    info!("Found {} unsynced error logs in database", unsynced_errors.len());
+                                    if let Ok(err_batch) = nats.format_error_logs_batch(&unsynced_errors) {
+                                        info!("Queued error logs telemetry batch for NATS JetStream: {} bytes", err_batch.len());
+                                        let error_ids: Vec<String> = unsynced_errors.into_iter().map(|e| e.error_id).collect();
+                                        let _ = storage.mark_errors_synced(&error_ids);
+                                    }
+                                }
                             }
                         }
                     }

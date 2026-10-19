@@ -97,6 +97,36 @@ impl NatsDispatcher {
         serde_json::to_string(&batch).map_err(SyncError::Serialization)
     }
 
+    /// Serialize a batch of unsynced error logs to be pushed to Server via NATS JetStream
+    pub fn format_error_logs_batch(
+        &self,
+        errors: &[famshield_storage::ErrorLogRecord],
+    ) -> Result<String, SyncError> {
+        let serialized_errors: Vec<serde_json::Value> = errors
+            .iter()
+            .map(|e| {
+                serde_json::json!({
+                    "error_id": e.error_id,
+                    "device_id": self.device_id,
+                    "module": e.module,
+                    "severity": e.severity,
+                    "message": e.message,
+                    "stack_trace": e.stack_trace,
+                    "occurred_at": e.occurred_at.to_rfc3339(),
+                })
+            })
+            .collect();
+
+        let batch = serde_json::json!({
+            "batch_id": format!("batch-err-{}", chrono::Utc::now().timestamp_millis()),
+            "device_id": self.device_id,
+            "count": serialized_errors.len(),
+            "errors": serialized_errors,
+        });
+
+        serde_json::to_string(&batch).map_err(SyncError::Serialization)
+    }
+
     /// Execute incoming command immediately without polling or latency
     pub fn dispatch_command(&self, cmd: &RemoteCommand) -> Result<(), SyncError> {
         info!(
@@ -358,5 +388,31 @@ mod tests {
         assert!(json_str.contains("process_started"));
         assert!(json_str.contains("process_terminated"));
         assert!(json_str.contains("dev-555666"));
+    }
+
+    #[test]
+    fn test_format_error_logs_batch() {
+        use famshield_storage::ErrorLogRecord;
+        let storage = StorageEngine::in_memory().unwrap();
+        let blocklist = Arc::new(BlocklistStore::new());
+        let installer = Arc::new(InstallerInterceptor::new());
+        let dispatcher = NatsDispatcher::new("dev-555666", storage, blocklist, installer);
+
+        let errors = vec![
+            ErrorLogRecord {
+                error_id: "err-dns-01".into(),
+                module: "dns_proxy".into(),
+                severity: "ERROR".into(),
+                message: "Upstream DNS timeout: 1.1.1.1:53".into(),
+                stack_trace: Some("at dns::proxy::resolve".into()),
+                occurred_at: chrono::Utc::now(),
+                synced: false,
+            },
+        ];
+
+        let json_str = dispatcher.format_error_logs_batch(&errors).unwrap();
+        assert!(json_str.contains("err-dns-01"));
+        assert!(json_str.contains("Upstream DNS timeout"));
+        assert!(json_str.contains("dns_proxy"));
     }
 }
