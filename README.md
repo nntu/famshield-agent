@@ -1,45 +1,67 @@
-# FamShield Parental Control Platform
+# FamShield Windows Endpoint Agent
 
-FamShield is a modern parental-control platform for Windows supporting **Dual-Mode Operation**:
-1. **Local Mode (Standalone / Zero-Cloud):** Operates completely offline on a single machine. Guardians configure rules, schedules, quotas, and view usage reports and visual verification frames locally via a password/PIN-protected interface. No cloud account or external connection is required.
-2. **Online Mode (Cloud-Managed):** Enrolls the device into a Go-based control plane. Guardians distribute signed policies across multiple devices, receive batched events, issue remote commands (e.g., instant lock, allowance extensions), and monitor activity via a centralized web console.
+**FamShield Agent** là thành phần bảo vệ máy trạm Windows thuộc hệ sinh thái **FamShield Parental Control & Endpoint Security**. 
 
-Both modes share the identical Rust endpoint core, enforcing local policies via Windows Filtering Platform (WFP) user-mode filtering, ETW / WDAC process restrictions, and SQLite storage. Transitions between Local and Online modes are seamless without data loss.
+Dự án được xây dựng 100% bằng **Rust hiện đại**, chú trọng an toàn bộ nhớ tuyệt đối, hiệu năng cực cao, không gây BSOD/treo máy, và chạy ngầm siêu nhẹ (< 15MB RAM).
 
-The existing .NET Framework code remains the behavioral reference during migration. New implementation work must follow the specifications in [`docs/README.md`](docs/README.md).
+> **Lưu ý:** Phần máy chủ đám mây (Go Control Plane, NATS JetStream, Telegram Bot & Web Console) đã được tách thành repository độc lập tại:  
+> 👉 [https://github.com/nntu/famshield-server](https://github.com/nntu/famshield-server)
 
+---
 
-## Target components
+## 1. Cấu Trúc Không Gian Làm Việc (Rust Workspace)
 
-- `agent/`: Rust workspace for the Windows service, per-session helper, WFP network filter, DNS proxy, process monitor, local storage, synchronization, and updater.
-- `server/`: Go API, workers, database migrations, and administrative services.
-- `web/`: browser-based management interface.
-- `contracts/`: machine-readable API and policy contracts shared across components.
-- `docs/`: product, architecture, security, testing, migration, and delivery specifications.
+Agent bao gồm 9 crates chuyên biệt hóa theo nguyên lý Idiomatic Rust:
 
-## Product boundaries
+| Crate | Vai Trò Kỹ Thuật |
+| :--- | :--- |
+| **`famshield-core`** | Domain models, kiểu dữ liệu ngữ nghĩa (Newtypes), luật lọc, và State Machine. |
+| **`famshield-service`** | Windows Service chạy dưới quyền `LocalSystem` trong Session 0. |
+| **`famshield-session`** | Helper chạy trong phiên người dùng (Session 1+): Khay hệ thống (System Tray), Hộp thoại Master PIN, và Toast Notification thân thiện cho trẻ. |
+| **`famshield-dns`** | DNS Proxy NUMA loopback (`127.0.0.2:53`) với bộ nhớ đệm Lock-free & Blocklist Bit-Vector. |
+| **`famshield-windows`** | Bộ lọc mạng Windows Filtering Platform (WFP) user-mode (`FWPM_SESSION_FLAG_DYNAMIC`), điều hướng NRPT, và ETW Process Monitor. |
+| **`famshield-local-admin`** | Quản trị độc lập không cần Cloud, xác thực Master PIN (Argon2id + Salt) và cơ chế khôi phục qua Khóa cứu hộ / UAC. |
+| **`famshield-storage`** | CSDL SQLite nội bộ (chế độ WAL), lưu trữ outbox sự kiện và cache policy. |
+| **`famshield-sync`** | Đồng bộ hóa mTLS và trao đổi dữ liệu với Cloud Control Plane. |
+| **`famshield-updater`** | Atomic swap nhị phân và Watchdog timer 30s tự động rollback phiên bản nếu gặp sự cố. |
 
-FamShield reports foreground application usage and DNS-observed domains. Network enforcement uses Windows Filtering Platform (WFP) user-mode APIs to reliably prevent DNS and DoH bypass without third-party kernel driver risks. Application control combines user-mode termination with WDAC / AppLocker enforcement. Visual verification is strictly event-triggered (e.g., blocked attempt or time request) with privacy-preserving blur and transparent child notification; continuous screen recording, keystrokes, clipboard contents, messages, microphone, or covert surveillance are prohibited. Full browser URLs require a separately reviewed browser extension and are not part of V1.
+---
 
-## Implementation status
+## 2. Hướng Dẫn Biên Dịch & Cài Đặt (Quickstart)
 
-The core rewrite of FamShield has completed its foundation phase:
-- **Rust Endpoint**: 9 crates implementing LocalSystem Service, Session Helper, NUMA DNS proxy, WFP network blocking, process tracker, DPAPI storage, and atomic auto-updater.
-- **Go Control Plane**: High-throughput REST API integrated with **NATS JetStream** for low-latency event ingestion.
-- **Web Console**: Modern React 19 + TypeScript + Vite 8 guardian dashboard.
+### Yêu cầu:
+- Windows 10 (1809+) hoặc Windows 11 (x86_64).
+- Rust 1.78+ (`cargo`), Inno Setup 6 (để đóng gói installer).
+- Quyền Administrator khi cài đặt dịch vụ.
 
-## Quickstart & Deployment
+### Các lệnh điều khiển qua PowerShell (`build.ps1`):
+```powershell
+# 1. Biên dịch nhị phân Release và cài đặt Windows Service + NRPT Policy
+.\build.ps1 install
 
-- **Endpoint Agent Installation (Windows Admin)**:
-  ```powershell
-  # Build release binaries and install Windows Service + NRPT DNS route
-  .\build.ps1 install
-  ```
-- **Control Plane & Web Console (Docker)**:
-  ```bash
-  # Starts NATS JetStream (:4222, :8222), Go API (:8080), and Web Console (:3000)
-  docker compose up -d --build
-  ```
-- Detailed production architecture, mass deployment (GPO/Intune), Inno Setup installers, and operational runbooks are documented in [`docs/13-DEPLOYMENT-GUIDE.md`](docs/13-DEPLOYMENT-GUIDE.md).
+# 2. Kiểm tra trạng thái hoạt động của Service và Loopback DNS
+.\build.ps1 status
 
+# 3. Đặt lại Master PIN với quyền Administrator (UAC Elevation)
+.\build.ps1 reset-pin -NewPin "8888"
 
+# 4. Gỡ cài đặt sạch sẽ, trả lại 100% cấu hình mạng Windows ban đầu
+.\build.ps1 uninstall
+```
+
+### Đóng gói Bộ cài đặt Inno Setup:
+File kịch bản tại [`installer/FamShield.iss`](installer/FamShield.iss):
+```powershell
+& "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer\FamShield.iss
+```
+File cài đặt đầu ra: `installer\Output\FamShieldSetup-0.1.0.exe`.
+
+---
+
+## 3. Kiểm Thử Mã Nguồn
+
+```powershell
+cargo check --workspace
+cargo test --workspace
+```
+Toàn bộ 25 unit tests kiểm thử an toàn DNS, WFP, Argon2id PIN reset, và Session Helper.
