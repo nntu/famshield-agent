@@ -15,6 +15,8 @@ This directory is the source of truth for the ChildProtect rewrite. Implementers
 9. [`09-MIGRATION-AND-OPERATIONS.md`](09-MIGRATION-AND-OPERATIONS.md) defines C# migration, deployment, updates, rollback, and support.
 10. [`10-WEB-CONSOLE.md`](10-WEB-CONSOLE.md) defines guardian workflows, pages, validation, and accessibility.
 11. [`11-ENGINEERING-STANDARDS.md`](11-ENGINEERING-STANDARDS.md) defines repository, coding, error, dependency, and review conventions.
+12. [`12-AUTO-UPDATE-AND-VERSIONING.md`](12-AUTO-UPDATE-AND-VERSIONING.md) defines Semantic Versioning, staged atomic auto-update, canary rollout, and automated watchdog rollback.
+
 
 Machine-readable contracts live under [`contracts/`](../contracts/). The Markdown documents govern intent; schemas govern wire validation. A contract change requires updating both in the same pull request.
 
