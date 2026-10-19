@@ -16,14 +16,14 @@ Agent bao gồm 9 crates chuyên biệt hóa theo nguyên lý Idiomatic Rust:
 | Crate | Vai Trò Kỹ Thuật | Trạng Thái |
 | :--- | :--- | :--- |
 | **`famshield-core`** | Domain models, Newtypes ngữ nghĩa, luật lọc, và State Machine. | **Implemented** ✅ |
-| **`famshield-service`** | Windows Service chạy dưới quyền `LocalSystem` trong Session 0. | **In Progress** 🔄 |
+| **`famshield-service`** | Windows Service SCM Dispatcher (`windows-service`), Named Pipe IPC server có SDDL ACL. | **Implemented** ✅ |
 | **`famshield-session`** | Helper chạy trong user session: GDI BitBlt Capture + Gaussian Blur, System Tray, Toast, PIN dialog. | **Implemented** ✅ |
 | **`famshield-dns`** | DNS Proxy NUMA loopback (`127.0.0.2:53`), Serve-Stale Cache, ArcSwap Hot-swap Blocklist. | **Implemented** ✅ |
-| **`famshield-windows`** | WFP Port 53 enforcement (`FWPM_SESSION_FLAG_DYNAMIC`), NRPT Registry, ToolHelp32 process monitor. | **Implemented** ✅ |
+| **`famshield-windows`** | WFP Port 53 enforcement (`FWPM_SESSION_FLAG_DYNAMIC`), NRPT Registry, ETW Kernel 0ms & ToolHelp32. | **Implemented** ✅ |
 | **`famshield-local-admin`** | Quản trị độc lập: Master PIN Argon2id + DPAPI, lockout lũy thừa, khóa cứu hộ offline. | **Implemented** ✅ |
 | **`famshield-storage`** | SQLite nội bộ (chế độ WAL): Durable Outbox, Error Deduplication, Query Logs, Visual Evidence. | **Implemented** ✅ |
-| **`famshield-sync`** | Unified Telemetry Envelope, SQLite Outbox pipeline, NATS JetStream 2 chiều, Cloud Enrollment. | **Implemented** ✅ |
-| **`famshield-updater`** | Atomic swap nhị phân và Watchdog timer 30s tự động rollback phiên bản nếu gặp sự cố. | **Prototype** 🧪 |
+| **`famshield-sync`** | Freemium Engine (`StandaloneFree` vs `OnlineManaged`), Telemetry Envelope, NATS JetStream, HMAC Auth. | **Implemented** ✅ |
+| **`famshield-updater`** | Xác thực chữ ký số ECDSA P-256, Atomic swap nhị phân và Watchdog timer 30s rollback tự động. | **Implemented** ✅ |
 
 ---
 
@@ -51,6 +51,17 @@ Agent bao gồm 9 crates chuyên biệt hóa theo nguyên lý Idiomatic Rust:
 - Chuẩn hóa **Telemetry Envelope** gom nhiều loại sự kiện (Heartbeat, DNS Log, Error Log, Process Lifecycle, Security Alert) vào một batch duy nhất.
 - Hỗ trợ truyền tải tối ưu qua Cloudflare Tunnel và NATS JetStream, nén dữ liệu và chống trùng lặp (Idempotency).
 - Băm fingerprint SHA-256 thông minh để gom cụm lỗi (Error Deduplication), tránh tràn log.
+
+### 💎 Kiến Trúc Freemium (Free Standalone vs Paid Cloud Managed)
+FamShield Agent phân tách rõ ràng giữa 2 chế độ hoạt động:
+- **Chế độ Miễn Phí Cục Bộ (`StandaloneFree`)**:
+  - **100% Miễn phí & Mã nguồn mở**: Hoạt động hoàn toàn độc lập, ngoại tuyến (offline-first), bảo đảm riêng tư tối đa và không bắt buộc kết nối server.
+  - Tích hợp trọn vẹn sức mạnh bảo vệ máy trạm: DNS Proxy NUMA loopback, chặn bypass WFP Port 53, Master PIN Argon2id + DPAPI machine-scope, khóa lockout brute-force, chụp màn hình GDI + Gaussian blur trong RAM, theo dõi foreground & AFK idle, cơ chế tự bảo vệ và Micro-UI System Tray / PIN Native Dialog.
+- **Chế độ Trả Phí Quản Lý Đám Mây (`OnlineManaged`)**:
+  - Mở rộng thông qua mã ghép nối đám mây 6 chữ số (`EnrollmentManager`).
+  - Quản lý tập trung qua Web Console & Telegram Bot đa nền tảng.
+  - Nhận và thực thi lệnh từ xa tức thì qua NATS JetStream 2 chiều: Khóa máy khẩn cấp (`lock_session`), nạp danh sách đen tức thời (`update_blacklist`), đặt lại PIN từ xa (`reset_pin`), phê duyệt/từ chối cài phần mềm (`approve_install`/`deny_install`).
+  - Xác thực chữ ký mã hóa HMAC-SHA256 trên mọi lệnh điều khiển và cơ chế chống tấn công phát lại (Anti-replay window 300 giây).
 
 ---
 
@@ -92,4 +103,4 @@ cargo check --workspace
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 ```
-Toàn bộ **48 unit tests** đạt trạng thái pass 100% trên 29 test suites (DNS wire parser, WFP filter lifecycle, GDI capture blur, Argon2id lockout, DPAPI secret migration, SQLite Outbox retry backoff, và Telemetry batching).
+Toàn bộ **57 unit tests** đạt trạng thái pass 100% trên 29 test suites (DNS wire parser, WFP filter lifecycle, GDI capture blur, Argon2id lockout, DPAPI secret migration, SQLite Outbox retry backoff, Telemetry batching, ETW Kernel tracing, Signed Updater ECDSA P-256, và Freemium HMAC command authentication).

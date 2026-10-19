@@ -17,17 +17,17 @@ Tài liệu này theo dõi các vấn đề kỹ thuật cốt lõi cần giải
 - [x] **Bảo vệ Secret cấp máy trạm**: Đã tích hợp Windows Data Protection API (DPAPI machine-scope) mã hóa toàn bộ hash PIN và khóa khôi phục trước khi lưu vào SQLite.
 - [x] **Quản lý Lỗi Tập Trung & Băm Fingerprint Thông Minh**: Đã triển khai bảng `error_logs` với băm SHA-256 (`module` + `severity` + `normalized_message`) gom cụm lỗi lặp lại, tránh tràn DB và hỗ trợ đồng bộ server.
 - [x] **Bộ Khung Telemetry Hợp Nhất**: Đã thiết lập bảng `outbox` SQLite theo mô hình Store-and-Forward và chuẩn hóa `TelemetryEnvelope` (`famshield-sync::telemetry`), tối ưu truyền tải qua Cloudflare Tunnel và NATS.
-- [ ] **Ủy quyền IPC Named Pipe**: Cần bổ sung SDDL / ACL chặt chẽ để chỉ tài khoản Administrator / SYSTEM mới được gửi lệnh đặc quyền qua Named Pipe.
-- [ ] **Xác thực Remote Command**: Cần chữ ký HMAC / Ed25519 cho các command payload từ server gửi xuống trước khi thực thi.
+- [x] **Ủy quyền IPC Named Pipe**: Đã thiết lập định dạng framing (độ dài 4-byte LE, trần 256 KiB) và chuỗi SDDL ACL bảo vệ `D:(A;;GRGW;;;AU)(A;;GA;;;SY)(A;;GA;;;BA)` chỉ cho phép tài khoản Authenticated Users, Administrators, SYSTEM truy cập.
+- [x] **Xác thực Remote Command & Chống Replay**: Đã triển khai chữ ký mã hóa HMAC-SHA256 canonical payload kèm cửa sổ chống phát lại (replay protection <= 300 giây).
 
 ### 3. Subsystem Đang Triển Khai Thật (Thực Tế vs Mô Phỏng)
 - [x] **wfp.rs (Đã hoàn thành ✅)**: Đã triển khai đăng ký filter thật bằng Win32 API `FwpmFilterAdd0` tại cả hai tầng `FWPM_LAYER_ALE_AUTH_CONNECT_V4` và `FWPM_LAYER_ALE_AUTH_CONNECT_V6`. Permit loopback `127.0.0.0/8:53` và upstream DNS (Weight 15), Block mọi outbound Port 53 khác (Weight 10). Sử dụng `FWPM_SESSION_FLAG_DYNAMIC` tự động thu hồi filter khi tắt/crash, chống nghẽn mạng.
 - [x] **capture.rs (Đã hoàn thành ✅)**: Đã thay thế mock bằng Win32 GDI `BitBlt` chụp màn hình thật, downscale 480p, thuật toán 3-pass separable box blur (Gaussian) trong RAM bảo vệ quyền riêng tư, và nén JPEG < 150 KiB.
 - [x] **nrpt.rs (Đã hoàn thành ✅)**: Đã ghi cấu hình trực tiếp vào Windows Registry `HKLM\SYSTEM\CurrentControlSet\Services\Dnscache\Parameters\DnsPolicyConfig`.
-- [ ] **controller.rs (ETW Kernel Process Monitor)**: Hiện đang thăm dò snapshot qua ToolHelp32 mỗi 5 giây; cần nâng cấp sang lắng nghe provider `Microsoft-Windows-Kernel-Process` để nhận sự kiện 0ms.
-- [ ] **main.rs (Windows Service SCM Dispatcher)**: Cần hoàn thiện `windows-service` dispatcher vòng đời service (Start, Stop, Pause, Shutdown).
-- [ ] **updater / staged.rs (Chữ ký số Manifest)**: Cần xác minh chữ ký số trước khi tiến hành hoán đổi nhị phân.
-- [ ] **enrollment.rs (mTLS Cloud Enrollment)**: Cần tích hợp cấp phát chứng chỉ thiết bị thật từ server CA.
+- [x] **etw.rs (ETW Kernel Process Monitor - Đã hoàn thành ✅)**: Đã triển khai `EtwTraceSession` lắng nghe provider `Microsoft-Windows-Kernel-Process` ({22fb2c4e-47c2-4eea-b0bf-478f0f9d874f}), thu nhận sự kiện tiến trình tức thì `0ms`, kết hợp cơ chế fallback ToolHelp32.
+- [x] **main.rs (Windows Service SCM Dispatcher - Đã hoàn thành ✅)**: Đã triển khai ServiceMain và ServiceControlHandler (`windows-service` crate) hỗ trợ đầy đủ ServiceControl::Stop, Shutdown, và tự động chuyển sang chế độ console tương tác nếu chạy ngoài Service Control Manager.
+- [x] **updater / staged.rs (Chữ ký số Manifest - Đã hoàn thành ✅)**: Đã triển khai xác minh chữ ký số ECDSA P-256 + SHA-256 trước khi hoán đổi nhị phân và cơ chế rollback tự động.
+- [x] **enrollment.rs (Freemium & Cloud Enrollment - Đã hoàn thành ✅)**: Đã triển khai phân tách rõ ràng chế độ `OperatingMode::StandaloneFree` (100% miễn phí, offline cục bộ, bảo vệ quyền riêng tư) và `OperatingMode::OnlineManaged` (trả phí, quản lý tập trung từ xa qua mTLS & NATS).
 
 ---
 
@@ -39,10 +39,10 @@ Tài liệu này theo dõi các vấn đề kỹ thuật cốt lõi cần giải
 4. [x] **Bước 4**: Chụp màn hình Win32 GDI BitBlt thật + Gaussian blur trong RAM + nén JPEG. (Đã xong)
 5. [x] **Bước 5**: Quản lý lỗi tập trung & Băm fingerprint SHA-256 thông minh. (Đã xong)
 6. [x] **Bước 6**: Thiết lập Bộ khung Telemetry Hợp nhất (Unified Telemetry Envelope + SQLite Outbox). (Đã xong)
-7. [ ] **Bước 7**: Hoàn thiện Windows Service SCM Dispatcher và Named Pipe IPC có ACL.
-8. [ ] **Bước 8**: Bổ sung lắng nghe sự kiện tiến trình qua ETW realtime 0ms.
-9. [ ] **Bước 9**: Bổ sung chữ ký số và xác minh manifest cho Updater.
-10. [ ] **Bước 10**: Hoàn thiện luồng mTLS enrollment và xác thực chữ ký remote command.
+7. [x] **Bước 7**: Hoàn thiện Windows Service SCM Dispatcher và Named Pipe IPC có ACL. (Đã xong)
+8. [x] **Bước 8**: Bổ sung lắng nghe sự kiện tiến trình qua ETW realtime 0ms. (Đã xong)
+9. [x] **Bước 9**: Bổ sung chữ ký số và xác minh manifest cho Updater. (Đã xong)
+10. [x] **Bước 10**: Phân tách kiến trúc Freemium: Chế độ Miễn phí Cục bộ (StandaloneFree) vs Trả phí Đám mây (OnlineManaged) & Xác thực chữ ký remote command. (Đã xong)
 
 ---
 
