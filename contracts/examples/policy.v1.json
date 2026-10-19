@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "policy_id": "school-night-default",
+  "version": 1,
+  "timezone": "Asia/Bangkok",
+  "idle_threshold_seconds": 300,
+  "application": {
+    "enabled": true,
+    "default_action": "allow",
+    "rules": [
+      {
+        "id": "block-game-night",
+        "name": "Game evening limit",
+        "enabled": true,
+        "action": "block",
+        "identity": {
+          "categories": ["game"]
+        },
+        "schedule": {
+          "daily_quota_minutes": 60,
+          "windows": [
+            {
+              "days": ["mon", "tue", "wed", "thu", "fri"],
+              "start": "17:00",
+              "end": "20:00"
+            }
+          ]
+        },
+        "warn_before_minutes": 10
+      }
+    ]
+  },
+  "web": {
+    "enabled": true,
+    "mode": "allow_by_default",
+    "dns_failure_mode": "allow_with_alert",
+    "block_external_dns": true,
+    "block_doh": true,
+    "wfp_enforcement": true,
+    "safe_search": {
+      "search_engines": true,
+      "youtube_restricted": "moderate"
+    },
+    "rules": [
+      {
+        "id": "block-example-social",
+        "name": "Example social network",
+        "enabled": true,
+        "action": "block",
+        "domains": ["example-social.invalid", "*.example-social.invalid"],
+        "schedule": {}
+      }
+    ]
+  },
+  "visual_verification": {
+    "enabled": true,
+    "triggers": ["app_blocked", "domain_blocked", "time_requested"],
+    "blur_level": "medium",
+    "max_daily_captures": 50,
+    "retention_hours": 48
+  },
+  "telemetry": {
+    "application_usage": true,
+    "domain_observation": true,
+    "endpoint_retention_days": 30
+  }
+}
+

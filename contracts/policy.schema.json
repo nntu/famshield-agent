@@ -1,0 +1,169 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.childprotect.invalid/policy.schema.json",
+  "title": "ChildProtect Policy Payload",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "policy_id",
+    "version",
+    "timezone",
+    "application",
+    "web",
+    "telemetry"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "policy_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "version": { "type": "integer", "minimum": 1 },
+    "timezone": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "idle_threshold_seconds": { "type": "integer", "minimum": 30, "maximum": 3600, "default": 300 },
+    "application": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "default_action", "rules"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "default_action": { "enum": ["allow", "block"] },
+        "enforcement_tier": { "enum": ["user_mode_only", "hybrid_wdac"], "default": "user_mode_only" },
+        "rules": {
+          "type": "array",
+          "maxItems": 10000,
+          "items": { "$ref": "#/$defs/applicationRule" }
+        }
+      }
+    },
+    "web": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "mode", "dns_failure_mode", "block_external_dns", "block_doh", "rules"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "mode": { "enum": ["allow_by_default", "deny_by_default"] },
+        "dns_failure_mode": { "enum": ["allow_with_alert", "block"] },
+        "block_external_dns": { "type": "boolean" },
+        "block_doh": { "type": "boolean" },
+        "wfp_enforcement": { "type": "boolean", "default": true },
+        "safe_search": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "search_engines": { "type": "boolean", "default": true },
+            "youtube_restricted": { "enum": ["off", "moderate", "strict"] }
+          }
+        },
+        "rules": {
+          "type": "array",
+          "maxItems": 50000,
+          "items": { "$ref": "#/$defs/domainRule" }
+        }
+      }
+    },
+    "visual_verification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "triggers", "blur_level", "retention_hours"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "triggers": {
+          "type": "array",
+          "items": { "enum": ["app_blocked", "domain_blocked", "time_requested", "suspicious_anomaly"] },
+          "uniqueItems": true
+        },
+        "blur_level": { "enum": ["low", "medium", "high"], "default": "medium" },
+        "max_daily_captures": { "type": "integer", "minimum": 1, "maximum": 200, "default": 50 },
+        "retention_hours": { "type": "integer", "minimum": 1, "maximum": 48, "default": 48 }
+      }
+    },
+    "telemetry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["application_usage", "domain_observation", "endpoint_retention_days"],
+      "properties": {
+        "application_usage": { "type": "boolean" },
+        "domain_observation": { "type": "boolean" },
+        "endpoint_retention_days": { "type": "integer", "minimum": 0, "maximum": 90 }
+      }
+    }
+  },
+
+  "$defs": {
+    "schedule": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "daily_quota_minutes": { "type": ["integer", "null"], "minimum": 0, "maximum": 1440 },
+        "windows": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["days", "start", "end"],
+            "properties": {
+              "days": {
+                "type": "array",
+                "minItems": 1,
+                "uniqueItems": true,
+                "items": { "enum": ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] }
+              },
+              "start": { "type": "string", "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$" },
+              "end": { "type": "string", "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$" }
+            }
+          }
+        }
+      }
+    },
+    "applicationIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "executable_names": { "type": "array", "maxItems": 64, "items": { "type": "string", "maxLength": 260 } },
+        "canonical_paths": { "type": "array", "maxItems": 64, "items": { "type": "string", "maxLength": 1024 } },
+        "signer_thumbprints": { "type": "array", "maxItems": 64, "items": { "type": "string", "pattern": "^[A-Fa-f0-9]{40,128}$" } },
+        "sha256": { "type": "array", "maxItems": 64, "items": { "type": "string", "pattern": "^[A-Fa-f0-9]{64}$" } },
+        "application_families": { "type": "array", "maxItems": 64, "items": { "type": "string", "minLength": 1, "maxLength": 128 } },
+        "categories": {
+          "type": "array",
+          "maxItems": 9,
+          "uniqueItems": true,
+          "items": { "enum": ["game", "browser", "education", "communication", "media", "productivity", "development", "system", "unknown"] }
+        }
+      },
+      "minProperties": 1
+    },
+    "applicationRule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "enabled", "action", "identity", "schedule"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "name": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "enabled": { "type": "boolean" },
+        "action": { "enum": ["allow", "block"] },
+        "identity": { "$ref": "#/$defs/applicationIdentity" },
+        "schedule": { "$ref": "#/$defs/schedule" },
+        "warn_before_minutes": { "type": "integer", "minimum": 0, "maximum": 120 }
+      }
+    },
+    "domainRule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "enabled", "action", "domains", "schedule"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "name": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "enabled": { "type": "boolean" },
+        "action": { "enum": ["allow", "block"] },
+        "domains": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 10000,
+          "items": { "type": "string", "minLength": 1, "maxLength": 253 }
+        },
+        "schedule": { "$ref": "#/$defs/schedule" }
+      }
+    }
+  }
+}

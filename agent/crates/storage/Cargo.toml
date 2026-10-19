@@ -1,0 +1,17 @@
+[package]
+name = "childprotect-storage"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "SQLite storage, WAL mode persistence, outbox and local rules for ChildProtect"
+
+[dependencies]
+childprotect-core = { workspace = true }
+rusqlite = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+chrono = { workspace = true }
+sha2 = { workspace = true }

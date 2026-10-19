@@ -1,0 +1,19 @@
+[package]
+name = "childprotect-local-admin"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Local Mode administration API and Master PIN authentication"
+
+[dependencies]
+childprotect-core = { workspace = true }
+childprotect-storage = { workspace = true }
+argon2 = { workspace = true }
+rand = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+thiserror = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+chrono = { workspace = true }

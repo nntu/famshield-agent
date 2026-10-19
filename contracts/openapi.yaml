@@ -1,0 +1,302 @@
+openapi: 3.1.0
+info:
+  title: ChildProtect Control Plane API
+  version: 1.0.0
+  description: V1 device-facing contract. Guardian APIs use the same error model but are specified with their web feature.
+servers:
+  - url: https://api.example.invalid/v1
+security:
+  - deviceMtls: []
+paths:
+  /devices/enroll:
+    post:
+      security: []
+      operationId: enrollDevice
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EnrollmentRequest'
+      responses:
+        '201':
+          description: Device enrolled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EnrollmentResponse'
+        '400': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /device/heartbeat:
+    post:
+      operationId: heartbeat
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HeartbeatRequest'
+      responses:
+        '200':
+          description: Desired device state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HeartbeatResponse'
+        '401': { $ref: '#/components/responses/Error' }
+  /device/policy/{version}:
+    get:
+      operationId: getPolicy
+      parameters:
+        - name: version
+          in: path
+          required: true
+          schema: { type: integer, format: int64, minimum: 1 }
+      responses:
+        '200':
+          description: Signed immutable policy envelope
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SignedPolicyEnvelope'
+        '404': { $ref: '#/components/responses/Error' }
+  /device/events:batch:
+    post:
+      operationId: uploadEventBatch
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EventBatch'
+      responses:
+        '200':
+          description: Per-event ingestion result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventBatchResult'
+        '413': { $ref: '#/components/responses/Error' }
+        '429': { $ref: '#/components/responses/Error' }
+  /device/evidence/{evidence_id}:
+    post:
+      operationId: uploadEvidence
+      parameters:
+        - name: evidence_id
+          in: path
+          required: true
+          schema: { type: string, maxLength: 128 }
+      requestBody:
+        required: true
+        content:
+          image/jpeg:
+            schema:
+              type: string
+              format: binary
+      responses:
+        '201':
+          description: Visual evidence accepted
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [evidence_id, status, expires_at]
+                properties:
+                  evidence_id: { type: string }
+                  status: { type: string, enum: [stored] }
+                  expires_at: { type: string, format: date-time }
+        '400': { $ref: '#/components/responses/Error' }
+        '413': { $ref: '#/components/responses/Error' }
+  /device/commands:
+
+    get:
+      operationId: waitForCommands
+      parameters:
+        - name: wait_seconds
+          in: query
+          schema: { type: integer, minimum: 0, maximum: 30, default: 25 }
+      responses:
+        '200':
+          description: Pending commands in sequence order
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [commands]
+                properties:
+                  commands:
+                    type: array
+                    maxItems: 50
+                    items: { $ref: '#/components/schemas/DeviceCommand' }
+  /device/commands/{command_id}/result:
+    post:
+      operationId: reportCommandResult
+      parameters:
+        - name: command_id
+          in: path
+          required: true
+          schema: { type: string, minLength: 1, maxLength: 128 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CommandResult'
+      responses:
+        '200':
+          description: Result stored or matched an existing idempotent result
+        '409': { $ref: '#/components/responses/Error' }
+components:
+  securitySchemes:
+    deviceMtls:
+      type: mutualTLS
+  responses:
+    Error:
+      description: Structured API error
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+  schemas:
+    EnrollmentRequest:
+      type: object
+      additionalProperties: false
+      required: [enrollment_code, installation_id, hostname, agent_version, public_key, capabilities]
+      properties:
+        enrollment_code: { type: string, minLength: 8, maxLength: 256 }
+        installation_id: { type: string, minLength: 16, maxLength: 128 }
+        hostname: { type: string, minLength: 1, maxLength: 255 }
+        agent_version: { type: string, minLength: 1, maxLength: 64 }
+        public_key: { type: string, minLength: 32, maxLength: 8192 }
+        capabilities:
+          type: array
+          maxItems: 128
+          items: { type: string, maxLength: 128 }
+    EnrollmentResponse:
+      type: object
+      required: [device_id, certificate_chain, policy_version, server_time]
+      properties:
+        device_id: { type: string }
+        certificate_chain: { type: array, items: { type: string } }
+        policy_version: { type: [integer, 'null'], format: int64 }
+        server_time: { type: string, format: date-time }
+    HealthStatus:
+      type: object
+      additionalProperties: false
+      required: [name, status, reason_code, changed_at]
+      properties:
+        name: { type: string, maxLength: 64 }
+        status: { type: string, enum: [healthy, degraded, failed] }
+        reason_code: { type: string, maxLength: 128 }
+        changed_at: { type: string, format: date-time }
+    HeartbeatRequest:
+      type: object
+      additionalProperties: false
+      required: [boot_id, agent_version, policy_version, outbox_depth, health, capabilities]
+      properties:
+        boot_id: { type: string, maxLength: 128 }
+        agent_version: { type: string, maxLength: 64 }
+        windows_version: { type: string, maxLength: 128 }
+        policy_version: { type: [integer, 'null'], format: int64 }
+        outbox_depth: { type: integer, minimum: 0 }
+        active_session_ids: { type: array, items: { type: integer, minimum: 0 } }
+        health: { type: array, maxItems: 64, items: { $ref: '#/components/schemas/HealthStatus' } }
+        capabilities: { type: array, maxItems: 128, items: { type: string } }
+    HeartbeatResponse:
+      type: object
+      required: [server_time, desired_policy_version, command_wait_seconds]
+      properties:
+        server_time: { type: string, format: date-time }
+        desired_policy_version: { type: [integer, 'null'], format: int64 }
+        command_wait_seconds: { type: integer, minimum: 0, maximum: 30 }
+        release:
+          type: [object, 'null']
+          properties:
+            version: { type: string }
+            manifest_url: { type: string, format: uri }
+    SignedPolicyEnvelope:
+      type: object
+      additionalProperties: false
+      required: [tenant_id, policy_id, version, issued_at, content_hash, payload, key_id, signature]
+      properties:
+        tenant_id: { type: string }
+        policy_id: { type: string }
+        version: { type: integer, format: int64, minimum: 1 }
+        issued_at: { type: string, format: date-time }
+        content_hash: { type: string, pattern: '^[a-f0-9]{64}$' }
+        payload: { type: object }
+        key_id: { type: string, maxLength: 128 }
+        signature: { type: string, minLength: 32, maxLength: 8192 }
+    DeviceEvent:
+      type: object
+      additionalProperties: false
+      required: [event_id, schema_version, type, occurred_at, boot_id, sequence, payload]
+      properties:
+        event_id: { type: string, maxLength: 128 }
+        schema_version: { type: integer, minimum: 1 }
+        type:
+          type: string
+          enum: [agent.health, policy.applied, app.discovered, app.lifecycle, app.usage, app.blocked, domain.observed, domain.blocked, time.requested, visual.verification, command.completed, security.alert]
+        occurred_at: { type: string, format: date-time }
+        boot_id: { type: string, maxLength: 128 }
+        sequence: { type: integer, format: int64, minimum: 0 }
+        child_id: { type: [string, 'null'] }
+        payload: { type: object, maxProperties: 64 }
+    EventBatch:
+      type: object
+      additionalProperties: false
+      required: [batch_id, events]
+      properties:
+        batch_id: { type: string, maxLength: 128 }
+        events:
+          type: array
+          minItems: 1
+          maxItems: 1000
+          items: { $ref: '#/components/schemas/DeviceEvent' }
+    EventBatchResult:
+      type: object
+      required: [accepted, duplicate, retryable, rejected]
+      properties:
+        accepted: { type: array, items: { type: string } }
+        duplicate: { type: array, items: { type: string } }
+        retryable: { type: array, items: { type: string } }
+        rejected:
+          type: array
+          items:
+            type: object
+            required: [event_id, code]
+            properties:
+              event_id: { type: string }
+              code: { type: string }
+    DeviceCommand:
+      type: object
+      additionalProperties: false
+      required: [command_id, sequence, type, issued_at, expires_at, audit_ref, payload]
+      properties:
+        command_id: { type: string, maxLength: 128 }
+        sequence: { type: integer, format: int64, minimum: 1 }
+        type: { type: string, enum: [sync_policy, temporary_allow, lock_session, unlock_session, collect_diagnostics, update_agent] }
+        issued_at: { type: string, format: date-time }
+        expires_at: { type: string, format: date-time }
+        audit_ref: { type: string, maxLength: 128 }
+        payload: { type: object, maxProperties: 32 }
+    CommandResult:
+      type: object
+      additionalProperties: false
+      required: [state, completed_at, code]
+      properties:
+        state: { type: string, enum: [accepted, succeeded, failed, expired] }
+        completed_at: { type: string, format: date-time }
+        code: { type: string, maxLength: 128 }
+        detail: { type: string, maxLength: 2048 }
+    ErrorEnvelope:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message, request_id, retryable]
+          properties:
+            code: { type: string }
+            message: { type: string }
+            request_id: { type: string }
+            retryable: { type: boolean }

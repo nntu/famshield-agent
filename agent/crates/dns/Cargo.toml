@@ -1,0 +1,15 @@
+[package]
+name = "childprotect-dns"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "High-performance DNS resolver, Serve-Stale cache, and blocklist filter for ChildProtect"
+
+[dependencies]
+childprotect-core = { workspace = true }
+arc-swap = { workspace = true }
+tokio = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+rusqlite = { workspace = true }
