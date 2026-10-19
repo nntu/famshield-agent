@@ -61,6 +61,41 @@ impl NatsDispatcher {
         format!("devices.{}.heartbeat", self.device_id)
     }
 
+    /// Build a standardized telemetry payload for a process lifecycle event
+    pub fn build_process_event(&self, event: &famshield_windows::ProcessLifecycleEvent) -> serde_json::Value {
+        serde_json::json!({
+            "event_id": event.event_id,
+            "device_id": self.device_id,
+            "event_type": event.event_type,
+            "occurred_at": event.occurred_at,
+            "payload": {
+                "pid": event.pid,
+                "ppid": event.ppid,
+                "process_name": event.process_name,
+            }
+        })
+    }
+
+    /// Serialize a batch of process events ready for pushing to Server via NATS JetStream
+    pub fn format_process_events_batch(
+        &self,
+        events: &[famshield_windows::ProcessLifecycleEvent],
+    ) -> Result<String, SyncError> {
+        let serialized_events: Vec<serde_json::Value> = events
+            .iter()
+            .map(|e| self.build_process_event(e))
+            .collect();
+
+        let batch = serde_json::json!({
+            "batch_id": format!("batch-proc-{}", chrono::Utc::now().timestamp_millis()),
+            "device_id": self.device_id,
+            "count": serialized_events.len(),
+            "events": serialized_events,
+        });
+
+        serde_json::to_string(&batch).map_err(SyncError::Serialization)
+    }
+
     /// Execute incoming command immediately without polling or latency
     pub fn dispatch_command(&self, cmd: &RemoteCommand) -> Result<(), SyncError> {
         info!(
@@ -275,5 +310,39 @@ mod tests {
         };
         dispatcher.dispatch_command(&approve_cmd).unwrap();
         assert!(installer.is_hash_approved("hash-game-123"));
+    }
+
+    #[test]
+    fn test_format_process_events_batch() {
+        use famshield_windows::ProcessLifecycleEvent;
+        let storage = StorageEngine::in_memory().unwrap();
+        let blocklist = Arc::new(BlocklistStore::new());
+        let installer = Arc::new(InstallerInterceptor::new());
+        let dispatcher = NatsDispatcher::new("dev-555666", storage, blocklist, installer);
+
+        let events = vec![
+            ProcessLifecycleEvent {
+                event_id: "evt-proc-01".into(),
+                event_type: "process_started".into(),
+                pid: 5012,
+                ppid: 1000,
+                process_name: "Discord.exe".into(),
+                occurred_at: "2026-10-19T13:00:00Z".into(),
+            },
+            ProcessLifecycleEvent {
+                event_id: "evt-proc-02".into(),
+                event_type: "process_terminated".into(),
+                pid: 5012,
+                ppid: 1000,
+                process_name: "Discord.exe".into(),
+                occurred_at: "2026-10-19T13:30:00Z".into(),
+            },
+        ];
+
+        let json_str = dispatcher.format_process_events_batch(&events).unwrap();
+        assert!(json_str.contains("Discord.exe"));
+        assert!(json_str.contains("process_started"));
+        assert!(json_str.contains("process_terminated"));
+        assert!(json_str.contains("dev-555666"));
     }
 }

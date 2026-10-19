@@ -1,0 +1,180 @@
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
+use serde::{Deserialize, Serialize};
+use crate::error::WindowsError;
+
+#[cfg(windows)]
+use windows::Win32::System::Diagnostics::ToolHelp::{
+    CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W, TH32CS_SNAPPROCESS,
+};
+#[cfg(windows)]
+use windows::Win32::Foundation::CloseHandle;
+
+/// Snapshot of a running process on Windows
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ProcessInfo {
+    pub pid: u32,
+    pub ppid: u32,
+    pub name: String,
+    pub executable_path: Option<String>,
+}
+
+/// Telemetry event for process lifecycle changes pushed to Server
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ProcessLifecycleEvent {
+    pub event_id: String,
+    pub event_type: String, // "process_started", "process_terminated"
+    pub pid: u32,
+    pub ppid: u32,
+    pub process_name: String,
+    pub occurred_at: String,
+}
+
+/// Process Monitor engine that periodically polls running processes
+/// and generates delta events (newly started / terminated processes).
+pub struct ProcessMonitor {
+    known_processes: Arc<Mutex<HashMap<u32, ProcessInfo>>>,
+}
+
+impl Default for ProcessMonitor {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl ProcessMonitor {
+    pub fn new() -> Self {
+        Self {
+            known_processes: Arc::new(Mutex::new(HashMap::new())),
+        }
+    }
+
+    /// Capture all currently running processes in the system
+    pub fn enumerate_processes() -> Result<Vec<ProcessInfo>, WindowsError> {
+        #[cfg(windows)]
+        {
+            let mut list = Vec::new();
+            unsafe {
+                let snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0)
+                    .map_err(|e| WindowsError::Process(format!("CreateToolhelp32Snapshot failed: {}", e)))?;
+
+                let mut entry = PROCESSENTRY32W {
+                    dwSize: std::mem::size_of::<PROCESSENTRY32W>() as u32,
+                    ..Default::default()
+                };
+
+                if Process32FirstW(snapshot, &mut entry).is_ok() {
+                    loop {
+                        let name_len = entry
+                            .szExeFile
+                            .iter()
+                            .position(|&c| c == 0)
+                            .unwrap_or(entry.szExeFile.len());
+                        let name = String::from_utf16_lossy(&entry.szExeFile[..name_len]);
+
+                        list.push(ProcessInfo {
+                            pid: entry.th32ProcessID,
+                            ppid: entry.th32ParentProcessID,
+                            name,
+                            executable_path: None,
+                        });
+
+                        if Process32NextW(snapshot, &mut entry).is_err() {
+                            break;
+                        }
+                    }
+                }
+                let _ = CloseHandle(snapshot);
+            }
+            Ok(list)
+        }
+
+        #[cfg(not(windows))]
+        {
+            Ok(vec![
+                ProcessInfo {
+                    pid: 1001,
+                    ppid: 1,
+                    name: "explorer.exe".into(),
+                    executable_path: Some("C:\\Windows\\explorer.exe".into()),
+                },
+                ProcessInfo {
+                    pid: 1002,
+                    ppid: 1001,
+                    name: "chrome.exe".into(),
+                    executable_path: Some("C:\\Program Files\\Google\\Chrome\\chrome.exe".into()),
+                },
+            ])
+        }
+    }
+
+    /// Performs one detection cycle and returns delta events (started / terminated)
+    pub fn detect_changes(&self) -> Result<Vec<ProcessLifecycleEvent>, WindowsError> {
+        let current_list = Self::enumerate_processes()?;
+        let now_str = chrono::Utc::now().to_rfc3339();
+
+        let mut current_map = HashMap::new();
+        for proc in current_list {
+            current_map.insert(proc.pid, proc);
+        }
+
+        let mut events = Vec::new();
+        let mut known = self.known_processes.lock().unwrap();
+
+        // Check for newly started processes
+        for (pid, proc) in current_map.iter() {
+            if !known.contains_key(pid) {
+                events.push(ProcessLifecycleEvent {
+                    event_id: format!("proc-start-{}-{}", pid, chrono::Utc::now().timestamp_millis()),
+                    event_type: "process_started".into(),
+                    pid: *pid,
+                    ppid: proc.ppid,
+                    process_name: proc.name.clone(),
+                    occurred_at: now_str.clone(),
+                });
+            }
+        }
+
+        // Check for terminated processes
+        for (pid, proc) in known.iter() {
+            if !current_map.contains_key(pid) {
+                events.push(ProcessLifecycleEvent {
+                    event_id: format!("proc-term-{}-{}", pid, chrono::Utc::now().timestamp_millis()),
+                    event_type: "process_terminated".into(),
+                    pid: *pid,
+                    ppid: proc.ppid,
+                    process_name: proc.name.clone(),
+                    occurred_at: now_str.clone(),
+                });
+            }
+        }
+
+        // Replace known with current map
+        *known = current_map;
+        Ok(events)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_enumerate_processes() {
+        let procs = ProcessMonitor::enumerate_processes().unwrap();
+        assert!(!procs.is_empty());
+    }
+
+    #[test]
+    fn test_detect_changes_lifecycle() {
+        let monitor = ProcessMonitor::new();
+        // First tick populates known processes
+        let events = monitor.detect_changes().unwrap();
+        assert!(!events.is_empty());
+        assert!(events.iter().all(|e| e.event_type == "process_started"));
+
+        // Second tick with no changes returns 0 events
+        let events2 = monitor.detect_changes().unwrap();
+        assert!(events2.is_empty());
+    }
+}

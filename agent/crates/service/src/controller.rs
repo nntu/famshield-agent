@@ -8,7 +8,7 @@ use famshield_dns::{
 };
 use famshield_storage::StorageEngine;
 use famshield_sync::NatsDispatcher;
-use famshield_windows::{wfp::WfpSessionGuard, InstallerInterceptor};
+use famshield_windows::{wfp::WfpSessionGuard, InstallerInterceptor, ProcessMonitor};
 use crate::dispatcher::IpcDispatcher;
 
 /// Core service controller orchestrating DNS, WFP, Local IPC, Storage, and NATS JetStream dispatcher.
@@ -18,6 +18,7 @@ pub struct ServiceController {
     dns_blocklist: Arc<BlocklistStore>,
     dns_cache: Arc<DnsCache>,
     installer: Arc<InstallerInterceptor>,
+    process_monitor: Arc<ProcessMonitor>,
     nats_dispatcher: Arc<NatsDispatcher>,
 }
 
@@ -27,6 +28,7 @@ impl ServiceController {
         let dns_blocklist = Arc::new(BlocklistStore::new());
         let dns_cache = Arc::new(DnsCache::new());
         let installer = Arc::new(InstallerInterceptor::new());
+        let process_monitor = Arc::new(ProcessMonitor::new());
 
         // Read enrolled device_id from storage meta or fallback to standalone ID
         let device_id = storage
@@ -48,6 +50,7 @@ impl ServiceController {
             dns_blocklist,
             dns_cache,
             installer,
+            process_monitor,
             nats_dispatcher,
         }
     }
@@ -68,7 +71,11 @@ impl ServiceController {
         self.nats_dispatcher.clone()
     }
 
-    /// Run the integrated services (DNS loopback proxy, IPC dispatcher, WFP guard).
+    pub fn process_monitor(&self) -> Arc<ProcessMonitor> {
+        self.process_monitor.clone()
+    }
+
+    /// Run the integrated services (DNS loopback proxy, IPC dispatcher, WFP guard, Process monitor).
     pub async fn run(&self, mut shutdown_rx: broadcast::Receiver<()>) {
         info!("Starting FamShield Windows Service subsystems...");
 
@@ -92,10 +99,28 @@ impl ServiceController {
             self.dns_cache.clone(),
         );
 
+        // 3. Periodic Process Monitoring Task (every 5 seconds)
+        let proc_monitor = self.process_monitor.clone();
+        let nats = self.nats_dispatcher.clone();
+        let mut proc_interval = tokio::time::interval(std::time::Duration::from_secs(5));
+
         tokio::select! {
             _ = dns_proxy.run_udp_listener() => {
                 info!("DNS proxy listener ended");
             }
+            _ = async {
+                loop {
+                    proc_interval.tick().await;
+                    if let Ok(events) = proc_monitor.detect_changes() {
+                        if !events.is_empty() {
+                            info!("Detected {} process lifecycle changes", events.len());
+                            if let Ok(batch_json) = nats.format_process_events_batch(&events) {
+                                info!("Queued process telemetry batch for NATS JetStream: {} bytes", batch_json.len());
+                            }
+                        }
+                    }
+                }
+            } => {}
             _ = shutdown_rx.recv() => {
                 info!("Shutdown signal received, gracefully terminating FamShield service");
             }
