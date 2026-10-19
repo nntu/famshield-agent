@@ -1,7 +1,10 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { Device, ChildProfile, VisualEvidence } from './types';
+import { useI18n } from './i18n/I18nContext';
+import { LanguageSwitcher } from './components/LanguageSwitcher';
 
 export const App: React.FC = () => {
+  const { t } = useI18n();
   const [activeTab, setActiveTab] = useState<'overview' | 'children' | 'devices' | 'evidence'>('overview');
 
   const [devices] = useState<Device[]>([
@@ -45,55 +48,84 @@ export const App: React.FC = () => {
   ]);
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh' }}>
+    <div style={{ display: 'flex', minHeight: '100vh', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
       {/* Sidebar Navigation */}
-      <aside style={{ width: '260px', background: '#111827', borderRight: '1px solid #1f2937', padding: '24px' }}>
-        <h2 style={{ color: '#38bdf8', fontSize: '1.25rem', marginBottom: '2rem' }}>FamShield Cloud</h2>
-        <nav style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          {(['overview', 'children', 'devices', 'evidence'] as const).map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              style={{
-                textAlign: 'left',
-                padding: '10px 16px',
-                borderRadius: '8px',
-                border: 'none',
-                cursor: 'pointer',
-                background: activeTab === tab ? '#1e293b' : 'transparent',
-                color: activeTab === tab ? '#38bdf8' : '#94a3b8',
-                fontWeight: activeTab === tab ? 600 : 400,
-                textTransform: 'capitalize',
-              }}
-            >
-              {tab === 'overview' && 'Tổng quan'}
-              {tab === 'children' && 'Hồ sơ trẻ & Giới hạn'}
-              {tab === 'devices' && 'Thiết bị bảo vệ'}
-              {tab === 'evidence' && 'Bằng chứng thông minh (48h)'}
-            </button>
-          ))}
-        </nav>
+      <aside style={{ width: '270px', background: '#111827', borderRight: '1px solid #1f2937', padding: '24px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+        <div>
+          <div style={{ marginBottom: '2rem' }}>
+            <h2 style={{ color: '#38bdf8', fontSize: '1.35rem', fontWeight: 700, margin: 0 }}>{t('brand')}</h2>
+            <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '4px' }}>{t('brand_tagline')}</div>
+          </div>
+          <nav style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {(['overview', 'children', 'devices', 'evidence'] as const).map((tab) => {
+              const tabLabels = {
+                overview: t('nav_overview'),
+                children: t('nav_children'),
+                devices: t('nav_devices'),
+                evidence: t('nav_evidence'),
+              };
+              return (
+                <button
+                  key={tab}
+                  onClick={() => setActiveTab(tab)}
+                  style={{
+                    textAlign: 'left',
+                    padding: '12px 16px',
+                    borderRadius: '8px',
+                    border: 'none',
+                    cursor: 'pointer',
+                    background: activeTab === tab ? '#1e293b' : 'transparent',
+                    color: activeTab === tab ? '#38bdf8' : '#94a3b8',
+                    fontWeight: activeTab === tab ? 600 : 400,
+                    fontSize: '0.9rem',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  {tabLabels[tab]}
+                </button>
+              );
+            })}
+          </nav>
+        </div>
+
+        {/* Language selector in sidebar footer */}
+        <div style={{ borderTop: '1px solid #1f2937', paddingTop: '16px' }}>
+          <LanguageSwitcher />
+        </div>
       </aside>
 
       {/* Main Content Area */}
-      <main style={{ flex: 1, padding: '32px', background: '#0b0f19' }}>
+      <main style={{ flex: 1, padding: '36px', background: '#0b0f19', color: '#f8fafc' }}>
+        {/* Top bar with quick status */}
+        <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px', borderBottom: '1px solid #1e293b', paddingBottom: '16px' }}>
+          <div style={{ fontSize: '0.875rem', color: '#94a3b8' }}>
+            {t('footer_status')}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <span style={{ fontSize: '0.8rem', background: 'rgba(74, 222, 128, 0.15)', color: '#4ade80', padding: '4px 12px', borderRadius: '9999px', fontWeight: 600 }}>
+              {t('devices_status_online')}
+            </span>
+          </div>
+        </header>
+
         {activeTab === 'overview' && (
           <div>
-            <h1 style={{ fontSize: '1.75rem', marginBottom: '24px' }}>Tổng quan Hệ thống Quản trị Tập trung</h1>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '20px' }}>
-              <div style={{ background: '#151d2f', padding: '20px', borderRadius: '12px', border: '1px solid #23314d' }}>
-                <div style={{ color: '#94a3b8', fontSize: '0.875rem' }}>Thiết bị trực tuyến</div>
-                <div style={{ fontSize: '2rem', fontWeight: 700, color: '#4ade80', marginTop: '8px' }}>
+            <h1 style={{ fontSize: '1.75rem', fontWeight: 700, marginBottom: '8px' }}>{t('overview_title')}</h1>
+            <p style={{ color: '#94a3b8', marginBottom: '28px', fontSize: '0.95rem' }}>{t('overview_subtitle')}</p>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '20px' }}>
+              <div style={{ background: '#151d2f', padding: '24px', borderRadius: '12px', border: '1px solid #23314d' }}>
+                <div style={{ color: '#94a3b8', fontSize: '0.875rem' }}>{t('stat_online_devices')}</div>
+                <div style={{ fontSize: '2.25rem', fontWeight: 700, color: '#4ade80', marginTop: '8px' }}>
                   {devices.filter((d) => d.status === 'online').length} / {devices.length}
                 </div>
               </div>
-              <div style={{ background: '#151d2f', padding: '20px', borderRadius: '12px', border: '1px solid #23314d' }}>
-                <div style={{ color: '#94a3b8', fontSize: '0.875rem' }}>Tên miền DNS đã chặn hôm nay</div>
-                <div style={{ fontSize: '2rem', fontWeight: 700, color: '#38bdf8', marginTop: '8px' }}>42</div>
+              <div style={{ background: '#151d2f', padding: '24px', borderRadius: '12px', border: '1px solid #23314d' }}>
+                <div style={{ color: '#94a3b8', fontSize: '0.875rem' }}>{t('stat_blocked_dns')}</div>
+                <div style={{ fontSize: '2.25rem', fontWeight: 700, color: '#38bdf8', marginTop: '8px' }}>42</div>
               </div>
-              <div style={{ background: '#151d2f', padding: '20px', borderRadius: '12px', border: '1px solid #23314d' }}>
-                <div style={{ color: '#94a3b8', fontSize: '0.875rem' }}>Bằng chứng xác minh cần duyệt</div>
-                <div style={{ fontSize: '2rem', fontWeight: 700, color: '#f87171', marginTop: '8px' }}>1</div>
+              <div style={{ background: '#151d2f', padding: '24px', borderRadius: '12px', border: '1px solid #23314d' }}>
+                <div style={{ color: '#94a3b8', fontSize: '0.875rem' }}>{t('stat_pending_evidence')}</div>
+                <div style={{ fontSize: '2.25rem', fontWeight: 700, color: '#f87171', marginTop: '8px' }}>1</div>
               </div>
             </div>
           </div>
@@ -101,18 +133,25 @@ export const App: React.FC = () => {
 
         {activeTab === 'children' && (
           <div>
-            <h1 style={{ fontSize: '1.75rem', marginBottom: '24px' }}>Quản lý Hồ sơ & Giới hạn Thời gian</h1>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+              <h1 style={{ fontSize: '1.75rem', fontWeight: 700, margin: 0 }}>{t('children_title')}</h1>
+              <button style={{ background: '#0284c7', color: '#fff', border: 'none', padding: '10px 18px', borderRadius: '8px', cursor: 'pointer', fontWeight: 600 }}>
+                + {t('children_add_profile')}
+              </button>
+            </div>
             <div style={{ display: 'grid', gap: '16px' }}>
               {children.map((c) => (
                 <div key={c.id} style={{ background: '#151d2f', padding: '24px', borderRadius: '12px', border: '1px solid #23314d' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <h3>{c.name}</h3>
-                    <span style={{ color: '#4ade80' }}>Đang bảo vệ</span>
+                    <h3 style={{ fontSize: '1.2rem', margin: 0 }}>{c.name}</h3>
+                    <span style={{ color: '#4ade80', fontSize: '0.875rem', fontWeight: 600, background: 'rgba(74, 222, 128, 0.1)', padding: '4px 10px', borderRadius: '6px' }}>
+                      {t('children_status_protected')}
+                    </span>
                   </div>
                   <div style={{ marginTop: '16px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem', color: '#94a3b8' }}>
-                      <span>Thời gian dùng hôm nay: {c.used_minutes_today} phút</span>
-                      <span>Hạn ngạch: {c.daily_quota_minutes} phút</span>
+                      <span>{t('children_used_today', { used: c.used_minutes_today })}</span>
+                      <span>{t('children_quota', { quota: c.daily_quota_minutes })}</span>
                     </div>
                     <div style={{ height: '8px', background: '#334155', borderRadius: '4px', overflow: 'hidden', marginTop: '8px' }}>
                       <div style={{ height: '100%', width: `${(c.used_minutes_today / c.daily_quota_minutes) * 100}%`, background: '#38bdf8' }} />
@@ -126,24 +165,31 @@ export const App: React.FC = () => {
 
         {activeTab === 'devices' && (
           <div>
-            <h1 style={{ fontSize: '1.75rem', marginBottom: '24px' }}>Danh sách Thiết bị Endpoint Bảo vệ</h1>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+              <h1 style={{ fontSize: '1.75rem', fontWeight: 700, margin: 0 }}>{t('devices_title')}</h1>
+              <button style={{ background: '#0284c7', color: '#fff', border: 'none', padding: '10px 18px', borderRadius: '8px', cursor: 'pointer', fontWeight: 600 }}>
+                + {t('devices_enroll_button')}
+              </button>
+            </div>
             <div style={{ background: '#151d2f', borderRadius: '12px', border: '1px solid #23314d', overflow: 'hidden' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
                 <thead style={{ background: '#1e293b' }}>
                   <tr>
-                    <th style={{ padding: '16px' }}>Tên thiết bị</th>
-                    <th style={{ padding: '16px' }}>Hệ điều hành</th>
-                    <th style={{ padding: '16px' }}>Phiên bản Policy</th>
-                    <th style={{ padding: '16px' }}>Trạng thái</th>
+                    <th style={{ padding: '16px' }}>{t('devices_th_name')}</th>
+                    <th style={{ padding: '16px' }}>{t('devices_th_os')}</th>
+                    <th style={{ padding: '16px' }}>{t('devices_th_policy')}</th>
+                    <th style={{ padding: '16px' }}>{t('devices_th_status')}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {devices.map((d) => (
                     <tr key={d.id} style={{ borderTop: '1px solid #23314d' }}>
-                      <td style={{ padding: '16px' }}>{d.device_name}</td>
+                      <td style={{ padding: '16px', fontWeight: 500 }}>{d.device_name}</td>
                       <td style={{ padding: '16px', color: '#94a3b8' }}>{d.os_version}</td>
-                      <td style={{ padding: '16px' }}>v{d.policy_version} (Đã đồng bộ)</td>
-                      <td style={{ padding: '16px', color: '#4ade80' }}>● Trực tuyến</td>
+                      <td style={{ padding: '16px' }}>{t('devices_synced', { version: d.policy_version })}</td>
+                      <td style={{ padding: '16px', color: d.status === 'online' ? '#4ade80' : '#f87171' }}>
+                        {d.status === 'online' ? t('devices_status_online') : t('devices_status_offline')}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -154,20 +200,24 @@ export const App: React.FC = () => {
 
         {activeTab === 'evidence' && (
           <div>
-            <h1 style={{ fontSize: '1.75rem', marginBottom: '8px' }}>Thư viện Bằng chứng Xác minh Thông minh</h1>
-            <p style={{ color: '#94a3b8', marginBottom: '24px' }}>
-              Hình ảnh được tự động làm mờ tại thiết bị để bảo vệ riêng tư. Tuân thủ tuyệt đối quy định COPPA/NĐ 13/2023: Tự hủy sau 48 giờ.
+            <h1 style={{ fontSize: '1.75rem', fontWeight: 700, marginBottom: '8px' }}>{t('evidence_title')}</h1>
+            <p style={{ color: '#94a3b8', marginBottom: '24px', fontSize: '0.9rem', lineHeight: '1.5' }}>
+              {t('evidence_desc')}
             </p>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '20px' }}>
               {evidences.map((e) => (
                 <div key={e.id} style={{ background: '#151d2f', borderRadius: '12px', border: '1px solid #23314d', overflow: 'hidden', padding: '16px' }}>
-                  <div style={{ width: '100%', height: '160px', background: '#0b0f19', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', filter: 'blur(2px)' }}>
-                    Ảnh 480p Đã Che Mờ
+                  <div style={{ width: '100%', height: '160px', background: '#0b0f19', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', filter: 'blur(2px)', fontSize: '0.85rem' }}>
+                    {t('evidence_thumb_placeholder')}
                   </div>
-                  <div style={{ marginTop: '12px' }}>
+                  <div style={{ marginTop: '14px' }}>
                     <div style={{ fontWeight: 600 }}>{e.trigger}</div>
-                    <div style={{ fontSize: '0.875rem', color: '#94a3b8', marginTop: '4px' }}>Thời điểm: {e.occurred_at}</div>
-                    <div style={{ fontSize: '0.875rem', color: '#f87171', marginTop: '4px' }}>Tự hủy sau: {e.expires_in_hours} giờ</div>
+                    <div style={{ fontSize: '0.875rem', color: '#94a3b8', marginTop: '6px' }}>
+                      {t('evidence_timestamp', { time: e.occurred_at })}
+                    </div>
+                    <div style={{ fontSize: '0.875rem', color: '#f87171', marginTop: '4px' }}>
+                      {t('evidence_expires', { hours: e.expires_in_hours })}
+                    </div>
                   </div>
                 </div>
               ))}
