@@ -1,0 +1,212 @@
+use std::sync::Arc;
+use serde::{Deserialize, Serialize};
+use tracing::{info, warn};
+
+use famshield_dns::blocklist::BlocklistStore;
+use famshield_local_admin::MasterPinAuthenticator;
+use famshield_storage::StorageEngine;
+use famshield_windows::SessionManager;
+use crate::error::SyncError;
+
+/// Command payload pushed from Server via NATS JetStream: `devices.{device_id}.commands`
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct RemoteCommand {
+    pub command_id: String,
+    pub device_id: String,
+    pub command_type: String, // "lock_session", "update_blacklist", "reset_pin", "update_policy"
+    #[serde(default)]
+    pub payload: serde_json::Value,
+}
+
+/// NatsDispatcher orchestrates real-time top-down commands received from NATS
+/// and bottom-up event pushes from local outbox.
+pub struct NatsDispatcher {
+    device_id: String,
+    storage: StorageEngine,
+    blocklist: Arc<BlocklistStore>,
+}
+
+impl NatsDispatcher {
+    pub fn new(device_id: impl Into<String>, storage: StorageEngine, blocklist: Arc<BlocklistStore>) -> Self {
+        Self {
+            device_id: device_id.into(),
+            storage,
+            blocklist,
+        }
+    }
+
+    pub fn device_id(&self) -> &str {
+        &self.device_id
+    }
+
+    /// Subject topic for receiving commands from Server
+    pub fn command_subject(&self) -> String {
+        format!("devices.{}.commands", self.device_id)
+    }
+
+    /// Subject topic for sending events/telemetry up to Server JetStream
+    pub fn event_subject(&self) -> String {
+        format!("devices.{}.events", self.device_id)
+    }
+
+    /// Subject topic for sending heartbeat pings
+    pub fn heartbeat_subject(&self) -> String {
+        format!("devices.{}.heartbeat", self.device_id)
+    }
+
+    /// Execute incoming command immediately without polling or latency
+    pub fn dispatch_command(&self, cmd: &RemoteCommand) -> Result<(), SyncError> {
+        info!(
+            "Processing remote command '{}' (ID: {}) for device '{}'",
+            cmd.command_type, cmd.command_id, self.device_id
+        );
+
+        match cmd.command_type.as_str() {
+            "lock_session" => {
+                info!("Executing immediate session lock via LockWorkStation API...");
+                SessionManager::lock_workstation()
+                    .map_err(|e| SyncError::Command(format!("Failed to lock workstation: {}", e)))?;
+                info!("Session locked successfully.");
+                Ok(())
+            }
+
+            "update_blacklist" => {
+                // Extract list of domain strings from payload
+                let domains: Vec<String> = if let Some(arr) = cmd.payload.get("domains").and_then(|v| v.as_array()) {
+                    arr.iter()
+                        .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                        .collect()
+                } else if let Some(arr) = cmd.payload.as_array() {
+                    arr.iter()
+                        .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                        .collect()
+                } else {
+                    return Err(SyncError::Command(
+                        "Payload must contain 'domains' array or be a string array".into(),
+                    ));
+                };
+
+                info!(
+                    "Atomically hot-swapping DNS blocklist with {} domains...",
+                    domains.len()
+                );
+                self.blocklist.replace_blocklist(&domains);
+                info!("DNS blocklist successfully updated with 0 downtime.");
+                Ok(())
+            }
+
+            "reset_pin" => {
+                let new_pin = cmd
+                    .payload
+                    .get("new_pin")
+                    .and_then(|v| v.as_str())
+                    .ok_or_else(|| SyncError::Command("Missing 'new_pin' in payload".into()))?;
+
+                info!("Executing remote cloud Master PIN reset...");
+                MasterPinAuthenticator::reset_pin_elevated(&self.storage, new_pin)
+                    .map_err(|e| SyncError::Command(format!("Failed to reset PIN: {}", e)))?;
+                info!("Master PIN successfully reset via cloud command.");
+                Ok(())
+            }
+
+            "update_policy" => {
+                info!("Policy update command received: {:?}", cmd.payload);
+                // Policy update payload can be parsed and saved to storage
+                if let Some(policy_obj) = cmd.payload.get("policy") {
+                    let policy_str = policy_obj.to_string();
+                    if let Ok(policy) = serde_json::from_str::<famshield_core::Policy>(&policy_str) {
+                        self.storage.save_policy(&policy, &policy_str)?;
+                        info!("Policy v{} applied and persisted.", policy.version);
+                    }
+                }
+                Ok(())
+            }
+
+            unknown => {
+                warn!("Received unknown remote command type: '{}'", unknown);
+                Err(SyncError::Command(format!("Unknown command type: {}", unknown)))
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_nats_command_subjects() {
+        let storage = StorageEngine::in_memory().unwrap();
+        let blocklist = Arc::new(BlocklistStore::new());
+        let dispatcher = NatsDispatcher::new("dev-999888", storage, blocklist);
+
+        assert_eq!(dispatcher.command_subject(), "devices.dev-999888.commands");
+        assert_eq!(dispatcher.event_subject(), "devices.dev-999888.events");
+        assert_eq!(dispatcher.heartbeat_subject(), "devices.dev-999888.heartbeat");
+    }
+
+    #[test]
+    fn test_dispatch_update_blacklist() {
+        let storage = StorageEngine::in_memory().unwrap();
+        let blocklist = Arc::new(BlocklistStore::new());
+        let dispatcher = NatsDispatcher::new("dev-123456", storage, blocklist.clone());
+
+        assert!(!blocklist.is_blocked("tiktok.com"));
+
+        let cmd = RemoteCommand {
+            command_id: "cmd-001".into(),
+            device_id: "dev-123456".into(),
+            command_type: "update_blacklist".into(),
+            payload: serde_json::json!({
+                "domains": ["tiktok.com", "facebook.com", "youtube.com"]
+            }),
+        };
+
+        dispatcher.dispatch_command(&cmd).unwrap();
+
+        assert!(blocklist.is_blocked("tiktok.com"));
+        assert!(blocklist.is_blocked("sub.tiktok.com"));
+        assert!(blocklist.is_blocked("facebook.com"));
+        assert!(!blocklist.is_blocked("google.com"));
+    }
+
+    #[test]
+    fn test_dispatch_reset_pin() {
+        let storage = StorageEngine::in_memory().unwrap();
+        let blocklist = Arc::new(BlocklistStore::new());
+        let dispatcher = NatsDispatcher::new("dev-123456", storage.clone(), blocklist);
+
+        let cmd = RemoteCommand {
+            command_id: "cmd-002".into(),
+            device_id: "dev-123456".into(),
+            command_type: "reset_pin".into(),
+            payload: serde_json::json!({
+                "new_pin": "9876"
+            }),
+        };
+
+        dispatcher.dispatch_command(&cmd).unwrap();
+        assert!(MasterPinAuthenticator::verify_storage_pin(&storage, "9876").unwrap());
+        assert!(!MasterPinAuthenticator::verify_storage_pin(&storage, "1234").unwrap());
+    }
+
+    #[test]
+    fn test_dispatch_lock_session() {
+        let storage = StorageEngine::in_memory().unwrap();
+        let blocklist = Arc::new(BlocklistStore::new());
+        let dispatcher = NatsDispatcher::new("dev-123456", storage, blocklist);
+
+        let cmd = RemoteCommand {
+            command_id: "cmd-003".into(),
+            device_id: "dev-123456".into(),
+            command_type: "lock_session".into(),
+            payload: serde_json::json!({}),
+        };
+
+        // Verifies the dispatch logic executes cleanly
+        let res = dispatcher.dispatch_command(&cmd);
+        // Note: On Windows desktop LockWorkStation() will trigger or return ok;
+        // inside an interactive non-elevated or elevated process it succeeds.
+        assert!(res.is_ok());
+    }
+}

@@ -1,4 +1,4 @@
-﻿use std::sync::Arc;
+use std::sync::Arc;
 use tokio::sync::broadcast;
 use tracing::info;
 
@@ -7,15 +7,17 @@ use famshield_dns::{
     DEFAULT_UPSTREAM,
 };
 use famshield_storage::StorageEngine;
+use famshield_sync::NatsDispatcher;
 use famshield_windows::wfp::WfpSessionGuard;
 use crate::dispatcher::IpcDispatcher;
 
-/// Core service controller orchestrating DNS, WFP, Local IPC, and Storage.
+/// Core service controller orchestrating DNS, WFP, Local IPC, Storage, and NATS JetStream dispatcher.
 pub struct ServiceController {
     storage: StorageEngine,
     ipc_dispatcher: Arc<IpcDispatcher>,
     dns_blocklist: Arc<BlocklistStore>,
     dns_cache: Arc<DnsCache>,
+    nats_dispatcher: Arc<NatsDispatcher>,
 }
 
 impl ServiceController {
@@ -24,11 +26,25 @@ impl ServiceController {
         let dns_blocklist = Arc::new(BlocklistStore::new());
         let dns_cache = Arc::new(DnsCache::new());
 
+        // Read enrolled device_id from storage meta or fallback to standalone ID
+        let device_id = storage
+            .get_meta("enrolled_device_id")
+            .ok()
+            .flatten()
+            .unwrap_or_else(|| "dev-local-001".to_string());
+
+        let nats_dispatcher = Arc::new(NatsDispatcher::new(
+            device_id,
+            storage.clone(),
+            dns_blocklist.clone(),
+        ));
+
         Self {
             storage,
             ipc_dispatcher,
             dns_blocklist,
             dns_cache,
+            nats_dispatcher,
         }
     }
 
@@ -42,6 +58,10 @@ impl ServiceController {
 
     pub fn dns_blocklist(&self) -> Arc<BlocklistStore> {
         self.dns_blocklist.clone()
+    }
+
+    pub fn nats_dispatcher(&self) -> Arc<NatsDispatcher> {
+        self.nats_dispatcher.clone()
     }
 
     /// Run the integrated services (DNS loopback proxy, IPC dispatcher, WFP guard).

@@ -1,4 +1,4 @@
-﻿[package]
+[package]
 name = "famshield-sync"
 version.workspace = true
 edition.workspace = true
@@ -9,6 +9,9 @@ description = "Cloud synchronization, mTLS transport, and command receiver for O
 [dependencies]
 famshield-core = { workspace = true }
 famshield-storage = { workspace = true }
+famshield-dns = { workspace = true }
+famshield-windows = { workspace = true }
+famshield-local-admin = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
 thiserror = { workspace = true }

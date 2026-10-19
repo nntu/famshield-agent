@@ -1,4 +1,4 @@
-﻿[package]
+[package]
 name = "famshield-service"
 version.workspace = true
 edition.workspace = true
@@ -12,6 +12,7 @@ famshield-storage = { workspace = true }
 famshield-dns = { workspace = true }
 famshield-windows = { workspace = true }
 famshield-local-admin = { workspace = true }
+famshield-sync = { path = "../sync" }
 tokio = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }

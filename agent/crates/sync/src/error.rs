@@ -1,4 +1,4 @@
-﻿use thiserror::Error;
+use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum SyncError {
@@ -16,4 +16,7 @@ pub enum SyncError {
 
     #[error("Storage error: {0}")]
     Storage(#[from] famshield_storage::StorageError),
+
+    #[error("Command execution error: {0}")]
+    Command(String),
 }
