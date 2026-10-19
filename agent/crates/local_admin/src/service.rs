@@ -70,4 +70,17 @@ impl LocalAdminService {
         let res = self.storage.delete_local_rule(rule_id)?;
         Ok(res)
     }
+
+    /// Query recent DNS logs for local reporting.
+    pub fn list_query_logs(&self, limit: usize) -> Result<Vec<childprotect_storage::QueryLogRecord>, LocalAdminError> {
+        let logs = self.storage.list_recent_query_logs(limit)?;
+        Ok(logs)
+    }
+
+    /// Query visual evidence gallery for local guardian review.
+    pub fn list_visual_evidence(&self, limit: usize) -> Result<Vec<childprotect_storage::VisualEvidenceRecord>, LocalAdminError> {
+        let list = self.storage.list_visual_evidence(limit)?;
+        Ok(list)
+    }
 }
+
