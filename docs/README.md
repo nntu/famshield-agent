@@ -1,4 +1,4 @@
-﻿# Implementation Documentation Index
+# Implementation Documentation Index
 
 This directory is the source of truth for the FamShield rewrite. Implementers should read the documents in order because later contracts assume the product scope, trust boundaries, and terminology established earlier.
 
@@ -16,6 +16,7 @@ This directory is the source of truth for the FamShield rewrite. Implementers sh
 10. [`10-WEB-CONSOLE.md`](10-WEB-CONSOLE.md) defines guardian workflows, pages, validation, and accessibility.
 11. [`11-ENGINEERING-STANDARDS.md`](11-ENGINEERING-STANDARDS.md) defines repository, coding, error, dependency, and review conventions.
 12. [`12-AUTO-UPDATE-AND-VERSIONING.md`](12-AUTO-UPDATE-AND-VERSIONING.md) defines Semantic Versioning, staged atomic auto-update, canary rollout, and automated watchdog rollback.
+13. [`13-DEPLOYMENT-GUIDE.md`](13-DEPLOYMENT-GUIDE.md) provides comprehensive deployment methods, Docker infrastructure, operational runbooks, and clean uninstallation procedures.
 
 
 Machine-readable contracts live under [`contracts/`](../contracts/). The Markdown documents govern intent; schemas govern wire validation. A contract change requires updating both in the same pull request.

@@ -1,4 +1,4 @@
-﻿# FamShield Parental Control Platform
+# FamShield Parental Control Platform
 
 FamShield is a modern parental-control platform for Windows supporting **Dual-Mode Operation**:
 1. **Local Mode (Standalone / Zero-Cloud):** Operates completely offline on a single machine. Guardians configure rules, schedules, quotas, and view usage reports and visual verification frames locally via a password/PIN-protected interface. No cloud account or external connection is required.
@@ -23,5 +23,23 @@ FamShield reports foreground application usage and DNS-observed domains. Network
 
 ## Implementation status
 
-The repository currently contains the legacy C# implementation and the approved rewrite documentation. Follow the milestones in [`docs/08-IMPLEMENTATION-PLAN.md`](docs/08-IMPLEMENTATION-PLAN.md); do not replace the legacy service in one step.
+The core rewrite of FamShield has completed its foundation phase:
+- **Rust Endpoint**: 9 crates implementing LocalSystem Service, Session Helper, NUMA DNS proxy, WFP network blocking, process tracker, DPAPI storage, and atomic auto-updater.
+- **Go Control Plane**: High-throughput REST API integrated with **NATS JetStream** for low-latency event ingestion.
+- **Web Console**: Modern React 19 + TypeScript + Vite 8 guardian dashboard.
+
+## Quickstart & Deployment
+
+- **Endpoint Agent Installation (Windows Admin)**:
+  ```powershell
+  # Build release binaries and install Windows Service + NRPT DNS route
+  .\build.ps1 install
+  ```
+- **Control Plane & Web Console (Docker)**:
+  ```bash
+  # Starts NATS JetStream (:4222, :8222), Go API (:8080), and Web Console (:3000)
+  docker compose up -d --build
+  ```
+- Detailed production architecture, mass deployment (GPO/Intune), Inno Setup installers, and operational runbooks are documented in [`docs/13-DEPLOYMENT-GUIDE.md`](docs/13-DEPLOYMENT-GUIDE.md).
+
 

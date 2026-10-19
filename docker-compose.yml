@@ -32,5 +32,18 @@ services:
       retries: 3
       start_period: 5s
 
+  # Centralized Guardian Web Management Console (React 19 + Nginx)
+  web-console:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    container_name: famshield-web-console
+    restart: unless-stopped
+    depends_on:
+      - control-plane
+    ports:
+      - "3000:80"
+
 volumes:
   nats-data:
+

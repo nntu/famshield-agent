@@ -1,4 +1,4 @@
-﻿; ==============================================================================
+; ==============================================================================
 ; FamShield Windows Inno Setup Script
 ; Bundles: Windows Service, Session Helper, Local Admin UI
 ; Registers: Windows Service (SYSTEM), NRPT DnsPolicyConfig (127.0.0.2:53)
@@ -31,13 +31,23 @@ WizardStyle=modern
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Files]
-; Placeholders for built binaries
-; Source: "..\target\release\famshield-service.exe"; DestDir: "{app}"; Flags: ignoreversion
-; Source: "..\target\release\famshield-session.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\target\release\famshield-service.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\target\release\famshield-session.exe"; DestDir: "{app}"; Flags: ignoreversion
+
+[Dirs]
+Name: "{commonappdata}\FamShield"; Permissions: users-modify
+
+[Registry]
+; Configure NRPT (Name Resolution Policy Table) to route namespace '.' to FamShield local DNS Proxy (127.0.0.2:53)
+Root: HKLM; Subkey: "SOFTWARE\Policies\Microsoft\Windows NT\DnsClient\DnsPolicyConfig\{FamShield-DNS-Filter}"; ValueType: string; ValueName: "Name"; ValueData: "."; Flags: uninsdeletekey
+Root: HKLM; Subkey: "SOFTWARE\Policies\Microsoft\Windows NT\DnsClient\DnsPolicyConfig\{FamShield-DNS-Filter}"; ValueType: string; ValueName: "GenericDNSServers"; ValueData: "127.0.0.2"; Flags: uninsdeletekey
+Root: HKLM; Subkey: "SOFTWARE\Policies\Microsoft\Windows NT\DnsClient\DnsPolicyConfig\{FamShield-DNS-Filter}"; ValueType: dword; ValueName: "ConfigOptions"; ValueData: 8; Flags: uninsdeletekey
+Root: HKLM; Subkey: "SOFTWARE\Policies\Microsoft\Windows NT\DnsClient\DnsPolicyConfig\{FamShield-DNS-Filter}"; ValueType: dword; ValueName: "Version"; ValueData: 1; Flags: uninsdeletekey
 
 [Run]
-; Install and start Windows Service automatically
-Filename: "{sys}\sc.exe"; Parameters: "create FamShieldService binPath= ""{app}\famshield-service.exe"" start= auto obj= LocalSystem"; Flags: runhidden
+; Install and start Windows Service automatically under LocalSystem
+Filename: "{sys}\sc.exe"; Parameters: "create FamShieldService binPath= ""{app}\famshield-service.exe"" start= auto obj= LocalSystem DisplayName= ""FamShield Security Platform"""; Flags: runhidden
+Filename: "{sys}\sc.exe"; Parameters: "description FamShieldService ""Unified parental control, NUMA DNS proxy and application filtering"""; Flags: runhidden
 Filename: "{sys}\sc.exe"; Parameters: "start FamShieldService"; Flags: runhidden
 
 [UninstallRun]
@@ -45,6 +55,3 @@ Filename: "{sys}\sc.exe"; Parameters: "start FamShieldService"; Flags: runhidden
 Filename: "{sys}\sc.exe"; Parameters: "stop FamShieldService"; Flags: runhidden
 Filename: "{sys}\sc.exe"; Parameters: "delete FamShieldService"; Flags: runhidden
 
-[Registry]
-; Clean up NRPT DnsPolicyConfig upon uninstallation
-Root: HKLM; Subkey: "SOFTWARE\Policies\Microsoft\Windows NT\DnsClient\DnsPolicyConfig\{FamShield-DNS-Filter}"; Flags: uninsdeletekey
