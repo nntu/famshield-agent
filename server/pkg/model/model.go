@@ -66,3 +66,16 @@ type VisualEvidenceMetadata struct {
 	ExpiresAt  time.Time `json:"expires_at"` // 48-Hour Retention
 	CreatedAt  time.Time `json:"created_at"`
 }
+
+// ReleaseManifest represents a signed auto-update release for endpoints.
+type ReleaseManifest struct {
+	ManifestVersion     int       `json:"manifest_version"`
+	Version             string    `json:"version"`
+	Channel             string    `json:"channel"`
+	MinSupportedVersion string    `json:"min_supported_version"`
+	PublishedAt         time.Time `json:"published_at"`
+	ServiceSHA256       string    `json:"service_sha256"`
+	ServiceBinaryURL    string    `json:"service_binary_url"`
+	SignatureHex        string    `json:"signature_hex"`
+}
+

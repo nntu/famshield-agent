@@ -29,6 +29,8 @@ func (s *Server) Handler() http.Handler {
 func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("/v1/device/enroll", s.handleDeviceEnroll)
 	s.mux.HandleFunc("/v1/device/events:batch", s.handleEventsBatch)
+	s.mux.HandleFunc("/v1/device/heartbeat", s.handleHeartbeat)
+	s.mux.HandleFunc("/v1/releases/latest", s.handleGetLatestRelease)
 	s.mux.HandleFunc("/v1/admin/enrollment-codes", s.handleGenerateEnrollmentCode)
 	s.mux.HandleFunc("/healthz", s.handleHealthz)
 }
@@ -161,3 +163,54 @@ func (s *Server) handleGenerateEnrollmentCode(w http.ResponseWriter, r *http.Req
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(code)
 }
+
+type HeartbeatRequest struct {
+	DeviceID      string `json:"device_id"`
+	AgentVersion  string `json:"agent_version"`
+	PolicyVersion int    `json:"policy_version"`
+	HealthStatus  string `json:"health_status"`
+}
+
+type HeartbeatResponse struct {
+	ServerTime       string                 `json:"server_time"`
+	DesiredPolicyVer int                    `json:"desired_policy_version"`
+	AvailableRelease *model.ReleaseManifest `json:"available_release,omitempty"`
+}
+
+func (s *Server) handleHeartbeat(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req HeartbeatRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Bad request", http.StatusBadRequest)
+		return
+	}
+
+	rel := s.store.GetLatestRelease()
+	var updateAvailable *model.ReleaseManifest
+	if rel != nil && rel.Version != req.AgentVersion {
+		updateAvailable = rel
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(HeartbeatResponse{
+		ServerTime:       "2026-10-19T10:00:00Z",
+		DesiredPolicyVer: 1,
+		AvailableRelease: updateAvailable,
+	})
+}
+
+func (s *Server) handleGetLatestRelease(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	rel := s.store.GetLatestRelease()
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(rel)
+}
+

@@ -108,3 +108,39 @@ func TestBatchEventsIngestion(t *testing.T) {
 		t.Fatalf("Expected 2 duplicate events, got %d", len(respDup.Duplicate))
 	}
 }
+
+func TestHeartbeatAutoUpdateDetection(t *testing.T) {
+	st := store.NewMemoryStore()
+	srv := api.NewServer(st)
+
+	// Heartbeat from agent running older version 0.1.0 (latest is 0.1.1)
+	hbReq := api.HeartbeatRequest{
+		DeviceID:      "dev-001",
+		AgentVersion:  "0.1.0",
+		PolicyVersion: 1,
+		HealthStatus:  "healthy",
+	}
+	body, _ := json.Marshal(hbReq)
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/device/heartbeat", bytes.NewReader(body))
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("Expected 200 OK, got %d", w.Code)
+	}
+
+	var resp api.HeartbeatResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("Failed to decode response: %v", err)
+	}
+
+	if resp.AvailableRelease == nil {
+		t.Fatalf("Expected available_release update metadata, got nil")
+	}
+
+	if resp.AvailableRelease.Version != "0.1.1" {
+		t.Fatalf("Expected version 0.1.1, got %s", resp.AvailableRelease.Version)
+	}
+}
+

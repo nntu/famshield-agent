@@ -17,6 +17,7 @@ type MemoryStore struct {
 	commands        map[string]*model.DeviceCommand
 	events          map[string]*model.IngestedEvent
 	evidence        map[string]*model.VisualEvidenceMetadata
+	latestRelease   *model.ReleaseManifest
 }
 
 func NewMemoryStore() *MemoryStore {
@@ -26,6 +27,16 @@ func NewMemoryStore() *MemoryStore {
 		commands:        make(map[string]*model.DeviceCommand),
 		events:          make(map[string]*model.IngestedEvent),
 		evidence:        make(map[string]*model.VisualEvidenceMetadata),
+		latestRelease: &model.ReleaseManifest{
+			ManifestVersion:     1,
+			Version:             "0.1.1",
+			Channel:             "stable",
+			MinSupportedVersion: "0.1.0",
+			PublishedAt:         time.Now().UTC(),
+			ServiceSHA256:       "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+			ServiceBinaryURL:    "https://dl.childprotect.cloud/releases/v0.1.1/childprotect-service.exe",
+			SignatureHex:        "3045022100abc...",
+		},
 	}
 }
 
@@ -104,3 +115,18 @@ func (s *MemoryStore) GetDevice(deviceID string) (*model.Device, bool) {
 	d, ok := s.devices[deviceID]
 	return d, ok
 }
+
+// GetLatestRelease returns the current active release manifest.
+func (s *MemoryStore) GetLatestRelease() *model.ReleaseManifest {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.latestRelease
+}
+
+// PublishRelease updates the active release manifest.
+func (s *MemoryStore) PublishRelease(release *model.ReleaseManifest) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.latestRelease = release
+}
+
