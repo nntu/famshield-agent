@@ -1,0 +1,82 @@
+# FamShield Agent - Quy Tắc Dành Cho AI Coding Agents (AGENTS.md)
+
+Tài liệu này định nghĩa các nguyên tắc và chỉ thị bắt buộc dành cho **AI Coding Agents** (Gemini Antigravity, Claude Code, Cursor, GitHub Copilot, v.v.) khi tham gia đọc hiểu, sửa đổi, refactor hoặc mở rộng mã nguồn trong repository **FamShield Agent**.
+
+---
+
+## 1. Quy Tắc Bắt Buộc: Cập Nhật CHANGELOG.md Theo Phiên Bản & Ngày Tháng
+
+> ⚠️ **QUY TẮC BẮT BUỘC (MANDATORY RULE):**  
+> Mỗi khi thực hiện một **thay đổi lớn (Major / Significant Changes)** — bao gồm:
+> - Thêm tính năng mới (New features)
+> - Tái cấu trúc kiến trúc hoặc module (Architectural refactorings)
+> - Nâng cấp hoặc thay đổi cơ chế bảo mật (Security patches & enhancements)
+> - Thay đổi giao thức mạng, schema DB, hoặc format IPC / Telemetry
+> 
+> **AI Agent BẮT BUỘC phải cập nhật [CHANGELOG.md](CHANGELOG.md)**:
+> 1. Ghi nhận thay đổi vào đúng mục phiên bản (`[X.Y.Z] - YYYY-MM-DD`) hoặc mục `[Unreleased]`.
+> 2. Phân loại thay đổi theo các tiêu đề chuẩn của [Keep a Changelog](https://keepachangelog.com/):
+>    - `### Added`: Các tính năng, crate, API, hoặc subsystem mới.
+>    - `### Changed`: Các thay đổi về hành vi, thuật toán, hoặc cấu trúc hiện tại.
+>    - `### Deprecated`: Các tính năng chuẩn bị bị loại bỏ trong tương lai.
+>    - `### Removed`: Các tính năng hoặc file bị xóa bỏ.
+>    - `### Fixed`: Các lỗi kỹ thuật, memory leak, panic, hoặc lỗ hổng bảo mật đã xử lý.
+>    - `### Security`: Các nâng cấp trực tiếp liên quan đến bảo mật (mã hóa, ACL, chữ ký).
+> 3. Tuyệt đối không xóa lịch sử các phiên bản cũ đã có trong CHANGELOG.
+
+---
+
+## 2. Quy Tắc Tiết Kiệm Token (RTK Proxy CLI)
+
+Khi thực thi bất kỳ lệnh shell nào trên hệ thống (terminal / powershell), AI Agent **BẮT BUỘC** phải gắn tiền tố `rtk`:
+
+```bash
+rtk cargo test
+rtk cargo clippy --workspace --all-targets -- -D warnings
+rtk git status
+rtk git diff
+```
+
+- `rtk` tự động nén và lọc output đầu ra, tiết kiệm 60–90% token ngữ cảnh.
+- Không sử dụng lệnh raw trừ khi cần gỡ lỗi đặc biệt với `rtk proxy <cmd>`.
+
+---
+
+## 3. Tiêu Chuẩn Chất Lượng Mã Nguồn (Build Quality Gate)
+
+Trước khi hoàn thành phiên làm việc hoặc báo cáo với người dùng, Agent **phải tự động kiểm tra và đảm bảo**:
+
+1. **Format:** `rtk cargo fmt --all -- --check` (Không có sai lệch định dạng).
+2. **Biên dịch:** `rtk cargo check --workspace --all-targets` (Biên dịch thành công).
+3. **Clippy Linter:** `rtk cargo clippy --workspace --all-targets -- -D warnings` (Tuyệt đối **0 errors, 0 warnings**).
+4. **Unit Tests:** `rtk cargo test --workspace` (Toàn bộ các test suite phải **PASS 100%**).
+
+---
+
+## 4. An Toàn Hệ Thống Windows & Ngăn Ngừa BSOD / Treo Máy
+
+FamShield Agent chạy dưới tiến trình đặc quyền `LocalSystem` trong Windows Session 0. Agent phải luôn tuân thủ:
+
+- **Zero BSOD & Network Lockup:** Mọi bộ lọc Windows Filtering Platform (WFP) bắt buộc phải đăng ký với cờ `FWPM_SESSION_FLAG_DYNAMIC`. Không bao giờ tạo static filter vĩnh viễn gây kẹt mạng máy trạm khi service gặp sự cố.
+- **Không Panic trong Service Loop:** Không sử dụng `unwrap()` hoặc `panic!()` trong các đường dẫn chạy ngầm (`famshield-service`, `famshield-dns`, `famshield-windows`). Sử dụng enum `thiserror` với kiểu trả về `Result<T, E>`.
+- **Bảo vệ Secret qua DPAPI:** Mọi mật khẩu, PIN hash, hoặc token bí mật lưu trữ cục bộ phải được mã hóa qua Windows Data Protection API (machine-scope). Tuyệt đối cấm ghi plain-text.
+- **Privacy-by-Design:** Mọi ảnh chụp màn hình vi phạm phải được làm mờ (Gaussian Blur) trực tiếp trong RAM trước khi ghi xuống đĩa hoặc gửi qua mạng.
+- **Bảo vệ IPC Named Pipe:** Luôn áp dụng chuỗi SDDL ACL chặt chẽ và framing độ dài tiền tố (giới hạn an toàn 256 KiB) để chống tấn công cạn kiệt bộ nhớ.
+
+---
+
+## 5. Bảo Toàn Kiến Trúc Freemium (Freemium Integrity)
+
+Agent phải luôn duy trì sự tách biệt rành mạch giữa 2 chế độ:
+- **`OperatingMode::StandaloneFree`**: Hoạt động 100% offline, miễn phí, độc lập, bảo vệ riêng tư tối đa, **không bao giờ phụ thuộc vào server hay mạng Internet**.
+- **`OperatingMode::OnlineManaged`**: Chỉ kích hoạt khi người dùng chủ động ghép nối qua mã xác thực đám mây. Mọi lệnh điều khiển từ xa phải được xác thực bằng chữ ký mật mã HMAC-SHA256 và kiểm tra cửa sổ chống phát lại (Anti-replay window $\le 300\text{s}$).
+
+> 🛑 **Nghiêm cấm:** Không bao giờ thêm logic khiến chế độ StandaloneFree bị phụ thuộc vào API máy chủ đám mây hoặc bị khóa tính năng bảo vệ máy trạm.
+
+---
+
+## 6. Đồng Bộ Hóa Tài Liệu Song Ngữ
+
+Mỗi khi thay đổi API, tính năng hiển thị cho người dùng, hoặc quy trình cài đặt:
+- Cập nhật đồng bộ cả hai tài liệu: [README.md](README.md) (Tiếng Việt) và [README.en.md](README.en.md) (Tiếng Anh).
+- Đảm bảo các liên kết GitHub Markdown trỏ đúng file và đúng format `file:///...`.
