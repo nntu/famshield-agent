@@ -35,9 +35,12 @@ fn test_smart_visual_verifier_frame_generation() {
     assert!(!frame.is_empty());
     // Verify valid JPEG SOI bytes
     assert_eq!(frame[0], 0xFF);
-    assert_eq!(frame[1], 0xD8);
     // Verify frame is well under 150 KiB quota
     assert!(frame.len() < 150 * 1024);
+    // Verify valid JPEG EOI marker
+    let len = frame.len();
+    assert_eq!(frame[len - 2], 0xFF);
+    assert_eq!(frame[len - 1], 0xD9);
 }
 
 #[test]

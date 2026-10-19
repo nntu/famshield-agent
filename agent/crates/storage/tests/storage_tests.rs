@@ -130,7 +130,7 @@ fn test_error_logs_smart_deduplication() {
     assert_eq!(errors[0].module, "dns_proxy");
 
     // 3. Mark as synced
-    storage.mark_errors_synced(&[id1.clone()]).unwrap();
+    storage.mark_errors_synced(std::slice::from_ref(&id1)).unwrap();
     let unsynced_after = storage.list_unsynced_errors(10).unwrap();
     assert_eq!(unsynced_after.len(), 0);
 

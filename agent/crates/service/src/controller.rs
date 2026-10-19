@@ -77,10 +77,23 @@ impl ServiceController {
     pub async fn run(&self, mut shutdown_rx: broadcast::Receiver<()>) {
         info!("Starting FamShield Windows Service subsystems...");
 
-        // 1. Initialize Dynamic WFP Session Guard
+        // 1. Initialize Dynamic WFP Session Guard & enforce Port 53 DNS redirection
         let _wfp_guard = match WfpSessionGuard::open_dynamic("FamShieldServiceSession") {
-            Ok(g) => {
+            Ok(mut g) => {
                 info!("Dynamic WFP User-Mode protection armed");
+                let upstream_ips: Vec<std::net::Ipv4Addr> = DEFAULT_UPSTREAM
+                    .parse::<std::net::SocketAddr>()
+                    .ok()
+                    .and_then(|addr| match addr {
+                        std::net::SocketAddr::V4(v4) => Some(*v4.ip()),
+                        _ => None,
+                    })
+                    .into_iter()
+                    .collect();
+
+                if let Err(e) = g.block_external_dns(&upstream_ips) {
+                    tracing::warn!("Failed to install WFP Port 53 block filters: {}", e);
+                }
                 Some(g)
             }
             Err(e) => {

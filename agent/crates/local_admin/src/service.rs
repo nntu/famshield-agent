@@ -65,10 +65,9 @@ impl LocalAdminService {
         Ok(())
     }
 
-    /// Authenticate guardian using Master PIN.
-    pub fn authenticate(&self, pin: &str, stored_hash: &str) -> Result<bool, LocalAdminError> {
-        let valid = MasterPinAuthenticator::verify_pin(pin, stored_hash)?;
-        Ok(valid)
+    /// Authenticate guardian using Master PIN against local storage with lockout protection.
+    pub fn authenticate(&self, pin: &str) -> Result<bool, LocalAdminError> {
+        self.authenticate_storage(pin)
     }
 
     /// Save a local rule in SQLite after verifying structure.
