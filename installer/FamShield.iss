@@ -19,6 +19,8 @@ AppPublisherURL={#MyAppURL}
 AppSupportURL={#MyAppURL}
 AppUpdatesURL={#MyAppURL}
 DefaultDirName={autopf}\{#MyAppName}
+ArchitecturesAllowed=x64compatible
+ArchitecturesInstallIn64BitMode=x64compatible
 DisableProgramGroupPage=yes
 LicenseFile=..\README.md
 PrivilegesRequired=admin
@@ -65,6 +67,6 @@ Filename: "{sys}\sc.exe"; Parameters: "start FamShieldService"; Flags: runhidden
 
 [UninstallRun]
 ; Stop and remove Windows Service cleanly
-Filename: "{sys}\sc.exe"; Parameters: "stop FamShieldService"; Flags: runhidden
-Filename: "{sys}\sc.exe"; Parameters: "delete FamShieldService"; Flags: runhidden
+Filename: "{sys}\sc.exe"; Parameters: "stop FamShieldService"; Flags: runhidden; RunOnceId: "StopFamShieldService"
+Filename: "{sys}\sc.exe"; Parameters: "delete FamShieldService"; Flags: runhidden; RunOnceId: "DeleteFamShieldService"
 

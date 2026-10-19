@@ -71,5 +71,12 @@ Tất cả các thay đổi quan trọng của dự án **FamShield Windows Agen
 - Thay thế các timer quét tiến trình flaky trong kiểm thử bằng injected snapshot.
 - Định dạng toàn bộ mã nguồn theo chuẩn `cargo fmt`.
 
+### Fixed
+- **Trình Cài Đặt Inno Setup Chuẩn Native 64-Bit (`installer/FamShield.iss`)**:
+  - Bổ sung chỉ thị `ArchitecturesAllowed=x64compatible` và `ArchitecturesInstallIn64BitMode=x64compatible`.
+  - Khắc phục triệt để lỗi cài nhầm vào thư mục `C:\Program Files (x86)\FamShield` do Inno Setup mặc định ở chế độ 32-bit khi thiếu chỉ thị kiến trúc.
+  - Vô hiệu hóa cơ chế chuyển hướng WOW64 File & Registry Redirection: Đảm bảo `{autopf}` trỏ chính xác về `C:\Program Files\FamShield`, `{sys}` trỏ về native `System32`, và ghi trực tiếp vào Registry 64-bit (đặc biệt quan trọng với chính sách NRPT DNS Policy).
+  - Thêm thuộc tính `RunOnceId` cho các bước gỡ dịch vụ trong `[UninstallRun]` nhằm loại bỏ cảnh báo biên dịch.
+
 ### Removed
 - Dọn dẹp và hợp nhất nội dung từ hai tài liệu tạm `chaulam.md` và `chualam.md` vào `CHANGELOG.md`.
