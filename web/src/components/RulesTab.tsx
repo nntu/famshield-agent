@@ -1,4 +1,5 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
+import { ColumnDef } from '@tanstack/react-table';
 import {
   Globe,
   Smartphone,
@@ -18,6 +19,7 @@ import * as XLSX from 'xlsx';
 import { Language, LocalRuleRecord } from '../types';
 import { translations } from '../i18n';
 import { api } from '../api';
+import { DataTable } from './DataTable';
 
 interface RulesTabProps {
   rules: LocalRuleRecord[];
@@ -137,6 +139,160 @@ export const RulesTab: React.FC<RulesTabProps> = ({
       onShowToast(e.message || (isVi ? 'Lỗi khi xóa quy tắc' : 'Delete failed'), 'error');
     }
   };
+
+  const domainColumns = useMemo<ColumnDef<LocalRuleRecord>[]>(
+    () => [
+      {
+        accessorKey: 'rule_id',
+        header: t.th_target,
+        cell: ({ row }) => {
+          let reason = '';
+          try {
+            const p = JSON.parse(row.original.payload);
+            reason = p.reason || '';
+          } catch {}
+          return (
+            <div>
+              <div style={{ fontWeight: 600, color: '#f8fafc' }}>{row.original.rule_id}</div>
+              {reason && <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{reason}</div>}
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: 'rule_type',
+        header: t.th_rule_type,
+        cell: () => (
+          <span style={{ background: '#1e293b', color: '#cbd5e1', padding: '3px 8px', borderRadius: 4, fontSize: '0.75rem', fontWeight: 700 }}>
+            DOMAIN
+          </span>
+        ),
+      },
+      {
+        accessorKey: 'created_at',
+        header: t.th_date_added,
+        cell: ({ getValue }) => (
+          <span style={{ color: '#94a3b8' }}>
+            {new Date(getValue<string>()).toLocaleDateString(isVi ? 'vi-VN' : 'en-US')}
+          </span>
+        ),
+      },
+      {
+        accessorKey: 'enabled',
+        header: t.th_status,
+        cell: ({ getValue }) => {
+          const enabled = getValue<boolean>();
+          return enabled ? (
+            <span style={{ color: '#34d399', display: 'flex', alignItems: 'center', gap: 4, fontWeight: 600 }}>
+              <CheckCircle2 size={14} /> {isVi ? 'BẬT' : 'ENABLED'}
+            </span>
+          ) : (
+            <span style={{ color: '#f87171', display: 'flex', alignItems: 'center', gap: 4, fontWeight: 600 }}>
+              <XCircle size={14} /> {isVi ? 'TẮT' : 'DISABLED'}
+            </span>
+          );
+        },
+      },
+      {
+        id: 'actions',
+        header: () => <div style={{ textAlign: 'right' }}>{t.th_action_col}</div>,
+        cell: ({ row }) => (
+          <div style={{ textAlign: 'right' }}>
+            <button
+              onClick={() => handleDeleteRule(row.original.rule_id)}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: '#f87171',
+                cursor: 'pointer',
+                padding: 4,
+              }}
+              title={isVi ? 'Xóa quy tắc' : 'Delete rule'}
+            >
+              <Trash2 size={16} />
+            </button>
+          </div>
+        ),
+      },
+    ],
+    [t, isVi]
+  );
+
+  const appColumns = useMemo<ColumnDef<LocalRuleRecord>[]>(
+    () => [
+      {
+        accessorKey: 'rule_id',
+        header: t.th_app_name,
+        cell: ({ getValue }) => (
+          <span style={{ color: '#f8fafc', fontWeight: 600 }}>{getValue<string>()}</span>
+        ),
+      },
+      {
+        id: 'limit',
+        header: t.th_daily_limit,
+        accessorFn: (row) => {
+          try {
+            const p = JSON.parse(row.payload);
+            return p.max_minutes_per_day || 60;
+          } catch {
+            return 60;
+          }
+        },
+        cell: ({ getValue }) => (
+          <span style={{ color: '#38bdf8', fontWeight: 700 }}>
+            {getValue<number>()} {isVi ? 'phút' : 'mins'}
+          </span>
+        ),
+      },
+      {
+        accessorKey: 'created_at',
+        header: t.th_date_added,
+        cell: ({ getValue }) => (
+          <span style={{ color: '#94a3b8' }}>
+            {new Date(getValue<string>()).toLocaleDateString(isVi ? 'vi-VN' : 'en-US')}
+          </span>
+        ),
+      },
+      {
+        accessorKey: 'enabled',
+        header: t.th_status,
+        cell: ({ getValue }) => {
+          const enabled = getValue<boolean>();
+          return enabled ? (
+            <span style={{ color: '#34d399', display: 'flex', alignItems: 'center', gap: 4, fontWeight: 600 }}>
+              <CheckCircle2 size={14} /> {isVi ? 'BẬT' : 'ENABLED'}
+            </span>
+          ) : (
+            <span style={{ color: '#f87171', display: 'flex', alignItems: 'center', gap: 4, fontWeight: 600 }}>
+              <XCircle size={14} /> {isVi ? 'TẮT' : 'DISABLED'}
+            </span>
+          );
+        },
+      },
+      {
+        id: 'actions',
+        header: () => <div style={{ textAlign: 'right' }}>{t.th_action_col}</div>,
+        cell: ({ row }) => (
+          <div style={{ textAlign: 'right' }}>
+            <button
+              onClick={() => handleDeleteRule(row.original.rule_id)}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: '#f87171',
+                cursor: 'pointer',
+                padding: 4,
+              }}
+              title={isVi ? 'Xóa hạn mức' : 'Delete app limit'}
+            >
+              <Trash2 size={16} />
+            </button>
+          </div>
+        ),
+      },
+    ],
+    [t, isVi]
+  );
 
   // ================= EXCEL EXPORT =================
   const handleExportExcel = () => {
@@ -580,77 +736,14 @@ export const RulesTab: React.FC<RulesTabProps> = ({
         </form>
 
         {/* Table */}
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
-            <thead>
-              <tr style={{ borderBottom: '1px solid #1e293b', color: '#64748b' }}>
-                <th style={{ padding: '10px 12px' }}>{t.th_target}</th>
-                <th style={{ padding: '10px 12px' }}>{t.th_rule_type}</th>
-                <th style={{ padding: '10px 12px' }}>{t.th_date_added}</th>
-                <th style={{ padding: '10px 12px' }}>{t.th_status}</th>
-                <th style={{ padding: '10px 12px', textAlign: 'right' }}>{t.th_action_col}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {domainRules.map((rule) => {
-                let reason = '';
-                try {
-                  const p = JSON.parse(rule.payload);
-                  reason = p.reason || '';
-                } catch {}
-
-                return (
-                  <tr key={rule.rule_id} style={{ borderBottom: '1px solid #0f172a' }}>
-                    <td style={{ padding: '12px', color: '#f8fafc', fontWeight: 600 }}>
-                      <div>{rule.rule_id}</div>
-                      {reason && <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{reason}</div>}
-                    </td>
-                    <td style={{ padding: '12px', color: '#94a3b8' }}>
-                      <span style={{ background: '#1e293b', padding: '3px 8px', borderRadius: 4, fontSize: '0.75rem' }}>
-                        DOMAIN
-                      </span>
-                    </td>
-                    <td style={{ padding: '12px', color: '#94a3b8' }}>
-                      {new Date(rule.created_at).toLocaleDateString(isVi ? 'vi-VN' : 'en-US')}
-                    </td>
-                    <td style={{ padding: '12px' }}>
-                      {rule.enabled ? (
-                        <span style={{ color: '#34d399', display: 'flex', alignItems: 'center', gap: 4 }}>
-                          <CheckCircle2 size={14} /> BẬT
-                        </span>
-                      ) : (
-                        <span style={{ color: '#f87171', display: 'flex', alignItems: 'center', gap: 4 }}>
-                          <XCircle size={14} /> TẮT
-                        </span>
-                      )}
-                    </td>
-                    <td style={{ padding: '12px', textAlign: 'right' }}>
-                      <button
-                        onClick={() => handleDeleteRule(rule.rule_id)}
-                        style={{
-                          background: 'transparent',
-                          border: 'none',
-                          color: '#f87171',
-                          cursor: 'pointer',
-                          padding: 4,
-                        }}
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-              {domainRules.length === 0 && (
-                <tr>
-                  <td colSpan={5} style={{ padding: '30px', textAlign: 'center', color: '#64748b' }}>
-                    {t.no_domain_rules}
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+        <DataTable
+          data={domainRules}
+          columns={domainColumns}
+          pageSize={10}
+          searchPlaceholder={isVi ? 'Tìm kiếm tên miền bị chặn...' : 'Search blocked domains...'}
+          emptyText={t.no_domain_rules}
+          lang={lang}
+        />
       </div>
 
       {/* 3. APPLICATION QUOTAS SECTION */}
@@ -731,74 +824,14 @@ export const RulesTab: React.FC<RulesTabProps> = ({
         </form>
 
         {/* Table */}
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
-            <thead>
-              <tr style={{ borderBottom: '1px solid #1e293b', color: '#64748b' }}>
-                <th style={{ padding: '10px 12px' }}>{t.th_app_name}</th>
-                <th style={{ padding: '10px 12px' }}>{t.th_daily_limit}</th>
-                <th style={{ padding: '10px 12px' }}>{t.th_date_added}</th>
-                <th style={{ padding: '10px 12px' }}>{t.th_status}</th>
-                <th style={{ padding: '10px 12px', textAlign: 'right' }}>{t.th_action_col}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {appRules.map((rule) => {
-                let limit = 60;
-                try {
-                  const p = JSON.parse(rule.payload);
-                  limit = p.max_minutes_per_day || 60;
-                } catch {}
-
-                return (
-                  <tr key={rule.rule_id} style={{ borderBottom: '1px solid #0f172a' }}>
-                    <td style={{ padding: '12px', color: '#f8fafc', fontWeight: 600 }}>
-                      {rule.rule_id}
-                    </td>
-                    <td style={{ padding: '12px', color: '#38bdf8', fontWeight: 700 }}>
-                      {limit} {isVi ? 'phút' : 'mins'}
-                    </td>
-                    <td style={{ padding: '12px', color: '#94a3b8' }}>
-                      {new Date(rule.created_at).toLocaleDateString(isVi ? 'vi-VN' : 'en-US')}
-                    </td>
-                    <td style={{ padding: '12px' }}>
-                      {rule.enabled ? (
-                        <span style={{ color: '#34d399', display: 'flex', alignItems: 'center', gap: 4 }}>
-                          <CheckCircle2 size={14} /> BẬT
-                        </span>
-                      ) : (
-                        <span style={{ color: '#f87171', display: 'flex', alignItems: 'center', gap: 4 }}>
-                          <XCircle size={14} /> TẮT
-                        </span>
-                      )}
-                    </td>
-                    <td style={{ padding: '12px', textAlign: 'right' }}>
-                      <button
-                        onClick={() => handleDeleteRule(rule.rule_id)}
-                        style={{
-                          background: 'transparent',
-                          border: 'none',
-                          color: '#f87171',
-                          cursor: 'pointer',
-                          padding: 4,
-                        }}
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-              {appRules.length === 0 && (
-                <tr>
-                  <td colSpan={5} style={{ padding: '30px', textAlign: 'center', color: '#64748b' }}>
-                    {t.no_app_rules}
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+        <DataTable
+          data={appRules}
+          columns={appColumns}
+          pageSize={10}
+          searchPlaceholder={isVi ? 'Tìm kiếm ứng dụng giới hạn...' : 'Search limited apps...'}
+          emptyText={t.no_app_rules}
+          lang={lang}
+        />
       </div>
 
       {/* 4. EXCEL IMPORT PREVIEW MODAL */}

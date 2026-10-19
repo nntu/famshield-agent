@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
-import { Search, RefreshCw, Filter } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { ColumnDef } from '@tanstack/react-table';
+import { RefreshCw, ShieldAlert, ShieldCheck } from 'lucide-react';
 import { Language, QueryLogRecord } from '../types';
 import { translations } from '../i18n';
+import { DataTable } from './DataTable';
 
 interface LogsTabProps {
   logs: QueryLogRecord[];
@@ -19,15 +21,94 @@ export const LogsTab: React.FC<LogsTabProps> = ({
   onToggleAutoRefresh,
 }) => {
   const t = translations[lang];
-  const [searchTerm, setSearchTerm] = useState('');
+  const isVi = lang === 'vi';
   const [filterType, setFilterType] = useState<'all' | 'blocked' | 'allowed'>('all');
 
-  const filteredLogs = logs.filter((log) => {
-    if (filterType === 'blocked' && log.action !== 'BLOCK') return false;
-    if (filterType === 'allowed' && log.action !== 'ALLOW') return false;
-    if (searchTerm && !log.domain.toLowerCase().includes(searchTerm.toLowerCase())) return false;
-    return true;
-  });
+  const filteredLogs = useMemo(() => {
+    return logs.filter((log) => {
+      if (filterType === 'blocked' && log.action !== 'BLOCK') return false;
+      if (filterType === 'allowed' && log.action !== 'ALLOW') return false;
+      return true;
+    });
+  }, [logs, filterType]);
+
+  const columns = useMemo<ColumnDef<QueryLogRecord>[]>(
+    () => [
+      {
+        accessorKey: 'occurred_at',
+        header: t.th_time,
+        cell: ({ getValue }) => {
+          const val = getValue<string>();
+          return (
+            <span style={{ color: '#94a3b8', fontSize: '0.84rem' }}>
+              {new Date(val).toLocaleTimeString()}
+            </span>
+          );
+        },
+      },
+      {
+        accessorKey: 'domain',
+        header: t.th_domain,
+        cell: ({ getValue }) => (
+          <span style={{ color: '#f8fafc', fontWeight: 600, wordBreak: 'break-all' }}>
+            {getValue<string>()}
+          </span>
+        ),
+      },
+      {
+        accessorKey: 'qtype',
+        header: t.th_type,
+        cell: ({ getValue }) => (
+          <span style={{
+            background: '#1e293b',
+            color: '#cbd5e1',
+            padding: '2px 8px',
+            borderRadius: 4,
+            fontSize: '0.75rem',
+            fontWeight: 700,
+          }}>
+            {getValue<string>()}
+          </span>
+        ),
+      },
+      {
+        accessorKey: 'action',
+        header: t.th_action,
+        cell: ({ getValue }) => {
+          const action = getValue<'ALLOW' | 'BLOCK'>();
+          const isBlock = action === 'BLOCK';
+          return (
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 5,
+                background: isBlock ? 'rgba(248, 113, 113, 0.15)' : 'rgba(52, 211, 153, 0.15)',
+                color: isBlock ? '#f87171' : '#34d399',
+                padding: '3px 10px',
+                borderRadius: 6,
+                fontWeight: 700,
+                fontSize: '0.78rem',
+              }}
+            >
+              {isBlock ? <ShieldAlert size={13} /> : <ShieldCheck size={13} />}
+              {isBlock ? t.tag_block : t.tag_allow}
+            </span>
+          );
+        },
+      },
+      {
+        accessorKey: 'reason',
+        header: t.th_reason,
+        cell: ({ getValue }) => (
+          <span style={{ color: '#94a3b8', fontSize: '0.82rem' }}>
+            {getValue<string>()}
+          </span>
+        ),
+      },
+    ],
+    [t]
+  );
 
   return (
     <div style={{
@@ -57,27 +138,6 @@ export const LogsTab: React.FC<LogsTabProps> = ({
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-          {/* Search Box */}
-          <div style={{ position: 'relative' }}>
-            <Search size={16} color="#94a3b8" style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)' }} />
-            <input
-              type="text"
-              placeholder={t.placeholder_search_logs}
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              style={{
-                background: '#070b14',
-                border: '1px solid #1e293b',
-                color: '#fff',
-                padding: '8px 12px 8px 36px',
-                borderRadius: 8,
-                fontSize: '0.85rem',
-                outline: 'none',
-                width: 220,
-              }}
-            />
-          </div>
-
           {/* Filter Pills */}
           <div style={{ display: 'inline-flex', background: '#070b14', borderRadius: 8, padding: 3, border: '1px solid #1e293b' }}>
             <button
@@ -127,6 +187,23 @@ export const LogsTab: React.FC<LogsTabProps> = ({
             </button>
           </div>
 
+          {/* Auto Refresh Toggle */}
+          <button
+            onClick={onToggleAutoRefresh}
+            style={{
+              background: autoRefresh ? 'rgba(56, 189, 248, 0.15)' : '#1e293b',
+              color: autoRefresh ? '#38bdf8' : '#94a3b8',
+              border: '1px solid #334155',
+              padding: '6px 12px',
+              borderRadius: 8,
+              fontSize: '0.8rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+            }}
+          >
+            {autoRefresh ? (isVi ? 'Tự động làm mới: BẬT' : 'Auto: ON') : (isVi ? 'Tự động: TẮT' : 'Auto: OFF')}
+          </button>
+
           {/* Refresh Button */}
           <button
             onClick={onRefresh}
@@ -150,56 +227,15 @@ export const LogsTab: React.FC<LogsTabProps> = ({
         </div>
       </div>
 
-      {/* Logs Table */}
-      {filteredLogs.length === 0 ? (
-        <div style={{ textAlign: 'center', color: '#94a3b8', padding: '40px 0', fontSize: '0.9rem' }}>
-          {t.no_matching_logs}
-        </div>
-      ) : (
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.88rem' }}>
-            <thead>
-              <tr style={{ borderBottom: '1px solid #1e293b', background: 'rgba(15, 23, 42, 0.5)' }}>
-                <th style={{ textAlign: 'left', padding: '12px 14px', color: '#94a3b8', fontWeight: 600 }}>{t.th_time}</th>
-                <th style={{ textAlign: 'left', padding: '12px 14px', color: '#94a3b8', fontWeight: 600 }}>{t.th_domain}</th>
-                <th style={{ textAlign: 'left', padding: '12px 14px', color: '#94a3b8', fontWeight: 600 }}>{t.th_type}</th>
-                <th style={{ textAlign: 'left', padding: '12px 14px', color: '#94a3b8', fontWeight: 600 }}>{t.th_action}</th>
-                <th style={{ textAlign: 'left', padding: '12px 14px', color: '#94a3b8', fontWeight: 600 }}>{t.th_reason}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredLogs.map((log, idx) => {
-                const isBlock = log.action === 'BLOCK';
-                const timeStr = new Date(log.occurred_at).toLocaleTimeString();
-                return (
-                  <tr key={idx} style={{ borderBottom: '1px solid #1e293b' }}>
-                    <td style={{ padding: '12px 14px', color: '#94a3b8' }}>{timeStr}</td>
-                    <td style={{ padding: '12px 14px', color: '#f8fafc', fontWeight: 600 }}>{log.domain}</td>
-                    <td style={{ padding: '12px 14px' }}>
-                      <span style={{ background: '#1e293b', color: '#cbd5e1', padding: '2px 8px', borderRadius: 4, fontSize: '0.75rem' }}>
-                        {log.qtype}
-                      </span>
-                    </td>
-                    <td style={{ padding: '12px 14px' }}>
-                      <span style={{
-                        background: isBlock ? 'rgba(248, 113, 113, 0.15)' : 'rgba(52, 211, 153, 0.15)',
-                        color: isBlock ? '#f87171' : '#34d399',
-                        padding: '3px 10px',
-                        borderRadius: 6,
-                        fontWeight: 700,
-                        fontSize: '0.78rem',
-                      }}>
-                        {isBlock ? t.tag_block : t.tag_allow}
-                      </span>
-                    </td>
-                    <td style={{ padding: '12px 14px', color: '#94a3b8', fontSize: '0.8rem' }}>{log.reason}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
+      {/* TanStack React Table with Sorting, Filter, and Pagination */}
+      <DataTable
+        data={filteredLogs}
+        columns={columns}
+        pageSize={10}
+        searchPlaceholder={t.placeholder_search_logs}
+        emptyText={t.no_matching_logs}
+        lang={lang}
+      />
     </div>
   );
 };

@@ -33,9 +33,12 @@ thiserror = "1.0"
 log = "0.4"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tracing-appender = "0.2"
+hickory-proto = "0.26"
 
 # Database & Cryptography
 rusqlite = { version = "0.31", features = ["bundled"] }
+rusqlite_migration = "1.2.0"
 argon2 = "0.5"
 sha2 = "0.10"
 p256 = { version = "0.13", features = ["ecdsa"] }

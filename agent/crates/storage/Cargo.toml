@@ -1,4 +1,4 @@
-﻿[package]
+[package]
 name = "famshield-storage"
 version.workspace = true
 edition.workspace = true
@@ -9,6 +9,7 @@ description = "SQLite storage, WAL mode persistence, outbox and local rules for 
 [dependencies]
 famshield-core = { workspace = true }
 rusqlite = { workspace = true }
+rusqlite_migration = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 serde = { workspace = true }

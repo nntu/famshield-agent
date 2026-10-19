@@ -1,4 +1,4 @@
-﻿[package]
+[package]
 name = "famshield-dns"
 version.workspace = true
 edition.workspace = true
@@ -13,3 +13,4 @@ tokio = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 rusqlite = { workspace = true }
+hickory-proto = { workspace = true }

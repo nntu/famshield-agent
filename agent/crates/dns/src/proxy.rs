@@ -8,6 +8,8 @@ use crate::blocklist::BlocklistStore;
 use crate::buffer::BytePacketBuffer;
 use crate::cache::DnsCache;
 use crate::error::DnsError;
+use hickory_proto::op::{Message, MessageType, ResponseCode};
+use hickory_proto::serialize::binary::{BinDecodable, BinEncodable};
 
 pub const DEFAULT_BIND_ADDR: &str = "127.0.0.2:53";
 pub const DEFAULT_UPSTREAM: &str = "1.1.1.1:53";
@@ -34,8 +36,28 @@ impl DnsProxy {
         }
     }
 
-    /// Builds a synthetic NXDOMAIN or 0.0.0.0 blocked DNS response wire.
+    /// Builds a synthetic NXDOMAIN or 0.0.0.0 blocked DNS response wire using hickory-proto.
     pub fn build_blocked_response(query_packet: &[u8]) -> Result<Vec<u8>, DnsError> {
+        // 1. Attempt RFC-compliant response generation via hickory-proto
+        if let Ok(query_msg) = Message::from_bytes(query_packet) {
+            let mut response = Message::new(
+                query_msg.metadata.id,
+                MessageType::Response,
+                query_msg.metadata.op_code,
+            );
+            response.metadata.recursion_desired = query_msg.metadata.recursion_desired;
+            response.metadata.authoritative = true;
+            response.metadata.recursion_available = true;
+            response.metadata.response_code = ResponseCode::NXDomain;
+
+            response.add_queries(query_msg.queries.clone());
+
+            if let Ok(wire) = response.to_bytes() {
+                return Ok(wire);
+            }
+        }
+
+        // 2. Fast zero-dependency fallback
         if query_packet.len() < 12 {
             return Err(DnsError::EndOfBuffer);
         }
@@ -46,7 +68,6 @@ impl DnsProxy {
         out.write_u8(query_packet[1])?;
 
         // Flags: QR=1 (response), AA=1, RA=1, RCODE=3 (NXDOMAIN)
-        // 0x8183 = 1000 0001 1000 0011
         out.write_u16(0x8183)?;
 
         // QDCOUNT=1, ANCOUNT=0, NSCOUNT=0, ARCOUNT=0
@@ -99,17 +120,27 @@ impl DnsProxy {
                 continue;
             }
 
-            // Extract QNAME
-            let mut parser = BytePacketBuffer::from_bytes(query_wire);
-            if parser.seek(12).is_err() {
-                continue;
-            }
-
-            let mut qname = String::new();
-            if parser.read_qname(&mut qname).is_err() {
-                continue;
-            }
-            let qtype = parser.read_u16().unwrap_or(1);
+            // Extract QNAME and QTYPE using hickory-proto with fallback
+            let (qname, qtype): (String, u16) = if let Ok(msg) = Message::from_bytes(query_wire) {
+                if let Some(query) = msg.queries.first() {
+                    let name = query.name().to_utf8().trim_end_matches('.').to_lowercase();
+                    let qt = u16::from(query.query_type());
+                    (name, qt)
+                } else {
+                    continue;
+                }
+            } else {
+                let mut parser = BytePacketBuffer::from_bytes(query_wire);
+                if parser.seek(12).is_err() {
+                    continue;
+                }
+                let mut name = String::new();
+                if parser.read_qname(&mut name).is_err() {
+                    continue;
+                }
+                let qt = parser.read_u16().unwrap_or(1);
+                (name, qt)
+            };
 
             // 1. Blocklist inspection (Atomic ArcSwap)
             if self.blocklist.is_blocked(&qname) {
@@ -157,5 +188,35 @@ impl DnsProxy {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use hickory_proto::op::{MessageType, OpCode, Query};
+    use hickory_proto::rr::{Name, RecordType};
+    use std::str::FromStr;
+
+    #[test]
+    fn test_build_blocked_response_hickory() {
+        let mut query_msg = Message::new(0x1234, MessageType::Query, OpCode::Query);
+        let name = Name::from_str("blocked-domain.com.").unwrap();
+        let query = Query::query(name, RecordType::A);
+        query_msg.add_query(query);
+
+        let query_wire = query_msg.to_bytes().unwrap();
+        let resp_wire = DnsProxy::build_blocked_response(&query_wire).unwrap();
+
+        let resp_msg = Message::from_bytes(&resp_wire).unwrap();
+        assert_eq!(resp_msg.metadata.id, 0x1234);
+        assert_eq!(resp_msg.metadata.message_type, MessageType::Response);
+        assert_eq!(resp_msg.metadata.response_code, ResponseCode::NXDomain);
+        assert!(resp_msg.metadata.authoritative);
+        assert_eq!(resp_msg.queries.len(), 1);
+        assert_eq!(
+            resp_msg.queries[0].name().to_string(),
+            "blocked-domain.com."
+        );
     }
 }

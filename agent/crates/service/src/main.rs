@@ -145,8 +145,35 @@ fn run_console() -> Result<(), Box<dyn std::error::Error>> {
     })
 }
 
+fn init_logging() -> tracing_appender::non_blocking::WorkerGuard {
+    use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+
+    let log_dir = get_data_dir().join("logs");
+    let _ = std::fs::create_dir_all(&log_dir);
+
+    let file_appender = tracing_appender::rolling::daily(&log_dir, "famshield-service.log");
+    let (non_blocking, guard) = tracing_appender::non_blocking(file_appender);
+
+    let file_layer = tracing_subscriber::fmt::layer()
+        .with_writer(non_blocking)
+        .with_ansi(false);
+
+    let stdout_layer = tracing_subscriber::fmt::layer().with_writer(std::io::stdout);
+
+    let env_filter = tracing_subscriber::EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"));
+
+    tracing_subscriber::registry()
+        .with(env_filter)
+        .with(file_layer)
+        .with(stdout_layer)
+        .init();
+
+    guard
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    tracing_subscriber::fmt::init();
+    let _guard = init_logging();
 
     let args: Vec<String> = std::env::args().collect();
     if handle_reset_pin(&args)? {

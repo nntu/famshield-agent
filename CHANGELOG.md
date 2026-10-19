@@ -9,6 +9,23 @@ Tất cả các thay đổi quan trọng của dự án **FamShield Windows Agen
 ## [Unreleased]
 
 ### Added
+- **Chuẩn Hóa & Nâng Cấp Hệ Thống Bằng Các Thư Viện Chuyên Nghiệp (Crates Modernization)**:
+  - **`tracing-appender = "0.2"` (`famshield-service`, `famshield-session`)**: Thay thế ghi log file thô sơ bằng luồng ghi log file xoay vòng hàng ngày (Daily Non-blocking Rotating File Appender), tự động bảo lưu log trong `%ProgramData%\FamShield\logs` với `WorkerGuard` đa luồng không gây trễ vòng lặp chính.
+  - **`rusqlite_migration = "1.2.0"` (`famshield-storage`)**: Thay thế logic migrate bảng SQL thủ công bằng framework quản lý migration nguyên tử có kiểm soát phiên bản `user_version` (Atomic Schema Migration), tự động áp dụng các phiên bản schema (V1 baseline, V2 quotas, V3 sync outbox) trong transaction an toàn, chống tham nhũng dữ liệu khi cúp điện.
+  - **`hickory-proto = "0.26"` (`famshield-dns`)**: Thay thế bộ phân tích gói tin DNS thô sơ bằng thư viện chuẩn RFC `hickory-proto` (Hickory DNS / cựu Trust-DNS). Tự động phân giải wire format nhị phân RFC 1035, xây dựng gói tin trả lời chặn NXDOMAIN chuẩn xác với đầy đủ cờ Authoritative (AA) và Recursion Available (RA), kèm fallback an toàn không phụ thuộc.
+- **Nâng Cấp Khay Hệ Thống Hiện Đại Chuẩn Tauri với `tray-icon` & `muda` (`famshield-session`)**:
+  - Tái cấu trúc toàn diện phân hệ khay hệ thống: Thay thế mã Win32 API cổ điển bằng bộ đôi thư viện chuẩn công nghiệp `tray-icon = "0.26"` và `muda = "0.21"` (phát triển bởi đội ngũ Tauri Core).
+  - Hỗ trợ menu ngữ cảnh hiện đại với Windows 11 Dark Mode, submenu đa cấp, và bộ bắt sự kiện click chuột trái/phải/double-click tức thời.
+  - Icon khiên bảo mật FamShield 32x32 RGBA độ phân giải cao được render thủ tục trong bộ nhớ, tối ưu hiển thị mượt mà không phụ thuộc file icon ngoài.
+- **Cơ Chế Canh Gác Phiên Người Dùng & Tự Động Phục Hồi (Session Watchdog & Auto-Respawn - `famshield-service`, `famshield-windows`, `famshield-local-admin`)**:
+  - Dịch vụ nền Windows Service Session 0 tích hợp vòng lặp Watchdog chu kỳ 10s: Tự động kiểm tra tiến trình `famshield-session.exe`.
+  - Nếu phát hiện `famshield-session.exe` chưa chạy hoặc bị tắt trong phiên tương tác người dùng (`WTSGetActiveConsoleSessionId`), dịch vụ lập tức ghi nhận cảnh báo `security_alert` vào telemetry và tự động tái khởi động tiến trình bằng `CreateProcessAsUserW` thông qua token người dùng `WTSQueryUserToken`.
+  - Cung cấp API `POST /api/system/session-helper/start` cho phép phụ huynh chủ động khởi chạy lại trợ lý phiên từ Web Admin.
+  - Hiển thị thanh cảnh báo trực quan màu đỏ nổi bật trên Dashboard Web Admin khi trợ lý phiên bị ngắt kết nối kèm nút "Khởi Chạy Lại Trợ Lý" 1 chạm và badge trạng thái trên thẻ hoạt động.
+- **Tích Hợp Bảng Dữ Liệu Chuyên Nghiệp `@tanstack/react-table` (TanStack Table v8 - `web`)**:
+  - Xây dựng component bảng dữ liệu dùng chung `DataTable.tsx` chuẩn công nghiệp dựa trên `@tanstack/react-table` v8.
+  - Hỗ trợ đầy đủ: Phân trang (Pagination) tùy chọn 10/25/50/100 dòng mỗi trang, Sắp xếp đa cột (Multi-column sorting) với biểu tượng mũi tên trực quan, Tìm kiếm lọc dữ liệu thời gian thực (Global search filtering).
+  - Áp dụng thành công cho: Phân hệ Nhật Ký Truy Vấn DNS (`LogsTab.tsx`), Danh Sách Đen Tên Miền (`RulesTab.tsx`), và Hạn Mức Ứng Dụng (`RulesTab.tsx`).
 - **Đồng Bộ Hóa Đám Mây & Tầng Vận Chuyển Telemetry (`famshield-sync`, `famshield-service`)**:
   - Triển khai `CloudSyncClient` giao tiếp HTTP chuẩn hóa kết nối với FamShield Cloud Server:
     - `POST /v1/device/enroll`: Ghép nối mã 6 số tự động chuyển chế độ sang `OnlineManaged`.

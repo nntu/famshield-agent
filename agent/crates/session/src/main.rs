@@ -3,9 +3,40 @@
 use famshield_session::{ForegroundTracker, PinDialog, SystemTray};
 use tracing::info;
 
+fn init_session_logging() -> tracing_appender::non_blocking::WorkerGuard {
+    use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+
+    let log_dir = std::env::var("ProgramData")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|_| std::path::PathBuf::from("."))
+        .join("FamShield")
+        .join("logs");
+    let _ = std::fs::create_dir_all(&log_dir);
+
+    let file_appender = tracing_appender::rolling::daily(&log_dir, "famshield-session.log");
+    let (non_blocking, guard) = tracing_appender::non_blocking(file_appender);
+
+    let file_layer = tracing_subscriber::fmt::layer()
+        .with_writer(non_blocking)
+        .with_ansi(false);
+
+    let stdout_layer = tracing_subscriber::fmt::layer().with_writer(std::io::stdout);
+
+    let env_filter = tracing_subscriber::EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"));
+
+    tracing_subscriber::registry()
+        .with(env_filter)
+        .with(file_layer)
+        .with(stdout_layer)
+        .init();
+
+    guard
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    tracing_subscriber::fmt::init();
+    let _guard = init_session_logging();
     info!("Starting FamShield Interactive Session Helper...");
 
     let args: Vec<String> = std::env::args().collect();
