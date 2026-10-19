@@ -1,8 +1,8 @@
-use tracing::info;
+﻿use tracing::info;
 use crate::error::WindowsError;
 
 pub const NRPT_REG_PATH: &str = r"SOFTWARE\Policies\Microsoft\Windows NT\DnsClient\DnsPolicyConfig";
-pub const CHILDPROTECT_NRPT_RULE_NAME: &str = "{ChildProtect-DNS-Filter}";
+pub const FAMSHIELD_NRPT_RULE_NAME: &str = "{FamShield-DNS-Filter}";
 
 /// Manages Windows Name Resolution Policy Table (NRPT) rules.
 /// Routes queries for the root namespace (".") to the local DNS proxy (`127.0.0.2:53`)
@@ -19,7 +19,7 @@ impl NrptManager {
 
     /// Removes the NRPT rule upon clean shutdown or uninstallation.
     pub fn remove_nrpt_rule() -> Result<(), WindowsError> {
-        info!("Removing ChildProtect NRPT rule from DnsPolicyConfig");
+        info!("Removing FamShield NRPT rule from DnsPolicyConfig");
         Ok(())
     }
 }

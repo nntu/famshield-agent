@@ -1,4 +1,4 @@
-# ==============================================================================
+﻿# ==============================================================================
 # Build Stage
 # ==============================================================================
 FROM golang:1.24-alpine AS builder
@@ -17,7 +17,7 @@ COPY . .
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
     -trimpath \
     -ldflags="-w -s" \
-    -o /app/bin/childprotect-server \
+    -o /app/bin/famshield-server \
     ./cmd/server/main.go
 
 # ==============================================================================
@@ -29,10 +29,10 @@ WORKDIR /
 
 # Copy trusted CA roots and compiled binary
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
-COPY --from=builder /app/bin/childprotect-server /childprotect-server
+COPY --from=builder /app/bin/famshield-server /famshield-server
 
 USER nonroot:nonroot
 
 EXPOSE 8080
 
-ENTRYPOINT ["/childprotect-server"]
+ENTRYPOINT ["/famshield-server"]

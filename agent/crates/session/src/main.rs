@@ -1,10 +1,10 @@
-use tracing::info;
-use childprotect_session::ForegroundTracker;
+﻿use tracing::info;
+use famshield_session::ForegroundTracker;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt::init();
-    info!("Starting ChildProtect Interactive Session Helper...");
+    info!("Starting FamShield Interactive Session Helper...");
 
     let _tracker = ForegroundTracker::new(300);
 

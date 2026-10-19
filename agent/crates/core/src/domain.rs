@@ -1,4 +1,4 @@
-use std::fmt;
+﻿use std::fmt;
 use std::time::Duration;
 use serde::{Deserialize, Serialize};
 use crate::error::CoreError;
@@ -78,7 +78,7 @@ impl ExecutableName {
     }
 }
 
-/// Official software categories recognized by ChildProtect.
+/// Official software categories recognized by FamShield.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ApplicationCategory {

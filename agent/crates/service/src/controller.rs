@@ -1,13 +1,13 @@
-use std::sync::Arc;
+﻿use std::sync::Arc;
 use tokio::sync::broadcast;
 use tracing::info;
 
-use childprotect_dns::{
+use famshield_dns::{
     blocklist::BlocklistStore, cache::DnsCache, proxy::DnsProxy, DEFAULT_BIND_ADDR,
     DEFAULT_UPSTREAM,
 };
-use childprotect_storage::StorageEngine;
-use childprotect_windows::wfp::WfpSessionGuard;
+use famshield_storage::StorageEngine;
+use famshield_windows::wfp::WfpSessionGuard;
 use crate::dispatcher::IpcDispatcher;
 
 /// Core service controller orchestrating DNS, WFP, Local IPC, and Storage.
@@ -46,10 +46,10 @@ impl ServiceController {
 
     /// Run the integrated services (DNS loopback proxy, IPC dispatcher, WFP guard).
     pub async fn run(&self, mut shutdown_rx: broadcast::Receiver<()>) {
-        info!("Starting ChildProtect Windows Service subsystems...");
+        info!("Starting FamShield Windows Service subsystems...");
 
         // 1. Initialize Dynamic WFP Session Guard
-        let _wfp_guard = match WfpSessionGuard::open_dynamic("ChildProtectServiceSession") {
+        let _wfp_guard = match WfpSessionGuard::open_dynamic("FamShieldServiceSession") {
             Ok(g) => {
                 info!("Dynamic WFP User-Mode protection armed");
                 Some(g)
@@ -73,7 +73,7 @@ impl ServiceController {
                 info!("DNS proxy listener ended");
             }
             _ = shutdown_rx.recv() => {
-                info!("Shutdown signal received, gracefully terminating ChildProtect service");
+                info!("Shutdown signal received, gracefully terminating FamShield service");
             }
         }
     }

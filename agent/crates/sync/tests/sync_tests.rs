@@ -1,8 +1,8 @@
-use childprotect_sync::{CloudEnrollmentClient, EnrollmentRequest};
+﻿use famshield_sync::{CloudEnrollmentClient, EnrollmentRequest};
 
 #[tokio::test]
 async fn test_enrollment_validation() {
-    let client = CloudEnrollmentClient::new("https://api.childprotect.cloud");
+    let client = CloudEnrollmentClient::new("https://api.famshield.cloud");
 
     // Invalid code (not 6 digits)
     let bad_req = EnrollmentRequest {

@@ -1,20 +1,20 @@
-use std::path::PathBuf;
+﻿use std::path::PathBuf;
 use tracing::info;
-use childprotect_service::ServiceController;
-use childprotect_storage::StorageEngine;
+use famshield_service::ServiceController;
+use famshield_storage::StorageEngine;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt::init();
-    info!("Starting ChildProtect Service runtime...");
+    info!("Starting FamShield Service runtime...");
 
     // Store database under ProgramData on Windows
     let data_dir = std::env::var("ProgramData")
         .map(PathBuf::from)
         .unwrap_or_else(|_| PathBuf::from("."))
-        .join("ChildProtect");
+        .join("FamShield");
     let _ = std::fs::create_dir_all(&data_dir);
-    let db_path = data_dir.join("childprotect.db");
+    let db_path = data_dir.join("famshield.db");
 
     let storage = StorageEngine::open(&db_path)?;
     let controller = ServiceController::new(storage);
@@ -29,6 +29,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
 
     controller.run(shutdown_rx).await;
-    info!("ChildProtect Service stopped cleanly.");
+    info!("FamShield Service stopped cleanly.");
     Ok(())
 }

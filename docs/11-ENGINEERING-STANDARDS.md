@@ -1,6 +1,6 @@
-# Engineering Standards and Rust Architectural Philosophy
+﻿# Engineering Standards and Rust Architectural Philosophy
 
-These standards govern the ChildProtect platform across the Rust Windows agent, Go control plane, and web interfaces. They codify Rust's core philosophy—**type safety, zero-cost abstractions, fearless concurrency, RAII resource management, and explicit error handling**—into concrete engineering rules.
+These standards govern the FamShield platform across the Rust Windows agent, Go control plane, and web interfaces. They codify Rust's core philosophy—**type safety, zero-cost abstractions, fearless concurrency, RAII resource management, and explicit error handling**—into concrete engineering rules.
 
 ---
 

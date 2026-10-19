@@ -1,6 +1,6 @@
-use std::time::{Duration, Instant};
-use childprotect_core::domain::ExecutableName;
-use childprotect_session::{capture::SmartVisualVerifier, tracker::ForegroundTracker};
+﻿use std::time::{Duration, Instant};
+use famshield_core::domain::ExecutableName;
+use famshield_session::{capture::SmartVisualVerifier, tracker::ForegroundTracker};
 
 #[test]
 fn test_foreground_tracker_idle_detection() {

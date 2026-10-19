@@ -1,6 +1,6 @@
-# Product Requirements for ChildProtect Parental Control Platform
+﻿# Product Requirements for FamShield Parental Control Platform
 
-ChildProtect helps a verified guardian manage Windows usage for children across one or more devices. The system operates in two distinct operational modes:
+FamShield helps a verified guardian manage Windows usage for children across one or more devices. The system operates in two distinct operational modes:
 1. **Local Mode (Standalone / Zero-Cloud):** Single-device management directly on the Windows endpoint. The guardian manages rules, views logs, and reviews visual verification frames locally using a Master PIN/Password. No cloud infrastructure, internet connectivity, or subscription is required.
 2. **Online Mode (Centralized Cloud Management):** Multi-device fleet management connected to a Go control plane and Web Console. Guardians publish signed policies, queue remote commands, receive batched telemetry, and inspect cross-device reports.
 

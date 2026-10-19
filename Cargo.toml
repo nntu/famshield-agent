@@ -1,4 +1,4 @@
-[workspace]
+﻿[workspace]
 members = [
     "agent/crates/core",
     "agent/crates/storage",
@@ -15,7 +15,7 @@ resolver = "2"
 [workspace.package]
 version = "0.1.0"
 edition = "2021"
-authors = ["ChildProtect Team"]
+authors = ["FamShield Team"]
 license = "Proprietary"
 
 [workspace.dependencies]
@@ -39,9 +39,9 @@ sha2 = "0.10"
 rand = "0.8"
 
 # Internal crates
-childprotect-core = { path = "agent/crates/core" }
-childprotect-storage = { path = "agent/crates/storage" }
-childprotect-dns = { path = "agent/crates/dns" }
-childprotect-windows = { path = "agent/crates/windows" }
-childprotect-session = { path = "agent/crates/session" }
-childprotect-local-admin = { path = "agent/crates/local_admin" }
+famshield-core = { path = "agent/crates/core" }
+famshield-storage = { path = "agent/crates/storage" }
+famshield-dns = { path = "agent/crates/dns" }
+famshield-windows = { path = "agent/crates/windows" }
+famshield-session = { path = "agent/crates/session" }
+famshield-local-admin = { path = "agent/crates/local_admin" }

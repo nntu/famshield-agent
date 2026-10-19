@@ -1,6 +1,6 @@
-# System Architecture and Trust Boundaries
+﻿# System Architecture and Trust Boundaries
 
-ChildProtect separates local enforcement from centralized control. The Windows agent owns real-time decisions and offline continuity. The server owns identity, policy authoring, fleet state, commands, reporting, and audit. No inbound Internet listener runs on an endpoint.
+FamShield separates local enforcement from centralized control. The Windows agent owns real-time decisions and offline continuity. The server owns identity, policy authoring, fleet state, commands, reporting, and audit. No inbound Internet listener runs on an endpoint.
 
 ## Component model
 

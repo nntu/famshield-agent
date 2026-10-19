@@ -1,4 +1,4 @@
-package api_test
+﻿package api_test
 
 import (
 	"bytes"
@@ -7,9 +7,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"childprotect-server/pkg/api"
-	"childprotect-server/pkg/model"
-	"childprotect-server/pkg/store"
+	"famshield-server/pkg/api"
+	"famshield-server/pkg/model"
+	"famshield-server/pkg/store"
 )
 
 func TestDeviceEnrollmentFlow(t *testing.T) {

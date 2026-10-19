@@ -1,17 +1,17 @@
-[package]
-name = "childprotect-service"
+﻿[package]
+name = "famshield-service"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
 license.workspace = true
-description = "LocalSystem privileged Windows Service for ChildProtect"
+description = "LocalSystem privileged Windows Service for FamShield"
 
 [dependencies]
-childprotect-core = { workspace = true }
-childprotect-storage = { workspace = true }
-childprotect-dns = { workspace = true }
-childprotect-windows = { workspace = true }
-childprotect-local-admin = { workspace = true }
+famshield-core = { workspace = true }
+famshield-storage = { workspace = true }
+famshield-dns = { workspace = true }
+famshield-windows = { workspace = true }
+famshield-local-admin = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }

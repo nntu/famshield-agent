@@ -1,6 +1,6 @@
-# Chiến Lược Versioning & Cơ Chế Auto-Update (ChildProtect Agent)
+﻿# Chiến Lược Versioning & Cơ Chế Auto-Update (FamShield Agent)
 
-Tài liệu này đặc tả toàn bộ chiến lược phân phối phiên bản (**Versioning Strategy**), kiến trúc cập nhật tự động an toàn (**Staged Atomic Auto-Update**), cơ chế phòng vệ chống lỗi (*Canary / Automated Rollback*) và quy trình triển khai cho **ChildProtect Windows Agent**.
+Tài liệu này đặc tả toàn bộ chiến lược phân phối phiên bản (**Versioning Strategy**), kiến trúc cập nhật tự động an toàn (**Staged Atomic Auto-Update**), cơ chế phòng vệ chống lỗi (*Canary / Automated Rollback*) và quy trình triển khai cho **FamShield Windows Agent**.
 
 ---
 
@@ -9,7 +9,7 @@ Tài liệu này đặc tả toàn bộ chiến lược phân phối phiên bả
 1. **Không bao giờ làm "gạch hóa" thiết bị (Zero Bricking Guarantee):**
    - Agent chạy dưới quyền `LocalSystem` và kiểm soát network filter (WFP), DNS NRPT. Bất kỳ lỗi crash hoặc cập nhật lỗi nào cũng phải được tự động hoàn nguyên (Auto-Rollback) về phiên bản trước trong vòng 30 giây mà không cần can thiệp thủ công từ người dùng.
 2. **Nguyên tử (Atomic Swap):**
-   - Không ghi đè trực tiếp lên tệp đang chạy. Tệp mới được tải về thư mục đệm (`%ProgramData%\ChildProtect\updates\staged`), chạy tự kiểm tra (Self-Test / Health Check) trong một tiến trình tạm thời trước khi hoán đổi tệp nhị phân chính.
+   - Không ghi đè trực tiếp lên tệp đang chạy. Tệp mới được tải về thư mục đệm (`%ProgramData%\FamShield\updates\staged`), chạy tự kiểm tra (Self-Test / Health Check) trong một tiến trình tạm thời trước khi hoán đổi tệp nhị phân chính.
 3. **Bảo mật tuyệt đối (Cryptographic Verification):**
    - Mọi bản cập nhật bắt buộc phải có chữ ký số Authenticode / ECDSA (P-256) từ Control Plane và kiểm tra hàm băm SHA-256 khớp tuyệt đối với Release Manifest.
 4. **Hỗ trợ Chế độ Kép (Dual-Mode Update Awareness):**
@@ -58,16 +58,16 @@ Mỗi bản phát hành được công bố trên Control Plane thông qua một
   "published_at": "2026-10-19T10:00:00Z",
   "binaries": {
     "service": {
-      "filename": "childprotect-service.exe",
+      "filename": "famshield-service.exe",
       "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
       "size_bytes": 14582310,
-      "url": "https://dl.childprotect.cloud/releases/v1.2.1/childprotect-service.exe"
+      "url": "https://dl.famshield.cloud/releases/v1.2.1/famshield-service.exe"
     },
     "session": {
-      "filename": "childprotect-session.exe",
+      "filename": "famshield-session.exe",
       "sha256": "4b227777d4dd1fc61c6f884f48641d02b4d121d3fd328cb08b5531fcacdabf8a",
       "size_bytes": 8921104,
-      "url": "https://dl.childprotect.cloud/releases/v1.2.1/childprotect-session.exe"
+      "url": "https://dl.famshield.cloud/releases/v1.2.1/famshield-session.exe"
     }
   },
   "signature": {
@@ -109,7 +109,7 @@ sequenceDiagram
         Note over Svc,Pipe: 4. Hoán đổi nguyên tử (Atomic Swap)
         Svc->>Pipe: Tạm dừng IPC session, giữ WFP Guard
         Upd->>Upd: MoveFileExW (MOVEFILE_DELAY_UNTIL_REBOOT hoặc hoán đổi dịch vụ)
-        Svc->>Svc: Khởi động lại ChildProtectService (v1.2.1)
+        Svc->>Svc: Khởi động lại FamShieldService (v1.2.1)
         Svc->>Svc: Kiểm tra WFP Filter & DNS 127.0.0.2:53 phản hồi
         Svc->>Server: Gửi heartbeat: v1.2.1 (Update Thành Công)
     end
@@ -122,7 +122,7 @@ sequenceDiagram
 Để loại trừ 100% rủi ro cập nhật gây lỗi:
 
 1. **Giai đoạn tiền kiểm tra (Pre-swap):**
-   - Binary mới được khởi chạy ở chế độ cô lập: `childprotect-service.exe --test-runtime`.
+   - Binary mới được khởi chạy ở chế độ cô lập: `famshield-service.exe --test-runtime`.
    - Tiến trình test mở database SQLite tạm trong RAM, kiểm tra schema migration, kiểm tra khả năng load WFP API `fwpmu.dll`, và bind thử nghiệm socket `127.0.0.3:5353`.
    - Nếu trả về exit code `0` trong 5 giây: Đạt điều kiện thay thế.
    - Nếu timeout hoặc crash: Hủy bỏ ngay lập tức, xóa thư mục staged.
@@ -131,7 +131,7 @@ sequenceDiagram
    - Sau khi thay thế binary và kích hoạt service mới, hệ thống kích hoạt bộ đếm **Watchdog Timer (30 giây)**.
    - Trong 30 giây này, service mới phải gửi tín hiệu "Heartbeat Sống" (Commit Healthy).
    - Nếu trong 30 giây service bị crash liên tục (hoặc BSOD/lỗi hệ thống):
-     - Service Controller khôi phục phiên bản sao lưu từ `%ProgramData%\ChildProtect\backup\`.
+     - Service Controller khôi phục phiên bản sao lưu từ `%ProgramData%\FamShield\backup\`.
      - Phục hồi tệp nhị phân cũ và khởi động lại.
      - Đánh dấu phiên bản bị lỗi vào blacklist cục bộ để không bao giờ tải lại bản phát hành đó.
 
@@ -145,4 +145,4 @@ sequenceDiagram
 | **Động cơ Atomic Staged & Rollback** | `agent/crates/updater/src/staged.rs` | **Đã hoàn thành (100% Test pass)** |
 | **Định nghĩa Release Manifest** | `agent/crates/updater/src/staged.rs` | **Đã hoàn thành** |
 | **Client kéo bản cập nhật qua mTLS** | `agent/crates/sync/src/lib.rs` | **Đã hoàn thành** |
-| **Tự động đăng ký & dọn dẹp NRPT** | `installer/ChildProtect.iss` & `build.ps1` | **Đã hoàn thành** |
+| **Tự động đăng ký & dọn dẹp NRPT** | `installer/FamShield.iss` & `build.ps1` | **Đã hoàn thành** |

@@ -1,5 +1,5 @@
-[package]
-name = "childprotect-local-admin"
+﻿[package]
+name = "famshield-local-admin"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
@@ -7,8 +7,8 @@ license.workspace = true
 description = "Local Mode administration API and Master PIN authentication"
 
 [dependencies]
-childprotect-core = { workspace = true }
-childprotect-storage = { workspace = true }
+famshield-core = { workspace = true }
+famshield-storage = { workspace = true }
 argon2 = { workspace = true }
 rand = { workspace = true }
 tokio = { workspace = true }

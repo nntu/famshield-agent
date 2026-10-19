@@ -1,4 +1,4 @@
-use tracing::info;
+﻿use tracing::info;
 use crate::error::SessionError;
 
 pub struct SmartVisualVerifier {
@@ -22,7 +22,7 @@ impl SmartVisualVerifier {
         // In native Windows production, this integrates DXGI Desktop Duplication API
         let mut jpeg = Vec::with_capacity(1024);
         jpeg.extend_from_slice(&[0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10]); // JPEG SOI & APP0
-        jpeg.extend_from_slice(b"ChildProtectBlurred480pFrame");
+        jpeg.extend_from_slice(b"FamShieldBlurred480pFrame");
         jpeg.extend_from_slice(&[0xFF, 0xD9]); // EOI
 
         Ok(jpeg)

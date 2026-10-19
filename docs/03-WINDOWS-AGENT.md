@@ -1,4 +1,4 @@
-# Rust Windows Agent Specification
+﻿# Rust Windows Agent Specification
 
 The endpoint consists of a privileged Windows service and an unprivileged per-session helper. The service is authoritative for policy, persistence, enforcement, and server communication. The helper supplies interactive-session signals and user notices. Both components must be native x64 binaries for the V1 target.
 
@@ -58,7 +58,7 @@ Startup sequence:
 6. Reconcile desired WFP filters, DNS proxy, browser GPO, and application rules.
 
 
-Shutdown must stop accepting commands, flush usage segments, commit the outbox, stop listeners, and leave network state consistent with the requested stop mode. Upgrade stop preserves protection until the replacement is healthy; uninstall restores only settings owned by ChildProtect.
+Shutdown must stop accepting commands, flush usage segments, commit the outbox, stop listeners, and leave network state consistent with the requested stop mode. Upgrade stop preserves protection until the replacement is healthy; uninstall restores only settings owned by FamShield.
 
 ## Session and usage tracking
 
@@ -132,7 +132,7 @@ The DNS engine incorporates the proven high-performance patterns from the Numa a
 
 To enforce network boundaries and prevent circumvention without third-party kernel drivers:
 - **User-Mode WFP Engine (`fwpmu.dll`):** Registers a dynamic WFP sublayer with `FWPM_SESSION_FLAG_DYNAMIC`. If the service terminates unexpectedly, Windows automatically releases the filters, eliminating network brick risk.
-- **Port 53 Lockdown:** Drops all outbound UDP and TCP port 53 traffic originating from processes other than ChildProtect.
+- **Port 53 Lockdown:** Drops all outbound UDP and TCP port 53 traffic originating from processes other than FamShield.
 - **DoH / VPN Endpoint Blocking:** Blocks connections to known public DoH (DNS-over-HTTPS) and proxy endpoints as configured by policy.
 
 

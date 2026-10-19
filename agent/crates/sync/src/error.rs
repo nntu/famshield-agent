@@ -1,4 +1,4 @@
-use thiserror::Error;
+﻿use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum SyncError {
@@ -15,5 +15,5 @@ pub enum SyncError {
     Serialization(#[from] serde_json::Error),
 
     #[error("Storage error: {0}")]
-    Storage(#[from] childprotect_storage::StorageError),
+    Storage(#[from] famshield_storage::StorageError),
 }

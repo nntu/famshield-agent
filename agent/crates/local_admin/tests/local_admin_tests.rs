@@ -1,8 +1,8 @@
-use childprotect_local_admin::{
+﻿use famshield_local_admin::{
     auth::MasterPinAuthenticator,
     service::{CreateRuleRequest, LocalAdminService},
 };
-use childprotect_storage::StorageEngine;
+use famshield_storage::StorageEngine;
 
 #[test]
 fn test_master_pin_hash_and_verify() {

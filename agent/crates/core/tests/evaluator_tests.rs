@@ -1,6 +1,6 @@
-use std::time::Duration;
+﻿use std::time::Duration;
 use chrono::{DateTime, TimeZone, Utc};
-use childprotect_core::{
+use famshield_core::{
     decision::{Action, ReasonCode},
     domain::{ApplicationCategory, ExecutableName, MonotonicUsage, NormalizedDomain},
     evaluator::{DomainEvaluationContext, PolicyEvaluator, ProcessEvaluationContext},

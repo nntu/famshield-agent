@@ -1,13 +1,13 @@
-[package]
-name = "childprotect-windows"
+﻿[package]
+name = "famshield-windows"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
 license.workspace = true
-description = "Safe Win32 wrappers, WFP user-mode engine, NRPT, and ETW monitoring for ChildProtect"
+description = "Safe Win32 wrappers, WFP user-mode engine, NRPT, and ETW monitoring for FamShield"
 
 [dependencies]
-childprotect-core = { workspace = true }
+famshield-core = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 

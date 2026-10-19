@@ -1,5 +1,5 @@
-[package]
-name = "childprotect-session"
+﻿[package]
+name = "famshield-session"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
@@ -7,8 +7,8 @@ license.workspace = true
 description = "Per-session helper for foreground tracking and DXGI visual verification"
 
 [dependencies]
-childprotect-core = { workspace = true }
-childprotect-service = { path = "../service" }
+famshield-core = { workspace = true }
+famshield-service = { path = "../service" }
 tokio = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }

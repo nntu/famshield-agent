@@ -1,10 +1,10 @@
-<#
+﻿<#
 .SYNOPSIS
-    Build and Installation Script for ChildProtect Windows Agent.
+    Build and Installation Script for FamShield Windows Agent.
 
 .DESCRIPTION
-    1. Compiles Rust workspace binaries (childprotect-service, childprotect-session) in Release mode.
-    2. Installs or updates the Windows Service (ChildProtectService) under LocalSystem.
+    1. Compiles Rust workspace binaries (famshield-service, famshield-session) in Release mode.
+    2. Installs or updates the Windows Service (FamShieldService) under LocalSystem.
     3. Configures Windows NRPT (Name Resolution Policy Table) to route namespace '.' to 127.0.0.2:53.
     4. Provides actions: build, install, uninstall, status.
 
@@ -26,9 +26,9 @@ $ErrorActionPreference = "Stop"
 
 $ProjectRoot = $PSScriptRoot
 $TargetDir = Join-Path $ProjectRoot "target\release"
-$InstallDir = Join-Path $env:ProgramFiles "ChildProtect"
-$ServiceName = "ChildProtectService"
-$NrptRulePath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\DnsClient\DnsPolicyConfig\{ChildProtect-DNS-Filter}"
+$InstallDir = Join-Path $env:ProgramFiles "FamShield"
+$ServiceName = "FamShieldService"
+$NrptRulePath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\DnsClient\DnsPolicyConfig\{FamShield-DNS-Filter}"
 
 function Assert-Administrator {
     $currentPrincipal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
@@ -38,12 +38,12 @@ function Assert-Administrator {
 }
 
 function Build-Agent {
-    Write-Host "==> [1/3] Building ChildProtect Release Binaries with Cargo..." -ForegroundColor Cyan
+    Write-Host "==> [1/3] Building FamShield Release Binaries with Cargo..." -ForegroundColor Cyan
     Set-Location $ProjectRoot
     cargo build --release --bins
 
-    $ServiceBin = Join-Path $TargetDir "childprotect-service.exe"
-    $SessionBin = Join-Path $TargetDir "childprotect-session.exe"
+    $ServiceBin = Join-Path $TargetDir "famshield-service.exe"
+    $SessionBin = Join-Path $TargetDir "famshield-session.exe"
 
     if (-not (Test-Path $ServiceBin) -or -not (Test-Path $SessionBin)) {
         Write-Error "Build failed: Could not locate compiled binaries in $TargetDir"
@@ -69,15 +69,15 @@ function Install-Agent {
         Start-Sleep -Seconds 2
     }
 
-    Copy-Item -Path (Join-Path $TargetDir "childprotect-service.exe") -Destination (Join-Path $InstallDir "childprotect-service.exe") -Force
-    Copy-Item -Path (Join-Path $TargetDir "childprotect-session.exe") -Destination (Join-Path $InstallDir "childprotect-session.exe") -Force
+    Copy-Item -Path (Join-Path $TargetDir "famshield-service.exe") -Destination (Join-Path $InstallDir "famshield-service.exe") -Force
+    Copy-Item -Path (Join-Path $TargetDir "famshield-session.exe") -Destination (Join-Path $InstallDir "famshield-session.exe") -Force
 
     Write-Host "==> [3/3] Registering Windows Service ($ServiceName) and NRPT Routing..." -ForegroundColor Cyan
 
-    $BinPath = Join-Path $InstallDir "childprotect-service.exe"
+    $BinPath = Join-Path $InstallDir "famshield-service.exe"
 
     if (-not $svc) {
-        New-Service -Name $ServiceName -DisplayName "ChildProtect Security Platform" -BinaryPathName "`"$BinPath`"" -StartupType Automatic -Description "Unified parental control, NUMA DNS proxy and application filtering" | Out-Null
+        New-Service -Name $ServiceName -DisplayName "FamShield Security Platform" -BinaryPathName "`"$BinPath`"" -StartupType Automatic -Description "Unified parental control, NUMA DNS proxy and application filtering" | Out-Null
         # Set to LocalSystem
         sc.exe config $ServiceName obj= LocalSystem | Out-Null
     } else {
@@ -97,17 +97,17 @@ function Install-Agent {
     Start-Service -Name $ServiceName -ErrorAction SilentlyContinue
 
     Write-Host "==========================================================" -ForegroundColor Green
-    Write-Host " ChildProtect Agent has been successfully installed! " -ForegroundColor Green
+    Write-Host " FamShield Agent has been successfully installed! " -ForegroundColor Green
     Write-Host " - Service Status: Running (LocalSystem)" -ForegroundColor Green
     Write-Host " - DNS Proxy Loopback: 127.0.0.2:53 (NRPT Active)" -ForegroundColor Green
-    Write-Host " - Local Data Directory: $env:ProgramData\ChildProtect" -ForegroundColor Green
+    Write-Host " - Local Data Directory: $env:ProgramData\FamShield" -ForegroundColor Green
     Write-Host "==========================================================" -ForegroundColor Green
 }
 
 function Uninstall-Agent {
     Assert-Administrator
 
-    Write-Host "==> Uninstalling ChildProtect Agent..." -ForegroundColor Yellow
+    Write-Host "==> Uninstalling FamShield Agent..." -ForegroundColor Yellow
 
     # 1. Stop and remove service
     $svc = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
@@ -125,11 +125,11 @@ function Uninstall-Agent {
         Write-Host "NRPT DnsPolicyConfig rule removed." -ForegroundColor Green
     }
 
-    Write-Host "ChildProtect uninstallation complete. System network settings restored." -ForegroundColor Green
+    Write-Host "FamShield uninstallation complete. System network settings restored." -ForegroundColor Green
 }
 
 function Show-Status {
-    Write-Host "--- ChildProtect Agent Status ---" -ForegroundColor Cyan
+    Write-Host "--- FamShield Agent Status ---" -ForegroundColor Cyan
     $svc = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
     if ($svc) {
         $color = if ($svc.Status -eq "Running") { "Green" } else { "Yellow" }

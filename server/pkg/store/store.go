@@ -1,4 +1,4 @@
-package store
+﻿package store
 
 import (
 	"crypto/rand"
@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"childprotect-server/pkg/model"
+	"famshield-server/pkg/model"
 )
 
 type MemoryStore struct {
@@ -34,7 +34,7 @@ func NewMemoryStore() *MemoryStore {
 			MinSupportedVersion: "0.1.0",
 			PublishedAt:         time.Now().UTC(),
 			ServiceSHA256:       "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-			ServiceBinaryURL:    "https://dl.childprotect.cloud/releases/v0.1.1/childprotect-service.exe",
+			ServiceBinaryURL:    "https://dl.famshield.cloud/releases/v0.1.1/famshield-service.exe",
 			SignatureHex:        "3045022100abc...",
 		},
 	}

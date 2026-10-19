@@ -1,11 +1,11 @@
-package api
+﻿package api
 
 import (
 	"encoding/json"
 	"net/http"
 
-	"childprotect-server/pkg/model"
-	"childprotect-server/pkg/store"
+	"famshield-server/pkg/model"
+	"famshield-server/pkg/store"
 )
 
 type Server struct {

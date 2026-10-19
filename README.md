@@ -1,6 +1,6 @@
-# ChildProtect Parental Control Platform
+﻿# FamShield Parental Control Platform
 
-ChildProtect is a modern parental-control platform for Windows supporting **Dual-Mode Operation**:
+FamShield is a modern parental-control platform for Windows supporting **Dual-Mode Operation**:
 1. **Local Mode (Standalone / Zero-Cloud):** Operates completely offline on a single machine. Guardians configure rules, schedules, quotas, and view usage reports and visual verification frames locally via a password/PIN-protected interface. No cloud account or external connection is required.
 2. **Online Mode (Cloud-Managed):** Enrolls the device into a Go-based control plane. Guardians distribute signed policies across multiple devices, receive batched events, issue remote commands (e.g., instant lock, allowance extensions), and monitor activity via a centralized web console.
 
@@ -19,7 +19,7 @@ The existing .NET Framework code remains the behavioral reference during migrati
 
 ## Product boundaries
 
-ChildProtect reports foreground application usage and DNS-observed domains. Network enforcement uses Windows Filtering Platform (WFP) user-mode APIs to reliably prevent DNS and DoH bypass without third-party kernel driver risks. Application control combines user-mode termination with WDAC / AppLocker enforcement. Visual verification is strictly event-triggered (e.g., blocked attempt or time request) with privacy-preserving blur and transparent child notification; continuous screen recording, keystrokes, clipboard contents, messages, microphone, or covert surveillance are prohibited. Full browser URLs require a separately reviewed browser extension and are not part of V1.
+FamShield reports foreground application usage and DNS-observed domains. Network enforcement uses Windows Filtering Platform (WFP) user-mode APIs to reliably prevent DNS and DoH bypass without third-party kernel driver risks. Application control combines user-mode termination with WDAC / AppLocker enforcement. Visual verification is strictly event-triggered (e.g., blocked attempt or time request) with privacy-preserving blur and transparent child notification; continuous screen recording, keystrokes, clipboard contents, messages, microphone, or covert surveillance are prohibited. Full browser URLs require a separately reviewed browser extension and are not part of V1.
 
 ## Implementation status
 

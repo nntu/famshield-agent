@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { Device, ChildProfile, VisualEvidence } from './types';
 
 export const App: React.FC = () => {
@@ -48,7 +48,7 @@ export const App: React.FC = () => {
     <div style={{ display: 'flex', minHeight: '100vh' }}>
       {/* Sidebar Navigation */}
       <aside style={{ width: '260px', background: '#111827', borderRight: '1px solid #1f2937', padding: '24px' }}>
-        <h2 style={{ color: '#38bdf8', fontSize: '1.25rem', marginBottom: '2rem' }}>ChildProtect Cloud</h2>
+        <h2 style={{ color: '#38bdf8', fontSize: '1.25rem', marginBottom: '2rem' }}>FamShield Cloud</h2>
         <nav style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
           {(['overview', 'children', 'devices', 'evidence'] as const).map((tab) => (
             <button

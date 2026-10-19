@@ -1,13 +1,13 @@
-[package]
-name = "childprotect-updater"
+﻿[package]
+name = "famshield-updater"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
 license.workspace = true
-description = "Atomic updater, signature verification, and rollback engine for ChildProtect"
+description = "Atomic updater, signature verification, and rollback engine for FamShield"
 
 [dependencies]
-childprotect-core = { workspace = true }
+famshield-core = { workspace = true }
 sha2 = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }

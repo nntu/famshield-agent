@@ -1,7 +1,7 @@
-{
+﻿{
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://contracts.childprotect.invalid/policy.schema.json",
-  "title": "ChildProtect Policy Payload",
+  "$id": "https://contracts.famshield.invalid/policy.schema.json",
+  "title": "FamShield Policy Payload",
   "type": "object",
   "additionalProperties": false,
   "required": [

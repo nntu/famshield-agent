@@ -1,6 +1,6 @@
-use serde::{Deserialize, Serialize};
+﻿use serde::{Deserialize, Serialize};
 
-pub const IPC_PIPE_NAME: &str = r"\\.\pipe\ChildProtectService";
+pub const IPC_PIPE_NAME: &str = r"\\.\pipe\FamShieldService";
 pub const MAX_IPC_MESSAGE_SIZE: usize = 256 * 1024; // 256 KiB max frame size (sufficient for blurred JPEGs)
 
 /// Strongly-typed, versioned IPC messages between Session Helper and Windows Service.

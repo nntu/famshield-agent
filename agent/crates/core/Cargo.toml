@@ -1,10 +1,10 @@
-[package]
-name = "childprotect-core"
+﻿[package]
+name = "famshield-core"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
 license.workspace = true
-description = "Pure domain logic, contracts, schedules, and policy engine for ChildProtect"
+description = "Pure domain logic, contracts, schedules, and policy engine for FamShield"
 
 [dependencies]
 serde = { workspace = true }

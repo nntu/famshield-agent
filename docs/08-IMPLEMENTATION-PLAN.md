@@ -1,6 +1,6 @@
-# Master Implementation Plan and Milestone Roadmap
+﻿# Master Implementation Plan and Milestone Roadmap
 
-ChildProtect delivery is structured into two sequential execution phases:
+FamShield delivery is structured into two sequential execution phases:
 - **Phase 1: Local Standalone MVP (Offline-First / Zero-Cloud):** Ships a fully functional, self-contained Windows application where guardians manage rules, inspect logs, and review privacy-preserved visual verification frames locally using a Master PIN.
 - **Phase 2: Online Centralized Management (Cloud Platform & SaaS):** Adds multi-device fleet enrollment, remote policy signing, push commands, and a multi-tenant web console via the Go control plane.
 
@@ -33,7 +33,7 @@ Development must proceed by independently verifiable milestones. Each pull reque
 - **Service Shell (`service`):** Implement `LocalSystem` Windows service lifecycle, SCM dispatcher, structured Windows Event Log logging, and clean shutdown handler.
 - **Persistence (`storage`):** Initialize SQLite in WAL mode (`PRAGMA journal_mode=WAL`, `synchronous=NORMAL`), migration runner, and table schemas (`local_rules`, `usage_segments`, `query_logs`, `visual_evidence`, `local_admin_auth`).
 - **Master PIN Security:** Implement Argon2id password hashing with unique per-machine salt secured via Windows DPAPI machine scope. Implement failed-attempt lockout with exponential backoff.
-- **Local IPC:** Set up message-framed Windows Named Pipe (`\\.\pipe\ChildProtectService`) protected with restrictive Windows Security Descriptors (SDDL), allowing only `LocalSystem` and verified interactive child sessions.
+- **Local IPC:** Set up message-framed Windows Named Pipe (`\\.\pipe\FamShieldService`) protected with restrictive Windows Security Descriptors (SDDL), allowing only `LocalSystem` and verified interactive child sessions.
 
 *Exit Criteria:* Service installs and starts cleanly; SQLite survives abrupt process termination; Master PIN authentication succeeds and rejects brute-force attempts; unprivileged users cannot write to the database or service pipe.
 
@@ -49,7 +49,7 @@ Development must proceed by independently verifiable milestones. Each pull reque
   - **NRPT System Routing:** Register a Windows Name Resolution Policy Table (NRPT) rule under `HKLM\SOFTWARE\Policies\Microsoft\Windows NT\DnsClient\DnsPolicyConfig` routing namespace `.` to `127.0.0.2:53`.
 - **WFP Network Lockdown (`windows`):**
   - Integrate user-mode Windows Filtering Platform (`fwpmu.dll`) using `FWPM_SESSION_FLAG_DYNAMIC`.
-  - Add filters blocking outbound UDP/TCP port 53 for all processes except the ChildProtect service.
+  - Add filters blocking outbound UDP/TCP port 53 for all processes except the FamShield service.
   - Add filters dropping outbound connections to known public DoH (DNS-over-HTTPS) and proxy endpoints.
 
 *Exit Criteria:* All system DNS queries route through `127.0.0.2:53`; external DNS and DoH bypasses fail; stopping or killing the service automatically releases WFP filters and restores normal network operation without bricking connectivity.

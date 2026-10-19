@@ -1,6 +1,6 @@
-# Security and Privacy Requirements
+﻿# Security and Privacy Requirements
 
-ChildProtect handles information about children and controls privileged Windows settings. Security, transparency, tenant isolation, and data minimization are release requirements rather than optional hardening work.
+FamShield handles information about children and controls privileged Windows settings. Security, transparency, tenant isolation, and data minimization are release requirements rather than optional hardening work.
 
 ## Threat model
 

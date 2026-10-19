@@ -1,13 +1,13 @@
-[package]
-name = "childprotect-storage"
+﻿[package]
+name = "famshield-storage"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
 license.workspace = true
-description = "SQLite storage, WAL mode persistence, outbox and local rules for ChildProtect"
+description = "SQLite storage, WAL mode persistence, outbox and local rules for FamShield"
 
 [dependencies]
-childprotect-core = { workspace = true }
+famshield-core = { workspace = true }
 rusqlite = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }

@@ -1,6 +1,6 @@
-# Implementation Documentation Index
+﻿# Implementation Documentation Index
 
-This directory is the source of truth for the ChildProtect rewrite. Implementers should read the documents in order because later contracts assume the product scope, trust boundaries, and terminology established earlier.
+This directory is the source of truth for the FamShield rewrite. Implementers should read the documents in order because later contracts assume the product scope, trust boundaries, and terminology established earlier.
 
 ## Required reading order
 

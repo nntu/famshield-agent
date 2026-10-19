@@ -1,9 +1,9 @@
-pub const LOCAL_DASHBOARD_HTML: &str = r#"<!DOCTYPE html>
+﻿pub const LOCAL_DASHBOARD_HTML: &str = r#"<!DOCTYPE html>
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ChildProtect - Bảng điều khiển Quản trị Cục bộ</title>
+    <title>FamShield - Bảng điều khiển Quản trị Cục bộ</title>
     <style>
         :root {
             --bg-primary: #0f172a;
@@ -40,7 +40,7 @@ pub const LOCAL_DASHBOARD_HTML: &str = r#"<!DOCTYPE html>
 <body>
     <div class="header">
         <div>
-            <h1>ChildProtect Quản trị Cục bộ</h1>
+            <h1>FamShield Quản trị Cục bộ</h1>
             <p class="stat-sub">Chế độ Độc lập (Zero-Cloud Standalone) • Cổng bảo vệ: 127.0.0.2:53</p>
         </div>
         <div class="badge">Master PIN: Xác thực thành công</div>

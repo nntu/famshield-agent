@@ -1,10 +1,10 @@
-# Migration, Deployment, and Operations
+﻿# Migration, Deployment, and Operations
 
 Migration replaces the C# service without losing policy, history, network ownership, or recovery capability. Cutover is transactional because the legacy and Rust DNS services cannot both bind local port 53.
 
 ## Legacy data import
 
-The importer reads from the existing `%ProgramData%\ChildProtect` layout using least privilege. It supports `config.json`, security and license state where legally and technically compatible, usage history, visit logs, temporary allowances, and network ownership markers. Rust models map legacy fields into a new policy draft and emit a migration report for unsupported or ambiguous values.
+The importer reads from the existing `%ProgramData%\FamShield` layout using least privilege. It supports `config.json`, security and license state where legally and technically compatible, usage history, visit logs, temporary allowances, and network ownership markers. Rust models map legacy fields into a new policy draft and emit a migration report for unsupported or ambiguous values.
 
 DPAPI data is decrypted only on the original machine under an authorized service identity. Secrets that cannot be migrated safely are discarded and must be re-entered; they are never uploaded as diagnostic content. The importer copies source data to a restricted backup and does not mutate it before successful cutover.
 
@@ -40,4 +40,4 @@ Endpoint SQLite uses transactions and integrity checks rather than cloud backup.
 
 ## Support and uninstall
 
-Diagnostic bundles require guardian authorization, use an explicit allowlist, redact secrets, and expire server-side. Uninstall requires an authorized local or central operation, stops enforcement, restores only ChildProtect-owned changes, removes credentials and scheduled tasks, and retains or deletes telemetry according to the selected data-removal option. The server records retirement separately from telemetry deletion.
+Diagnostic bundles require guardian authorization, use an explicit allowlist, redact secrets, and expire server-side. Uninstall requires an authorized local or central operation, stops enforcement, restores only FamShield-owned changes, removes credentials and scheduled tasks, and retains or deletes telemetry according to the selected data-removal option. The server records retirement separately from telemetry deletion.
