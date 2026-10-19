@@ -8,10 +8,12 @@ use famshield_dns::{
     DEFAULT_UPSTREAM,
 };
 use famshield_storage::StorageEngine;
-use famshield_sync::NatsDispatcher;
+use famshield_sync::{
+    CloudSyncClient, NatsDispatcher, TelemetryEvent, TelemetryPipeline, TelemetrySyncWorker,
+};
 use famshield_windows::{wfp::WfpSessionGuard, InstallerInterceptor, ProcessMonitor};
 
-/// Core service controller orchestrating DNS, WFP, Local IPC, Storage, and NATS JetStream dispatcher.
+/// Core service controller orchestrating DNS, WFP, Local IPC, Storage, Telemetry Sync, and NATS JetStream dispatcher.
 pub struct ServiceController {
     storage: StorageEngine,
     ipc_dispatcher: Arc<IpcDispatcher>,
@@ -19,6 +21,9 @@ pub struct ServiceController {
     dns_cache: Arc<DnsCache>,
     process_monitor: Arc<ProcessMonitor>,
     nats_dispatcher: Arc<NatsDispatcher>,
+    local_admin_server: Arc<famshield_local_admin::LocalAdminServer>,
+    telemetry_pipeline: Arc<TelemetryPipeline>,
+    sync_worker: Arc<TelemetrySyncWorker>,
 }
 
 impl ServiceController {
@@ -29,6 +34,18 @@ impl ServiceController {
         let installer = Arc::new(InstallerInterceptor::new());
         let process_monitor = Arc::new(ProcessMonitor::new());
 
+        // Pre-populate DNS blocklist from persistent local rules in SQLite
+        if let Ok(rules) = storage.list_local_rules() {
+            let domain_rules: Vec<String> = rules
+                .into_iter()
+                .filter(|r| r.rule_type == "domain" && r.enabled)
+                .map(|r| r.rule_id)
+                .collect();
+            if !domain_rules.is_empty() {
+                dns_blocklist.replace_blocklist(domain_rules);
+            }
+        }
+
         // Read enrolled device_id from storage meta or fallback to standalone ID
         let device_id = storage
             .get_meta("enrolled_device_id")
@@ -37,10 +54,37 @@ impl ServiceController {
             .unwrap_or_else(|| "dev-local-001".to_string());
 
         let nats_dispatcher = Arc::new(NatsDispatcher::new(
-            device_id,
+            device_id.clone(),
             storage.clone(),
             dns_blocklist.clone(),
             installer.clone(),
+        ));
+
+        let local_admin_svc = Arc::new(famshield_local_admin::LocalAdminService::new(
+            storage.clone(),
+        ));
+        let local_admin_server = Arc::new(famshield_local_admin::LocalAdminServer::new(
+            local_admin_svc,
+            Some(dns_blocklist.clone()),
+        ));
+
+        let telemetry_pipeline = Arc::new(TelemetryPipeline::new(
+            device_id,
+            storage.clone(),
+        ));
+
+        let server_url = storage
+            .get_meta("server_url")
+            .ok()
+            .flatten()
+            .unwrap_or_else(|| "http://127.0.0.1:8080".to_string());
+        let cloud_client = Arc::new(CloudSyncClient::new(server_url));
+
+        let sync_worker = Arc::new(TelemetrySyncWorker::new(
+            telemetry_pipeline.clone(),
+            cloud_client,
+            storage.clone(),
+            Some(dns_blocklist.clone()),
         ));
 
         Self {
@@ -50,6 +94,9 @@ impl ServiceController {
             dns_cache,
             process_monitor,
             nats_dispatcher,
+            local_admin_server,
+            telemetry_pipeline,
+            sync_worker,
         }
     }
 
@@ -71,6 +118,10 @@ impl ServiceController {
 
     pub fn process_monitor(&self) -> Arc<ProcessMonitor> {
         self.process_monitor.clone()
+    }
+
+    pub fn local_admin_server(&self) -> Arc<famshield_local_admin::LocalAdminServer> {
+        self.local_admin_server.clone()
     }
 
     /// Run the integrated services (DNS loopback proxy, IPC dispatcher, WFP guard, Process monitor).
@@ -119,10 +170,28 @@ impl ServiceController {
             }
         });
 
-        // 4. Periodic Process Monitoring Task (every 5 seconds)
+        // 4. Start Local Admin Web Server (http://127.0.0.1:48123)
+        let admin_server = self.local_admin_server.clone();
+        let admin_shutdown_rx = shutdown_rx.resubscribe();
+        tokio::spawn(async move {
+            if let Err(e) = admin_server.run("127.0.0.1:48123", admin_shutdown_rx).await {
+                tracing::warn!("Local Admin Web Server encountered error: {}", e);
+            }
+        });
+
+        // 5. Start Telemetry & Cloud Sync Worker (HTTP Outbox Batch + Heartbeat + Dynamic Policy Sync)
+        let sync_worker = self.sync_worker.clone();
+        let sync_shutdown_rx = shutdown_rx.resubscribe();
+        tokio::spawn(async move {
+            sync_worker.run(sync_shutdown_rx).await;
+        });
+
+        // 6. Periodic Process Monitoring Task (every 5 seconds)
         let proc_monitor = self.process_monitor.clone();
         let nats = self.nats_dispatcher.clone();
         let storage = self.storage.clone();
+        let admin_server_proc = self.local_admin_server.clone();
+        let telemetry_pipeline = self.telemetry_pipeline.clone();
         let mut proc_interval = tokio::time::interval(std::time::Duration::from_secs(5));
         let mut err_interval = tokio::time::interval(std::time::Duration::from_secs(15));
 
@@ -137,6 +206,17 @@ impl ServiceController {
                             if let Ok(events) = proc_monitor.detect_changes() {
                                 if !events.is_empty() {
                                     info!("Detected {} process lifecycle changes", events.len());
+                                    for ev in &events {
+                                        if ev.event_type == "process_started" {
+                                            admin_server_proc.set_active_app(&ev.process_name).await;
+                                        }
+                                        let _ = telemetry_pipeline.queue_event(&TelemetryEvent::new(
+                                            format!("proc-{}", chrono::Utc::now().timestamp_micros()),
+                                            "process_event",
+                                            chrono::Utc::now(),
+                                            serde_json::to_value(ev).unwrap_or_default(),
+                                        ));
+                                    }
                                     if let Ok(batch_json) = nats.format_process_events_batch(&events) {
                                         info!("Queued process telemetry batch for NATS JetStream: {} bytes", batch_json.len());
                                     }
@@ -148,6 +228,14 @@ impl ServiceController {
                             if let Ok(unsynced_errors) = storage.list_unsynced_errors(50) {
                                 if !unsynced_errors.is_empty() {
                                     info!("Found {} unsynced error logs in database", unsynced_errors.len());
+                                    for err_rec in &unsynced_errors {
+                                        let _ = telemetry_pipeline.queue_event(&TelemetryEvent::new(
+                                            format!("err-{}", err_rec.error_id),
+                                            "error_log",
+                                            chrono::Utc::now(),
+                                            serde_json::to_value(err_rec).unwrap_or_default(),
+                                        ));
+                                    }
                                     if let Ok(err_batch) = nats.format_error_logs_batch(&unsynced_errors) {
                                         info!("Queued error logs telemetry batch for NATS JetStream: {} bytes", err_batch.len());
                                         let error_ids: Vec<String> = unsynced_errors.into_iter().map(|e| e.error_id).collect();

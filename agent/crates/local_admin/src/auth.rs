@@ -87,6 +87,16 @@ impl MasterPinAuthenticator {
             .transpose()
     }
 
+    /// Check if Master PIN has already been configured in local storage.
+    pub fn is_pin_configured(storage: &StorageEngine) -> bool {
+        storage
+            .get_meta(META_PIN_HASH)
+            .ok()
+            .flatten()
+            .map(|value| !value.is_empty())
+            .unwrap_or(false)
+    }
+
     /// Validates PIN/secret format and generates an Argon2id password hash with OS-generated salt.
     pub fn hash_pin(pin: &str) -> Result<String, AuthError> {
         let trimmed = pin.trim();

@@ -1,4 +1,4 @@
-﻿[package]
+[package]
 name = "famshield-local-admin"
 version.workspace = true
 edition.workspace = true
@@ -9,6 +9,7 @@ description = "Local Mode administration API and Master PIN authentication"
 [dependencies]
 famshield-core = { workspace = true }
 famshield-storage = { workspace = true }
+famshield-dns = { workspace = true }
 argon2 = { workspace = true }
 rand = { workspace = true }
 tokio = { workspace = true }
@@ -17,9 +18,15 @@ thiserror = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 chrono = { workspace = true }
+sha2 = { workspace = true }
+axum = "0.7"
 
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.58", features = [
     "Win32_Foundation",
     "Win32_Security_Cryptography",
 ] }
+
+[dev-dependencies]
+tower = { version = "0.4", features = ["util"] }
+http-body-util = "0.1"

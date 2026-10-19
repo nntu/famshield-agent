@@ -22,7 +22,7 @@ The agent consists of 9 decoupled, modular crates:
 | **`famshield-session`** | User-session helper: Win32 GDI BitBlt Capture + Gaussian Blur, System Tray, Toast, Native PIN dialog. | **Implemented** ✅ |
 | **`famshield-dns`** | Zero-copy DNS proxy on loopback (`127.0.0.2:53`), Serve-Stale Cache, ArcSwap lock-free Blocklist hot-swap. | **Implemented** ✅ |
 | **`famshield-windows`** | WFP Port 53 filter (`FWPM_SESSION_FLAG_DYNAMIC`), NRPT Registry, ETW Kernel 0ms & ToolHelp32 monitor. | **Implemented** ✅ |
-| **`famshield-local-admin`** | Standalone administration: Master PIN Argon2id + DPAPI machine-scope, exponential lockout, emergency key. | **Implemented** ✅ |
+| **`famshield-local-admin`** | Local Web Admin Console (Axum :48123), bilingual SPA, domain/app rule CRUD, DNS telemetry, blurred evidence, Master PIN Argon2id + DPAPI. | **Implemented** ✅ |
 | **`famshield-storage`** | Local SQLite (WAL mode): Durable Outbox, Error Deduplication, Query Logs, Visual Evidence. | **Implemented** ✅ |
 | **`famshield-sync`** | Freemium Engine (`StandaloneFree` vs `OnlineManaged`), Telemetry Envelope, NATS JetStream, HMAC Auth. | **Implemented** ✅ |
 | **`famshield-updater`** | ECDSA P-256 digital signature verification, atomic staging binary swap, 30s watchdog rollback. | **Implemented** ✅ |
@@ -47,6 +47,21 @@ The agent consists of 9 decoupled, modular crates:
 - Machine-scope encryption using Windows Data Protection API (DPAPI) to protect secrets in the SQLite database.
 - **Brute-force protection**: Exponential lockout timer (30s to 15m) upon repeated failed attempts.
 - **3-tier recovery model**: Administrator UAC elevation CLI (`--reset-pin`), offline emergency recovery key `FAM-XXXX-XXXX-XXXX`, and remote cloud reset.
+
+### 💻 Local Web Admin & Centralized Management Console
+- Runs directly on local Axum HTTP server at `http://127.0.0.1:48123` (Session 0 Service) with a high-performance **React 19 + TypeScript + Vite** frontend.
+- Automatically launches in default browser upon post-install completion (`installer/FamShield.iss`) and accessible directly from Windows System Tray menu (`famshield-session`).
+- Interactive **5-step Initial Setup Wizard** on first boot: Guides parents through secure initialization, Master PIN creation, and Emergency Recovery Key issuance (`FAM-XXXX-XXXX-XXXX`).
+- **Comprehensive Centralized Management Server Settings**:
+  - Customizable Server URL/Endpoint, Organization/Tenant ID, Device Friendly Name, and Enrollment Code.
+  - Configurable telemetry & policy synchronization frequency (15s – 15m) and toggleable Strict TLS Verification for self-signed certificates in private enterprise/school LANs.
+  - Integrated **Async Network Connection Probe** (Tokio TCP probe measuring round-trip latency in ms) and **Instant Policy Synchronization** trigger.
+- Integrated **Audit-Only / Monitor Mode**: Instant toggle between Active Enforcement and Audit-Only monitoring. When active, blacklisted queries and violations are logged without blocking network traffic.
+- Integrated **Tamper-Evident Backup & Disaster Recovery (.famshield-bak)**: Export and restore complete system configurations and rulesets backed by SHA-256 integrity checksums, operating 100% offline.
+- Integrated **Comprehensive Activity & Screen Time Timeline**: Visually tracks total screen time today, applications launched, active time windows, granular durations, and full web browsing history in a unified chronological feed.
+- Integrated **Inappropriate Keystroke Keyword Monitoring**: Real-time detection of profanity, cyberbullying, self-harm, and adult keywords using an in-memory 128-char sliding buffer (`KeystrokeSlidingBuffer`), Aho-Corasick multi-pattern search, and Vietnamese/teencode normalization. Strictly follows **Privacy-by-Design** with zero keylogging to disk.
+- Seamless transition between **100% Offline StandaloneFree** and **Centralized OnlineManaged** modes.
+- Full bilingual support (Vietnamese & English), Master PIN protection, and secure `HttpOnly; SameSite=Strict` cookies.
 
 ### 📊 Unified Telemetry Pipeline (Store-and-Forward)
 - Durable **Store-and-Forward** offline-first telemetry backed by SQLite `outbox` table.

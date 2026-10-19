@@ -1,18 +1,42 @@
 use arc_swap::ArcSwap;
 use std::collections::HashSet;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct BlocklistStore {
     // Exact domain or parent suffix set (e.g., "tiktok.com")
     domains: Arc<ArcSwap<HashSet<String>>>,
+    monitor_mode: Arc<AtomicBool>,
+}
+
+impl Default for BlocklistStore {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl BlocklistStore {
     pub fn new() -> Self {
         Self {
             domains: Arc::new(ArcSwap::from_pointee(HashSet::new())),
+            monitor_mode: Arc::new(AtomicBool::new(false)),
         }
+    }
+
+    /// Enable or disable Monitor-only Mode (Audit mode: log only, zero blocking).
+    pub fn set_monitor_mode(&self, enabled: bool) {
+        self.monitor_mode.store(enabled, Ordering::SeqCst);
+    }
+
+    /// Check if Monitor Mode is currently active.
+    pub fn is_monitor_mode(&self) -> bool {
+        self.monitor_mode.load(Ordering::SeqCst)
+    }
+
+    /// Check if target domain should actually be blocked (blocked AND not in monitor mode).
+    pub fn should_block(&self, target_domain: &str) -> bool {
+        !self.is_monitor_mode() && self.is_blocked(target_domain)
     }
 
     /// Load or atomically replace the blocked domains list without locking reader threads.

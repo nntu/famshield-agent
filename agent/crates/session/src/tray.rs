@@ -2,22 +2,23 @@
 use crate::{pin_dialog::PinDialog, toast::FriendlyToast};
 #[cfg(windows)]
 use windows::{
-    core::w,
+    core::{w, PCWSTR},
     Win32::{
         Foundation::{HWND, LPARAM, LRESULT, POINT, WPARAM},
         System::LibraryLoader::GetModuleHandleW,
         UI::{
             Shell::{
-                Shell_NotifyIconW, NIF_ICON, NIF_MESSAGE, NIF_TIP, NIM_ADD, NIM_DELETE,
-                NOTIFYICONDATAW,
+                ShellExecuteW, Shell_NotifyIconW, NIF_ICON, NIF_MESSAGE, NIF_TIP, NIM_ADD,
+                NIM_DELETE, NOTIFYICONDATAW,
             },
             WindowsAndMessaging::{
                 AppendMenuW, CreatePopupMenu, CreateWindowExW, DefWindowProcW, DestroyMenu,
                 DestroyWindow, DispatchMessageW, GetCursorPos, GetMessageW, LoadIconW,
                 PostQuitMessage, RegisterClassW, SetForegroundWindow, TrackPopupMenu,
                 TranslateMessage, CW_USEDEFAULT, IDI_APPLICATION, MF_DISABLED, MF_GRAYED,
-                MF_SEPARATOR, MF_STRING, TPM_BOTTOMALIGN, TPM_LEFTALIGN, TPM_RETURNCMD, WM_CLOSE,
-                WM_DESTROY, WM_LBUTTONUP, WM_RBUTTONUP, WM_USER, WNDCLASSW, WS_OVERLAPPEDWINDOW,
+                MF_SEPARATOR, MF_STRING, SW_SHOWNORMAL, TPM_BOTTOMALIGN, TPM_LEFTALIGN,
+                TPM_RETURNCMD, WM_CLOSE, WM_DESTROY, WM_LBUTTONUP, WM_RBUTTONUP, WM_USER,
+                WNDCLASSW, WS_OVERLAPPEDWINDOW,
             },
         },
     },
@@ -25,6 +26,7 @@ use windows::{
 
 const WM_TRAYICON: u32 = WM_USER + 100;
 
+const IDM_OPEN_WEB_ADMIN: usize = 1000;
 const IDM_ADMIN_PIN: usize = 1001;
 const IDM_REQUEST_TIME: usize = 1002;
 const IDM_STATUS_INFO: usize = 1003;
@@ -155,8 +157,14 @@ impl SystemTray {
         let _ = AppendMenuW(
             menu,
             MF_STRING,
+            IDM_OPEN_WEB_ADMIN,
+            w!("🌐 Mở Bảng Quản Trị Web (Local Admin)"),
+        );
+        let _ = AppendMenuW(
+            menu,
+            MF_STRING,
             IDM_ADMIN_PIN,
-            w!("🛡️ Bảng Quản trị Phụ huynh (Nhập PIN)"),
+            w!("🛡️ Xác thực Master PIN (Hộp thoại Desktop)"),
         );
         let _ = AppendMenuW(
             menu,
@@ -196,6 +204,18 @@ impl SystemTray {
         let _ = DestroyMenu(menu);
 
         match cmd.0 as usize {
+            IDM_OPEN_WEB_ADMIN => {
+                let url = w!("http://127.0.0.1:48123");
+                let open_op = w!("open");
+                let _ = ShellExecuteW(
+                    None,
+                    open_op,
+                    url,
+                    PCWSTR::null(),
+                    PCWSTR::null(),
+                    SW_SHOWNORMAL,
+                );
+            }
             IDM_ADMIN_PIN => {
                 PinDialog::prompt_and_open_dashboard();
             }

@@ -113,11 +113,18 @@ impl DnsProxy {
 
             // 1. Blocklist inspection (Atomic ArcSwap)
             if self.blocklist.is_blocked(&qname) {
-                debug!("Blocked DNS request for {}", qname);
-                if let Ok(blocked_wire) = Self::build_blocked_response(query_wire) {
-                    let _ = socket.send_to(&blocked_wire, client_addr).await;
+                if self.blocklist.is_monitor_mode() {
+                    info!(
+                        "[MONITOR MODE] Query for blacklisted domain '{}' observed; passing through without blocking",
+                        qname
+                    );
+                } else {
+                    debug!("Blocked DNS request for {}", qname);
+                    if let Ok(blocked_wire) = Self::build_blocked_response(query_wire) {
+                        let _ = socket.send_to(&blocked_wire, client_addr).await;
+                    }
+                    continue;
                 }
-                continue;
             }
 
             // 2. Serve-Stale Cache check

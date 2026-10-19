@@ -102,6 +102,51 @@ impl IpcDispatcher {
                     message: "Time extension request recorded".into(),
                 }
             }
+            IpcMessage::KeywordViolation {
+                session_id,
+                app_name,
+                keyword_matched,
+                category,
+                severity,
+                snippet_masked,
+            } => {
+                info!(
+                    "Session {} keyword violation: app='{}', keyword='{}', cat='{}', sev='{}'",
+                    session_id, app_name, keyword_matched, category, severity
+                );
+                let record = famshield_storage::KeywordViolationRecord {
+                    id: format!("kw_v_{}", Utc::now().timestamp_millis()),
+                    timestamp_utc: Utc::now(),
+                    app_name,
+                    keyword_matched,
+                    category,
+                    severity,
+                    snippet_masked,
+                };
+                match self.storage.record_keyword_violation(&record) {
+                    Ok(()) => IpcMessage::Response {
+                        request_id: "kw_violation".into(),
+                        success: true,
+                        message: "Keyword violation recorded".into(),
+                    },
+                    Err(e) => {
+                        error!("Failed to record keyword violation: {}", e);
+                        IpcMessage::Response {
+                            request_id: "error".into(),
+                            success: false,
+                            message: format!("Storage error: {}", e),
+                        }
+                    }
+                }
+            }
+            IpcMessage::ReloadKeywordRules { enabled } => {
+                info!("Reloading keyword rules: enabled={}", enabled);
+                IpcMessage::Response {
+                    request_id: "reload_kw".into(),
+                    success: true,
+                    message: format!("Keyword rules reloaded (enabled: {})", enabled),
+                }
+            }
             IpcMessage::Response { .. } => IpcMessage::Response {
                 request_id: "none".into(),
                 success: false,

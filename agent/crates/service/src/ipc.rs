@@ -38,6 +38,19 @@ pub enum IpcMessage {
         requested_minutes: u32,
         reason: String,
     },
+    /// Keyword violation detected in user session.
+    KeywordViolation {
+        session_id: u32,
+        app_name: String,
+        keyword_matched: String,
+        category: String,
+        severity: String,
+        snippet_masked: String,
+    },
+    /// Command from service to reload keyword rules or toggle status.
+    ReloadKeywordRules {
+        enabled: bool,
+    },
     /// Service response / acknowledgement.
     Response {
         request_id: String,

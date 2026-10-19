@@ -80,3 +80,34 @@ Agent phải luôn duy trì sự tách biệt rành mạch giữa 2 chế độ:
 Mỗi khi thay đổi API, tính năng hiển thị cho người dùng, hoặc quy trình cài đặt:
 - Cập nhật đồng bộ cả hai tài liệu: [README.md](README.md) (Tiếng Việt) và [README.en.md](README.en.md) (Tiếng Anh).
 - Đảm bảo các liên kết GitHub Markdown trỏ đúng file và đúng format `file:///...`.
+
+---
+
+## 7. Quy Tắc Bắt Buộc: Quản Lý Phiên Bản Telemetry & Đối Chiếu Chéo Với Server (Telemetry Versioning & Cross-Reconciliation)
+
+> ⚠️ **QUY TẮC BẮT BUỘC (MANDATORY RULE):**  
+> Bất kỳ khi nào thực hiện sửa đổi, bổ sung hoặc điều chỉnh cấu trúc dữ liệu **Telemetry** tại Client Agent:
+> - Thêm/sửa trường trong [`TelemetryEnvelope`](agent/crates/sync/src/telemetry.rs) hoặc [`TelemetryEvent`](agent/crates/sync/src/telemetry.rs)
+> - Thêm loại sự kiện mới vào enum [`TelemetryEventType`](agent/crates/sync/src/telemetry.rs)
+> - Thay đổi payload của `HeartbeatPayload`, `dns_query`, `process_event`, `error_log`, `security_alert`, v.v.
+>
+> **AI Agent BẮT BUỘC phải thực hiện 4 bước sau trước khi hoàn thành công việc:**
+>
+> 1. **Tăng Phiên Bản Telemetry (Version Bump):**
+>    - Bắt buộc tăng trường `version` trong `TelemetryEnvelope` (ví dụ từ `1` lên `2`), hoặc bump `agent_version` tương ứng trong `HeartbeatPayload`.
+>    - Tuyệt đối không âm thầm thay đổi schema/format gói tin mà giữ nguyên version cũ.
+>
+> 2. **Cập Nhật Hợp Đồng OpenAPI Chung (`contracts/openapi.yaml`):**
+>    - Cập nhật schema `EventBatch`, `DeviceEvent`, `HeartbeatRequest` tương ứng trong file hợp đồng OpenAPI chuẩn tại cả 2 repo (`famshield-agent/contracts/openapi.yaml` và `famshield-server/contracts/openapi.yaml`).
+>
+> 3. **Đối Chiếu Chéo Bắt Buộc Với Cloud Server (Cross-Reconciliation):**
+>    - Mở và đối chiếu trực tiếp với mã nguồn Go Cloud Server tại:
+>      - [`server/pkg/model/model.go`](file:///d:/projects/famshield/famshield-server/server/pkg/model/model.go)
+>      - [`server/pkg/api/server.go`](file:///d:/projects/famshield/famshield-server/server/pkg/api/server.go)
+>    - Đảm bảo Go Server đã hỗ trợ trường mới và luôn duy trì **tính tương thích ngược (Backward Compatibility)** cho các agent phiên bản cũ.
+>
+> 4. **Chạy Bộ Test Đối Chiếu (Verification Gate):**
+>    - Phía Client: `rtk cargo test -p famshield-sync` (PASS 100%).
+>    - Phía Server: `rtk go test -v ./pkg/api -run TestTelemetryClientReconciliation` (PASS 100%).
+>    - Ghi nhận chi tiết thay đổi Telemetry Version vào `CHANGELOG.md`.
+

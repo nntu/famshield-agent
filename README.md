@@ -22,7 +22,7 @@ Agent bao gồm 9 crates chuyên biệt hóa theo nguyên lý Idiomatic Rust:
 | **`famshield-session`** | Helper chạy trong user session: GDI BitBlt Capture + Gaussian Blur, System Tray, Toast, PIN dialog. | **Implemented** ✅ |
 | **`famshield-dns`** | DNS Proxy NUMA loopback (`127.0.0.2:53`), Serve-Stale Cache, ArcSwap Hot-swap Blocklist. | **Implemented** ✅ |
 | **`famshield-windows`** | WFP Port 53 enforcement (`FWPM_SESSION_FLAG_DYNAMIC`), NRPT Registry, ETW Kernel 0ms & ToolHelp32. | **Implemented** ✅ |
-| **`famshield-local-admin`** | Quản trị độc lập: Master PIN Argon2id + DPAPI, lockout lũy thừa, khóa cứu hộ offline. | **Implemented** ✅ |
+| **`famshield-local-admin`** | Quản trị cục bộ: Máy chủ Web Admin (Axum :48123), SPA song ngữ, CRUD luật tên miền/app, xem DNS logs, ảnh vi phạm, Master PIN Argon2id + DPAPI. | **Implemented** ✅ |
 | **`famshield-storage`** | SQLite nội bộ (chế độ WAL): Durable Outbox, Error Deduplication, Query Logs, Visual Evidence. | **Implemented** ✅ |
 | **`famshield-sync`** | Freemium Engine (`StandaloneFree` vs `OnlineManaged`), Telemetry Envelope, NATS JetStream, HMAC Auth. | **Implemented** ✅ |
 | **`famshield-updater`** | Xác thực chữ ký số ECDSA P-256, Atomic swap nhị phân và Watchdog timer 30s rollback tự động. | **Implemented** ✅ |
@@ -47,6 +47,21 @@ Agent bao gồm 9 crates chuyên biệt hóa theo nguyên lý Idiomatic Rust:
 - Khóa bí mật được mã hóa ở cấp độ máy trạm qua Windows Data Protection API (DPAPI machine-scope).
 - Chống tấn công dò mật khẩu (Brute-force): Đếm số lần nhập sai liên tiếp, tự động khóa đăng nhập theo cấp số nhân (từ 30s đến 15 phút).
 - Cơ chế khôi phục 3 lớp: UAC Elevation CLI (`--reset-pin`), Khóa cứu hộ offline `FAM-XXXX-XXXX-XXXX`, và điều khiển từ xa.
+
+### 💻 Giao Diện Quản Trị Cục Bộ & Quản Lý Tập Trung (Local Web Admin & Central Management Console)
+- Chạy trực tiếp trên máy chủ HTTP Axum cục bộ tại `http://127.0.0.1:48123` (Session 0 Service) với giao diện **React 19 + TypeScript + Vite** hiện đại, mượt mà và tối ưu hóa tài nguyên.
+- Tự động mở trình duyệt sau khi cài đặt thành công (`installer/FamShield.iss`) và hỗ trợ mở tức thì từ menu khay hệ thống Windows (`famshield-session`).
+- Tích hợp **Trợ Lý Thiết Lập Ban Đầu (Initial Setup Wizard 5 Bước)** khi khởi chạy lần đầu: Hướng dẫn cấu hình an toàn, tạo Master PIN và cấp Mã Khôi Phục Khẩn Cấp `FAM-XXXX-XXXX-XXXX`.
+- **Phân Hệ Cấu Hình Kết Nối Máy Chủ Quản Lý Tập Trung**:
+  - Tùy chỉnh linh hoạt Địa chỉ máy chủ (Server URL / Endpoint), Mã tổ chức (Tenant ID), Tên thiết bị (Device Name), và Mã ghép nối (Enrollment Code).
+  - Điều chỉnh chu kỳ đồng bộ dữ liệu (Sync Interval: 15s – 15m) và bật/tắt chế độ Strict TLS Verification cho môi trường mạng nội bộ doanh nghiệp/trường học.
+  - Tích hợp công cụ **Kiểm tra kết nối mạng (Async TCP Probe)** đo độ trễ round-trip (ms) và nút **Đồng bộ ngay** chính sách từ xa.
+- Tích hợp **Chế Độ Giám Sát Không Chặn (Audit-Only / Monitor Mode)**: Cho phép chuyển đổi tức thời giữa Chặn Chủ Động và Chỉ Giám Sát. Khi bật giám sát, các truy vấn vi phạm vẫn được ghi nhật ký và chụp bằng chứng nhưng không ngắt kết nối mạng.
+- Tích hợp **Cơ Chế Sao Lưu & Phục Hồi Dữ Liệu An Toàn (.famshield-bak)**: Xuất và khôi phục toàn bộ cấu hình, quy tắc máy trạm với mã băm toàn vẹn SHA-256 chống giả mạo, hoạt động 100% độc lập ngoại tuyến.
+- Tích hợp **Phân Hệ Nhật Ký Hoạt Động & Thời Gian Dùng Máy (Activity Monitoring)**: Theo dõi trực quan tổng thời gian vào máy trong ngày, ứng dụng đã mở, khung giờ bắt đầu/kết thúc, thời lượng chi tiết và toàn bộ lịch sử các trang web đã truy cập với dòng thời gian hợp nhất (Unified Timeline).
+- Tích hợp **Giám Sát Gõ Từ Khóa Bậy & Ngôn Từ Nhạy Cảm (Keystroke Keyword Monitoring)**: Phát hiện theo thời gian thực các từ ngữ tục tĩu, bắt nạt mạng, bạo lực và tự hại qua bộ đệm trượt RAM 128 ký tự (`KeystrokeSlidingBuffer`) kết hợp thuật toán Aho-Corasick và bộ chuẩn hóa tiếng Việt/teencode thông minh. Tuyệt đối không ghi phím gõ xuống ổ đĩa, bảo đảm chuẩn **Privacy-by-Design**.
+- Hỗ trợ chuyển đổi liền mạch giữa **100% Ngoại tuyến StandaloneFree** và **Quản lý tập trung OnlineManaged**.
+- Hỗ trợ song ngữ Tiếng Việt & Tiếng Anh, bảo vệ phiên đăng nhập qua Master PIN, cookie an toàn `HttpOnly; SameSite=Strict`.
 
 ### 📊 Bộ Khung Telemetry Hợp Nhất (Unified Telemetry Pipeline)
 - Mô hình **Store-and-Forward** offline-first thông qua bảng `outbox` trong SQLite.

@@ -3,8 +3,8 @@ pub mod error;
 pub mod schema;
 
 pub use engine::{
-    ErrorLogRecord, LocalRuleRecord, OutboxRecord, QueryLogRecord, StorageEngine,
-    VisualEvidenceRecord,
+    CustomKeywordRecord, ErrorLogRecord, KeywordViolationRecord, LocalRuleRecord, OutboxRecord,
+    QueryLogRecord, StorageEngine, UsageSegmentRecord, VisualEvidenceRecord,
 };
 pub use error::StorageError;
 pub use schema::CURRENT_SCHEMA_VERSION;

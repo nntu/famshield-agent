@@ -39,6 +39,7 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 [Files]
 Source: "..\target\release\famshield-service.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\target\release\famshield-session.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\web\dist\*"; DestDir: "{app}\web\dist"; Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist
 Source: "..\assets\famshield.ico"; DestDir: "{app}"; Flags: ignoreversion
 Source: "certs\FamShieldRoot.cer"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
 
@@ -64,6 +65,9 @@ Filename: "{sys}\certutil.exe"; Parameters: "-addstore -f TrustedPublisher ""{ap
 Filename: "{sys}\sc.exe"; Parameters: "create FamShieldService binPath= ""{app}\famshield-service.exe"" start= auto obj= LocalSystem DisplayName= ""FamShield Security Platform"""; Flags: runhidden
 Filename: "{sys}\sc.exe"; Parameters: "description FamShieldService ""Unified parental control, NUMA DNS proxy and application filtering"""; Flags: runhidden
 Filename: "{sys}\sc.exe"; Parameters: "start FamShieldService"; Flags: runhidden
+; Auto-launch tray agent and open local admin setup wizard in default web browser
+Filename: "{app}\famshield-session.exe"; Flags: nowait postinstall skipifsilent
+Filename: "http://127.0.0.1:48123"; Description: "Mở Bảng Điều Khiển Quản Trị Cục Bộ (Web Admin)"; Flags: shellexec nowait postinstall
 
 [UninstallRun]
 ; Stop and remove Windows Service cleanly

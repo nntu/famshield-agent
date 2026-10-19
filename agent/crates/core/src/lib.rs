@@ -2,6 +2,7 @@ pub mod decision;
 pub mod domain;
 pub mod error;
 pub mod evaluator;
+pub mod keyword;
 pub mod policy;
 pub mod traits;
 
@@ -12,5 +13,9 @@ pub use domain::{
 };
 pub use error::CoreError;
 pub use evaluator::{DomainEvaluationContext, PolicyEvaluator, ProcessEvaluationContext};
+pub use keyword::{
+    default_keyword_rules, normalize_text, KeywordCategory, KeywordMatch, KeywordMatcher,
+    KeywordRule, KeywordSeverity,
+};
 pub use policy::Policy;
 pub use traits::{Clock, MockClock, SystemClock};
