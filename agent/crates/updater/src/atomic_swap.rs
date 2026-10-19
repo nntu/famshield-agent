@@ -30,6 +30,14 @@ impl WindowsAtomicUpdater {
         &self.current_version
     }
 
+    pub fn backup_dir(&self) -> &Path {
+        &self.backup_dir
+    }
+
+    pub fn staging_dir(&self) -> &Path {
+        &self.staging_dir
+    }
+
     /// Stage new binary payload: verifies SHA-256 and writes to staged directory.
     pub fn stage_binary(
         &self,

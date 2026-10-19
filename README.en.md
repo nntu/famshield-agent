@@ -105,7 +105,7 @@ cargo check --workspace
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 ```
-All **57 unit tests** across 29 test suites pass 100% green (DNS wire parser, WFP filter lifecycle, GDI capture blur, Argon2id lockout, DPAPI secret migration, SQLite Outbox retry backoff, Telemetry batching, ETW Kernel tracing, Signed Updater ECDSA P-256, and Freemium HMAC command authentication).
+All **60 unit tests** across 29 test suites pass 100% green (DNS wire parser, WFP filter lifecycle, GDI capture blur, Argon2id lockout, DPAPI secret migration, SQLite Outbox retry backoff, Telemetry batching, ETW Kernel tracing, Online/Offline Signed Updater ECDSA P-256, and Freemium HMAC command authentication).
 
 ---
 

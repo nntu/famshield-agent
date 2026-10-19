@@ -22,10 +22,14 @@ Tất cả các thay đổi quan trọng của dự án **FamShield Windows Agen
   - Triển khai `EtwTraceSession` lắng nghe trực tiếp Win32 ETW Provider `Microsoft-Windows-Kernel-Process` (`{22fb2c4e-47c2-4eea-b0bf-478f0f9d874f}`).
   - Bắt sự kiện tạo và hủy tiến trình tại thời điểm `0ms`.
   - Cơ chế lai (Hybrid) kết hợp ToolHelp32 snapshot dự phòng đảm bảo không bao giờ sót tiến trình.
-- **Xác thực Chữ ký số Bản Cập nhật (`famshield-updater`)**:
-  - Xác thực chữ ký số ECDSA P-256 + SHA-256 trên manifest cập nhật trước khi nạp.
-  - Kiểm tra toàn vẹn mã băm SHA-256 của file nhị phân tải về.
+- **Xác thực Chữ ký số Bản Cập nhật & Động cơ Cập nhật Đa Chế độ (`famshield-updater`)**:
+  - Triển khai `OnlineUpdateClient`: Tự động kiểm tra phiên bản mới từ máy chủ đám mây (`manifest_url`), so sánh semver (`UpToDate`, `UpdateAvailable`, `Incompatible`), tải và xác thực chữ ký ECDSA P-256 + SHA-256.
+  - Triển khai `OfflineUpdateEngine`: Hỗ trợ cập nhật ngoại tuyến 100% không cần Internet (qua USB flash drive hoặc hot-folder), xác thực chữ ký manifest và SHA-256 nhị phân trước khi hoán đổi.
   - Cơ chế hoán đổi nguyên tử (atomic staging swap) kèm Watchdog timer 30s tự động khôi phục bản cũ nếu phiên bản mới khởi động thất bại.
+- **Tự động Ký số Authenticode & Tích hợp Bộ Cài Đặt (`build.ps1`, `installer/FamShield.iss`)**:
+  - Hỗ trợ tự động tạo và tin cậy chứng chỉ Authenticode Code Signing cục bộ.
+  - Ký số SHA-256 kèm RFC 3161 timestamping cho toàn bộ nhị phân `famshield-service.exe`, `famshield-session.exe`, và `FamShieldSetup.exe`.
+  - Tự động tích hợp nạp chứng chỉ Root CA vào Windows Store trong Inno Setup.
 - **Kiến trúc Freemium & Đăng ký Đám mây (`famshield-sync`)**:
   - `OperatingMode::StandaloneFree`: Chế độ Miễn phí Cục bộ 100%, ngoại tuyến, bảo vệ riêng tư tuyệt đối, zero dependency vào server đám mây.
   - `OperatingMode::OnlineManaged`: Chế độ Trả phí Quản lý Đám mây ghép nối qua mã 6 chữ số (`EnrollmentManager::enroll`).

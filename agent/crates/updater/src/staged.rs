@@ -4,7 +4,7 @@ use p256::ecdsa::VerifyingKey;
 use semver::Version;
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ReleaseManifest {
     pub manifest_version: u32,
     pub version: String,
@@ -43,6 +43,24 @@ impl ReleaseManifest {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum UpdateCheckResult {
+    UpToDate {
+        current_version: String,
+    },
+    UpdateAvailable {
+        current_version: String,
+        new_version: String,
+        channel: String,
+        manifest: ReleaseManifest,
+    },
+    Incompatible {
+        current_version: String,
+        min_supported_version: String,
+        reason: String,
+    },
+}
+
 pub struct StagedUpdateEngine {
     current_version: Version,
     trusted_key_id: String,
@@ -66,6 +84,48 @@ impl StagedUpdateEngine {
             trusted_key_id: trusted_key_id.into(),
             verifying_key,
         })
+    }
+
+    pub fn current_version(&self) -> &Version {
+        &self.current_version
+    }
+
+    /// Evaluates whether a manifest offers a newer compatible version.
+    pub fn check_version(
+        &self,
+        manifest: &ReleaseManifest,
+    ) -> Result<UpdateCheckResult, UpdateError> {
+        let release_version = Version::parse(&manifest.version).map_err(|error| {
+            UpdateError::ManifestInvalid(format!("invalid release version: {error}"))
+        })?;
+
+        let min_version = Version::parse(&manifest.min_supported_version).map_err(|error| {
+            UpdateError::ManifestInvalid(format!("invalid minimum supported version: {error}"))
+        })?;
+
+        if self.current_version < min_version {
+            return Ok(UpdateCheckResult::Incompatible {
+                current_version: self.current_version.to_string(),
+                min_supported_version: manifest.min_supported_version.clone(),
+                reason: format!(
+                    "Current version {} is below minimum required {}",
+                    self.current_version, manifest.min_supported_version
+                ),
+            });
+        }
+
+        if release_version > self.current_version {
+            Ok(UpdateCheckResult::UpdateAvailable {
+                current_version: self.current_version.to_string(),
+                new_version: manifest.version.clone(),
+                channel: manifest.channel.clone(),
+                manifest: manifest.clone(),
+            })
+        } else {
+            Ok(UpdateCheckResult::UpToDate {
+                current_version: self.current_version.to_string(),
+            })
+        }
     }
 
     /// Verifies manifest, channel, and package payload checksum.

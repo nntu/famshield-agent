@@ -129,3 +129,243 @@ fn test_windows_atomic_updater_staging_and_swap() {
     // Clean up test sandbox
     let _ = fs::remove_dir_all(&temp_root);
 }
+
+#[test]
+fn test_online_update_client_check_and_stage() {
+    use famshield_updater::{OnlineUpdateClient, UpdateCheckResult};
+    use sha2::{Digest, Sha256};
+
+    let signing_key = SigningKey::from_bytes((&[9_u8; 32]).into()).unwrap();
+    let verifying_key = signing_key.verifying_key();
+    let engine = StagedUpdateEngine::new(
+        "0.1.0",
+        "key-cloud-2026",
+        verifying_key.to_encoded_point(false).as_bytes(),
+    )
+    .unwrap();
+
+    let client = OnlineUpdateClient::new("https://updates.famshield.cloud", "stable", engine);
+    assert_eq!(
+        client.manifest_url(),
+        "https://updates.famshield.cloud/v1/channels/stable/manifest.json"
+    );
+
+    let payload = b"FamShield Service v0.2.0 Online Payload";
+    let mut hasher = Sha256::new();
+    hasher.update(payload);
+    let sha256 = format!("{:x}", hasher.finalize());
+
+    let mut manifest = ReleaseManifest {
+        manifest_version: 1,
+        version: "0.2.0".into(),
+        channel: "stable".into(),
+        sha256,
+        binary_url: "https://dl.famshield.cloud/binaries/famshield-service.exe".into(),
+        signature_hex: String::new(),
+        key_id: "key-cloud-2026".into(),
+        min_supported_version: "0.1.0".into(),
+    };
+    let sig: Signature = signing_key.sign(&manifest.signing_payload().unwrap());
+    manifest.signature_hex = sig
+        .to_der()
+        .as_bytes()
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect();
+
+    // 1. Check update
+    let check_res = client.check_update(&manifest).unwrap();
+    match check_res {
+        UpdateCheckResult::UpdateAvailable {
+            current_version,
+            new_version,
+            channel,
+            ..
+        } => {
+            assert_eq!(current_version, "0.1.0");
+            assert_eq!(new_version, "0.2.0");
+            assert_eq!(channel, "stable");
+        }
+        other => panic!("Expected UpdateAvailable, got: {:?}", other),
+    }
+
+    // 2. Verify and stage
+    let temp_root = std::env::temp_dir().join("famshield_test_online_staging");
+    let app_data = temp_root.join("ProgramData");
+    let install_dir = temp_root.join("ProgramFiles");
+    let updater = WindowsAtomicUpdater::new("0.1.0", &app_data, &install_dir);
+
+    let staged_file = client
+        .verify_and_stage(&manifest, payload, "famshield-service.exe", &updater)
+        .unwrap();
+    assert!(staged_file.exists());
+    assert_eq!(fs::read(&staged_file).unwrap(), payload);
+
+    let _ = fs::remove_dir_all(&temp_root);
+}
+
+#[test]
+fn test_offline_update_engine_check_and_apply() {
+    use famshield_updater::{OfflineUpdateEngine, UpdateCheckResult};
+    use sha2::{Digest, Sha256};
+
+    let temp_root = std::env::temp_dir().join("famshield_test_offline_update");
+    let package_dir = temp_root.join("USB_Update_Package");
+    let app_data = temp_root.join("ProgramData");
+    let install_dir = temp_root.join("ProgramFiles");
+
+    let _ = fs::remove_dir_all(&temp_root);
+    fs::create_dir_all(&package_dir).unwrap();
+    fs::create_dir_all(&install_dir).unwrap();
+
+    // Active installed version
+    let active_bin = install_dir.join("famshield-service.exe");
+    fs::write(&active_bin, b"Active Service Binary v0.1.0").unwrap();
+
+    let signing_key = SigningKey::from_bytes((&[8_u8; 32]).into()).unwrap();
+    let verifying_key = signing_key.verifying_key();
+    let engine = StagedUpdateEngine::new(
+        "0.1.0",
+        "key-offline-2026",
+        verifying_key.to_encoded_point(false).as_bytes(),
+    )
+    .unwrap();
+    let updater = WindowsAtomicUpdater::new("0.1.0", &app_data, &install_dir);
+
+    // Prepare offline package on "USB"
+    let new_payload = b"New Offline Service Binary v0.2.0";
+    let mut hasher = Sha256::new();
+    hasher.update(new_payload);
+    let sha256 = format!("{:x}", hasher.finalize());
+
+    let mut manifest = ReleaseManifest {
+        manifest_version: 1,
+        version: "0.2.0".into(),
+        channel: "stable".into(),
+        sha256,
+        binary_url: "https://dl.famshield.cloud/famshield-service.exe".into(),
+        signature_hex: String::new(),
+        key_id: "key-offline-2026".into(),
+        min_supported_version: "0.1.0".into(),
+    };
+    let sig: Signature = signing_key.sign(&manifest.signing_payload().unwrap());
+    manifest.signature_hex = sig
+        .to_der()
+        .as_bytes()
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect();
+
+    // Write package files
+    fs::write(
+        package_dir.join("manifest.json"),
+        serde_json::to_vec_pretty(&manifest).unwrap(),
+    )
+    .unwrap();
+    fs::write(package_dir.join("famshield-service.exe"), new_payload).unwrap();
+
+    // 1. Dry-run verify offline directory
+    let check = OfflineUpdateEngine::check_offline_directory(&package_dir, &engine).unwrap();
+    match check {
+        UpdateCheckResult::UpdateAvailable {
+            new_version,
+            current_version,
+            ..
+        } => {
+            assert_eq!(current_version, "0.1.0");
+            assert_eq!(new_version, "0.2.0");
+        }
+        other => panic!("Expected UpdateAvailable, got: {:?}", other),
+    }
+
+    // 2. Apply offline update
+    let report =
+        OfflineUpdateEngine::apply_offline_directory(&package_dir, &engine, &updater).unwrap();
+    assert_eq!(report.previous_version, "0.1.0");
+    assert_eq!(report.new_version, "0.2.0");
+    assert_eq!(report.swapped_binary, "famshield-service.exe");
+
+    // Assert active binary was atomically swapped
+    assert_eq!(fs::read(&active_bin).unwrap(), new_payload);
+
+    // Assert backup exists
+    let backup_bin = report.backup_path;
+    assert!(backup_bin.exists());
+    assert_eq!(
+        fs::read(&backup_bin).unwrap(),
+        b"Active Service Binary v0.1.0"
+    );
+
+    let _ = fs::remove_dir_all(&temp_root);
+}
+
+#[test]
+fn test_offline_update_tampered_payload_rejected() {
+    use famshield_updater::OfflineUpdateEngine;
+    use sha2::{Digest, Sha256};
+
+    let temp_root = std::env::temp_dir().join("famshield_test_offline_tampered");
+    let package_dir = temp_root.join("USB_Tampered");
+    let app_data = temp_root.join("ProgramData");
+    let install_dir = temp_root.join("ProgramFiles");
+
+    let _ = fs::remove_dir_all(&temp_root);
+    fs::create_dir_all(&package_dir).unwrap();
+    fs::create_dir_all(&install_dir).unwrap();
+
+    let signing_key = SigningKey::from_bytes((&[8_u8; 32]).into()).unwrap();
+    let verifying_key = signing_key.verifying_key();
+    let engine = StagedUpdateEngine::new(
+        "0.1.0",
+        "key-offline-2026",
+        verifying_key.to_encoded_point(false).as_bytes(),
+    )
+    .unwrap();
+    let updater = WindowsAtomicUpdater::new("0.1.0", &app_data, &install_dir);
+
+    let legit_payload = b"Legitimate Payload";
+    let mut hasher = Sha256::new();
+    hasher.update(legit_payload);
+    let sha256 = format!("{:x}", hasher.finalize());
+
+    let mut manifest = ReleaseManifest {
+        manifest_version: 1,
+        version: "0.2.0".into(),
+        channel: "stable".into(),
+        sha256,
+        binary_url: "https://dl.famshield.cloud/famshield-service.exe".into(),
+        signature_hex: String::new(),
+        key_id: "key-offline-2026".into(),
+        min_supported_version: "0.1.0".into(),
+    };
+    let sig: Signature = signing_key.sign(&manifest.signing_payload().unwrap());
+    manifest.signature_hex = sig
+        .to_der()
+        .as_bytes()
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect();
+
+    fs::write(
+        package_dir.join("manifest.json"),
+        serde_json::to_vec(&manifest).unwrap(),
+    )
+    .unwrap();
+
+    // Attacker replaced the binary on the USB with malicious code!
+    fs::write(
+        package_dir.join("famshield-service.exe"),
+        b"Malicious Injected Trojan",
+    )
+    .unwrap();
+
+    // Check must fail with ChecksumMismatch!
+    let check = OfflineUpdateEngine::check_offline_directory(&package_dir, &engine);
+    assert!(check.is_err());
+
+    // Apply must fail and reject
+    let apply = OfflineUpdateEngine::apply_offline_directory(&package_dir, &engine, &updater);
+    assert!(apply.is_err());
+
+    let _ = fs::remove_dir_all(&temp_root);
+}

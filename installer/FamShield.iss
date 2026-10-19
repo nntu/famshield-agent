@@ -33,6 +33,7 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 [Files]
 Source: "..\target\release\famshield-service.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\target\release\famshield-session.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "certs\FamShieldRoot.cer"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
 
 [Dirs]
 Name: "{commonappdata}\FamShield"; Permissions: users-modify
@@ -45,6 +46,9 @@ Root: HKLM; Subkey: "SOFTWARE\Policies\Microsoft\Windows NT\DnsClient\DnsPolicyC
 Root: HKLM; Subkey: "SOFTWARE\Policies\Microsoft\Windows NT\DnsClient\DnsPolicyConfig\{{FamShield-DNS-Filter}"; ValueType: dword; ValueName: "Version"; ValueData: 1; Flags: uninsdeletekey
 
 [Run]
+; Auto-trust development Code Signing certificate on client machine
+Filename: "{sys}\certutil.exe"; Parameters: "-addstore -f Root ""{app}\FamShieldRoot.cer"""; Flags: runhidden; Check: FileExists(ExpandConstant('{app}\FamShieldRoot.cer'))
+Filename: "{sys}\certutil.exe"; Parameters: "-addstore -f TrustedPublisher ""{app}\FamShieldRoot.cer"""; Flags: runhidden; Check: FileExists(ExpandConstant('{app}\FamShieldRoot.cer'))
 ; Install and start Windows Service automatically under LocalSystem
 Filename: "{sys}\sc.exe"; Parameters: "create FamShieldService binPath= ""{app}\famshield-service.exe"" start= auto obj= LocalSystem DisplayName= ""FamShield Security Platform"""; Flags: runhidden
 Filename: "{sys}\sc.exe"; Parameters: "description FamShieldService ""Unified parental control, NUMA DNS proxy and application filtering"""; Flags: runhidden

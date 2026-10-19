@@ -11,6 +11,15 @@ pub enum UpdateError {
         calculated: String,
     },
 
+    #[error("Package not found or invalid: {0}")]
+    PackageNotFound(String),
+
+    #[error("Version incompatible: {0}")]
+    IncompatibleVersion(String),
+
+    #[error("Network error: {0}")]
+    Network(String),
+
     #[error("I/O error: {0}")]
     Io(#[from] std::io::Error),
 }

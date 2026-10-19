@@ -105,7 +105,7 @@ cargo check --workspace
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 ```
-Toàn bộ **57 unit tests** đạt trạng thái pass 100% trên 29 test suites (DNS wire parser, WFP filter lifecycle, GDI capture blur, Argon2id lockout, DPAPI secret migration, SQLite Outbox retry backoff, Telemetry batching, ETW Kernel tracing, Signed Updater ECDSA P-256, và Freemium HMAC command authentication).
+Toàn bộ **60 unit tests** đạt trạng thái pass 100% trên 29 test suites (DNS wire parser, WFP filter lifecycle, GDI capture blur, Argon2id lockout, DPAPI secret migration, SQLite Outbox retry backoff, Telemetry batching, ETW Kernel tracing, Online/Offline Signed Updater ECDSA P-256, và Freemium HMAC command authentication).
 
 ---
 
