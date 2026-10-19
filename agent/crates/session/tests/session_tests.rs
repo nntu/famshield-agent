@@ -1,4 +1,4 @@
-﻿use std::time::{Duration, Instant};
+use std::time::{Duration, Instant};
 use famshield_core::domain::ExecutableName;
 use famshield_session::{capture::SmartVisualVerifier, tracker::ForegroundTracker};
 
@@ -37,3 +37,15 @@ fn test_smart_visual_verifier_frame_generation() {
     // Verify frame is well under 150 KiB quota
     assert!(frame.len() < 150 * 1024);
 }
+
+#[test]
+fn test_friendly_toast_and_pin_dialog_exports() {
+    use famshield_session::{FriendlyToast, PinDialog, SystemTray};
+
+    // Smoke check invoking warning without crashing on non-interactive/headless
+    FriendlyToast::warn_time_remaining(0, 5);
+    FriendlyToast::notify_quota_expired(0);
+    FriendlyToast::notify_content_blocked(0, "game.example.com");
+    FriendlyToast::notify_time_extended(0, 15);
+}
+

@@ -2,7 +2,7 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Instant;
 use tokio::net::UdpSocket;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, info, warn};
 
 use crate::blocklist::BlocklistStore;
 use crate::buffer::BytePacketBuffer;
