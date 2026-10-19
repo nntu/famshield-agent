@@ -192,12 +192,14 @@ impl PinDialog {
 
                     if len > 0 {
                         // Open local dashboard in default browser
-                        let url = w!("http://127.0.0.1:48123");
+                        let port = famshield_service::get_active_admin_port();
+                        let url_str = format!("http://127.0.0.1:{}\0", port);
+                        let wide_url: Vec<u16> = url_str.encode_utf16().collect();
                         let open_op = w!("open");
                         let _ = ShellExecuteW(
                             None,
                             open_op,
-                            url,
+                            PCWSTR::from_raw(wide_url.as_ptr()),
                             PCWSTR::null(),
                             PCWSTR::null(),
                             SW_SHOWNORMAL,

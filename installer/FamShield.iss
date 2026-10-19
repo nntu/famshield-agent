@@ -67,7 +67,7 @@ Filename: "{sys}\sc.exe"; Parameters: "description FamShieldService ""Unified pa
 Filename: "{sys}\sc.exe"; Parameters: "start FamShieldService"; Flags: runhidden
 ; Auto-launch tray agent and open local admin setup wizard in default web browser
 Filename: "{app}\famshield-session.exe"; Flags: nowait postinstall skipifsilent
-Filename: "http://127.0.0.1:48123"; Description: "Mở Bảng Điều Khiển Quản Trị Cục Bộ (Web Admin)"; Flags: shellexec nowait postinstall
+Filename: "http://127.0.0.1:38123"; Description: "Mở Bảng Điều Khiển Quản Trị Cục Bộ (Web Admin)"; Flags: shellexec nowait postinstall
 
 [UninstallRun]
 ; Stop and remove Windows Service cleanly

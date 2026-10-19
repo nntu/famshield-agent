@@ -10,6 +10,7 @@ description = "Local Mode administration API and Master PIN authentication"
 famshield-core = { workspace = true }
 famshield-storage = { workspace = true }
 famshield-dns = { workspace = true }
+famshield-windows = { workspace = true }
 argon2 = { workspace = true }
 rand = { workspace = true }
 tokio = { workspace = true }

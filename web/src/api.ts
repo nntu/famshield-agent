@@ -276,4 +276,10 @@ export const api = {
       body: JSON.stringify({ enabled }),
     });
   },
+
+  async restartSessionHelper(): Promise<{ success: boolean; launched: boolean; running: boolean; message: string }> {
+    return apiRequest<{ success: boolean; launched: boolean; running: boolean; message: string }>('/api/system/session-helper/start', {
+      method: 'POST',
+    });
+  },
 };

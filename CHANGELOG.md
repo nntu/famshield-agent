@@ -9,6 +9,17 @@ Tất cả các thay đổi quan trọng của dự án **FamShield Windows Agen
 ## [Unreleased]
 
 ### Added
+- **Đồng Bộ Hóa Đám Mây & Tầng Vận Chuyển Telemetry (`famshield-sync`, `famshield-service`)**:
+  - Triển khai `CloudSyncClient` giao tiếp HTTP chuẩn hóa kết nối với FamShield Cloud Server:
+    - `POST /v1/device/enroll`: Ghép nối mã 6 số tự động chuyển chế độ sang `OnlineManaged`.
+    - `POST /v1/device/heartbeat`: Báo cáo nhịp tim định kỳ 60s, thời gian chạy `uptime_seconds`, trạng thái `wfp_active`, `dns_active`, và số lượng sự kiện chờ `outbox_depth`.
+    - `POST /v1/device/events:batch`: Đóng gói và đẩy hàng loạt sự kiện `TelemetryEnvelope` (v1.0) từ SQLite outbox lên máy chủ.
+    - `GET /v1/filter/policy`: Tự động tải chính sách lọc web mới nhất khi máy chủ phát hiện tăng `desired_policy_version`.
+  - Triển khai `TelemetrySyncWorker` tích hợp trực tiếp vào vòng lặp dịch vụ `ServiceController`:
+    - Chu kỳ 15s tự động dọn dẹp sự kiện đã gửi (`acknowledge_batch`) hoặc áp dụng backoff 30s khi mất mạng (`report_batch_failure`).
+    - Tự động cập nhật tức thì danh sách đen DNS Proxy (`BlocklistStore`) theo các danh mục phụ huynh cấu hình trên Cloud (Người lớn, Cờ bạc, Bạo lực, Mạng xã hội, Game) trong 0ms mà không làm gián đoạn mạng.
+    - Kiểm tra và ghi nhận các bản phát hành cập nhật phần mềm mới từ Cloud (`available_release`).
+
 - **Giao diện & Máy chủ Quản trị Cục bộ (Local Web Admin Console - `famshield-local-admin`, `famshield-service`)**:
   - Triển khai máy chủ HTTP cục bộ tốc độ cao (`LocalAdminServer`) dựa trên nền tảng `axum = "0.7"` và `tokio`, lắng nghe an toàn tại loopback `http://127.0.0.1:48123` (chỉ chấp nhận kết nối nội bộ loopback, chống truy cập từ mạng LAN/WAN).
   - Giao diện Single Page Application (SPA) hoàn chỉnh nhúng trực tiếp trong file nhị phân (Zero-external dependency), tối ưu 100% cho chế độ ngoại tuyến không Internet (StandaloneFree).
@@ -109,9 +120,18 @@ Tất cả các thay đổi quan trọng của dự án **FamShield Windows Agen
       - Thẻ cấu hình chuyên biệt trong Cài đặt Bảo mật: Bật/tắt tính năng giám sát, form thêm từ khóa tùy chỉnh, thanh tìm kiếm và bảng bật/tắt từng từ khóa tức thời.
 
 ### Fixed
+- **Ẩn Hoàn Toàn Cửa Sổ Console Khay Hệ Thống (`famshield-session`)**:
+  - Bổ sung chỉ thị `#![windows_subsystem = "windows"]` vào đầu mã nguồn `session/src/main.rs`, chỉ thị cho PE Loader của Windows xử lý file nhị phân dưới dạng Windows GUI Subsystem thuần túy.
+  - Loại bỏ hoàn toàn cửa sổ dòng lệnh đen (Command Prompt console window) khi ứng dụng chạy nền ở khay hệ thống.
+- **Xung Đột Cổng Mạng Với Hyper-V / WSL2 & Cơ Chế Fallback Cổng Linh Hoạt (`famshield-local-admin`, `famshield-service`, `famshield-session`, `installer`)**:
+  - Phát hiện và giải quyết xung đột cổng mạng hệ thống: Dải cổng `48074 - 48173` bị Windows Hyper-V / WSL2 NAT tự động gán vào danh sách `excludedportrange`, dẫn đến lỗi `Os Error 10013 (WSAEACCES: access forbidden)` khi mở cổng `48123`.
+  - Chuyển cổng mặc định của Local Web Admin sang cổng an toàn `38123`.
+  - Thiết lập cơ chế tự động thử cổng dự phòng (`[38123, 18123, 28123, 48123]`) nếu cổng chính bị hệ điều hành chiếm dụng.
+  - Tự động lưu cổng thực tế đang hoạt động vào tệp cấu hình `%ProgramData%\FamShield\admin_port.txt`.
+  - Cập nhật menu khay hệ thống (`tray.rs`), hộp thoại Master PIN (`pin_dialog.rs`) và gói cài đặt Inno Setup (`FamShield.iss`) đọc cổng động từ tệp cấu hình để mở chính xác giao diện quản trị trong trình duyệt mặc định.
 - **Lỗi Panic Khởi Động Tokio IPC Server (`famshield-service::ipc`)**:
   - Khắc phục lỗi panic `cannot specify more than 254 instances` tại `create_secured_named_pipe` do thiết lập nhầm `options.max_instances(255)`. Giới hạn hợp lệ của Tokio là $\le 254$.
-  - Lỗi này từng khiến luồng nền Tokio bị hủy ngay khi Service khởi động, dẫn đến máy chủ `LocalAdminServer` (`http://127.0.0.1:48123`) không thể lắng nghe và người dùng không thể truy cập giao diện web từ khay hệ thống.
+  - Lỗi này từng khiến luồng nền Tokio bị hủy ngay khi Service khởi động, dẫn đến máy chủ `LocalAdminServer` không thể lắng nghe và người dùng không thể truy cập giao diện web từ khay hệ thống.
   - Sau khi sửa và biên dịch lại, máy chủ web và IPC Named Pipe đã hoạt động ổn định 100%.
 
 ---

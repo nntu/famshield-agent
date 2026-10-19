@@ -1,7 +1,8 @@
-import React from 'react';
-import { Activity, ShieldCheck, AlertOctagon, Layers, ArrowRight, RefreshCw, Smartphone } from 'lucide-react';
+import React, { useState } from 'react';
+import { Activity, ShieldCheck, AlertOctagon, Layers, ArrowRight, RefreshCw, Smartphone, AlertTriangle, Play } from 'lucide-react';
 import { Language, QueryLogRecord, StatusResponse, TabType } from '../types';
 import { translations } from '../i18n';
+import { api } from '../api';
 
 interface DashboardTabProps {
   status: StatusResponse | null;
@@ -19,6 +20,20 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
   onRefresh,
 }) => {
   const t = translations[lang];
+  const [startingHelper, setStartingHelper] = useState(false);
+
+  const handleStartHelper = async () => {
+    try {
+      setStartingHelper(true);
+      const res = await api.restartSessionHelper();
+      alert(res.message);
+      onRefresh();
+    } catch (e: any) {
+      alert(e.message || (lang === 'vi' ? 'Lỗi khi khởi chạy lại trợ lý phiên' : 'Failed to start session helper'));
+    } finally {
+      setStartingHelper(false);
+    }
+  };
 
   const quotaTotal = status?.daily_quota_minutes || 60;
   const quotaUsed = status?.used_today_minutes || 0;
@@ -26,6 +41,59 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+      {/* Session Helper Alert Banner */}
+      {status && !status.session_helper_running && (
+        <div style={{
+          background: 'linear-gradient(90deg, rgba(239, 68, 68, 0.16) 0%, rgba(185, 28, 28, 0.1) 100%)',
+          border: '1px solid #ef4444',
+          borderRadius: 14,
+          padding: '16px 20px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 16,
+          boxShadow: '0 4px 20px rgba(239, 68, 68, 0.15)',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <span style={{ fontSize: '1.6rem' }}>⚠️</span>
+            <div>
+              <div style={{ fontWeight: 700, color: '#f87171', fontSize: '1rem', marginBottom: 2 }}>
+                {lang === 'vi' ? 'Cảnh Báo: Trợ Lý Phiên Người Dùng (famshield-session.exe) Chưa Chạy' : 'Warning: User Session Helper (famshield-session.exe) Not Running'}
+              </div>
+              <div style={{ color: '#cbd5e1', fontSize: '0.85rem' }}>
+                {lang === 'vi'
+                  ? 'Biểu tượng khay hệ thống (Tray icon), hạn mức thời gian ứng dụng và giám sát từ khóa nhạy cảm đang bị gián đoạn. Dịch vụ ngầm (Windows Service) vẫn đang bảo vệ DNS.'
+                  : 'System tray icon, real-time app limits, and keystroke monitoring are interrupted. Windows Service is still guarding DNS.'}
+              </div>
+            </div>
+          </div>
+          <button
+            disabled={startingHelper}
+            onClick={handleStartHelper}
+            style={{
+              background: '#ef4444',
+              color: '#ffffff',
+              border: 'none',
+              padding: '9px 18px',
+              borderRadius: 8,
+              fontSize: '0.82rem',
+              fontWeight: 700,
+              cursor: startingHelper ? 'not-allowed' : 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              whiteSpace: 'nowrap',
+              boxShadow: '0 2px 10px rgba(239, 68, 68, 0.3)',
+            }}
+          >
+            <Play size={14} />
+            {startingHelper
+              ? (lang === 'vi' ? 'Đang khởi chạy...' : 'Starting...')
+              : (lang === 'vi' ? 'Khởi Chạy Lại Trợ Lý' : 'Restart Session Helper')}
+          </button>
+        </div>
+      )}
+
       {/* Monitor Mode Alert Banner */}
       {status?.monitor_mode && (
         <div style={{
@@ -90,14 +158,16 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
               {t.card_app_title}
             </span>
             <span style={{
-              background: 'rgba(52, 211, 153, 0.15)',
-              color: '#34d399',
+              background: status?.session_helper_running ? 'rgba(52, 211, 153, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+              color: status?.session_helper_running ? '#34d399' : '#f87171',
               padding: '3px 8px',
               borderRadius: 6,
               fontSize: '0.75rem',
               fontWeight: 700,
             }}>
-              {t.tag_active}
+              {status?.session_helper_running
+                ? (lang === 'vi' ? '🟢 Trợ lý đang chạy' : '🟢 Tray Active')
+                : (lang === 'vi' ? '🔴 Trợ lý chưa chạy' : '🔴 Tray Stopped')}
             </span>
           </div>
 

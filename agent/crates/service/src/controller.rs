@@ -13,6 +13,33 @@ use famshield_sync::{
 };
 use famshield_windows::{wfp::WfpSessionGuard, InstallerInterceptor, ProcessMonitor};
 
+pub const DEFAULT_ADMIN_PORT: u16 = 38123;
+pub const FALLBACK_ADMIN_PORTS: &[u16] = &[38123, 18123, 28123, 48123];
+
+pub fn get_data_dir() -> std::path::PathBuf {
+    let data_dir = std::env::var("ProgramData")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|_| std::path::PathBuf::from("."))
+        .join("FamShield");
+    let _ = std::fs::create_dir_all(&data_dir);
+    data_dir
+}
+
+pub fn save_active_admin_port(port: u16) {
+    let port_file = get_data_dir().join("admin_port.txt");
+    let _ = std::fs::write(port_file, port.to_string());
+}
+
+pub fn get_active_admin_port() -> u16 {
+    let port_file = get_data_dir().join("admin_port.txt");
+    if let Ok(content) = std::fs::read_to_string(port_file) {
+        if let Ok(port) = content.trim().parse::<u16>() {
+            return port;
+        }
+    }
+    DEFAULT_ADMIN_PORT
+}
+
 /// Core service controller orchestrating DNS, WFP, Local IPC, Storage, Telemetry Sync, and NATS JetStream dispatcher.
 pub struct ServiceController {
     storage: StorageEngine,
@@ -167,11 +194,12 @@ impl ServiceController {
             }
         });
 
-        // 4. Start Local Admin Web Server (http://127.0.0.1:48123)
+        // 4. Start Local Admin Web Server (http://127.0.0.1:38123 with fallback)
         let admin_server = self.local_admin_server.clone();
         let admin_shutdown_rx = shutdown_rx.resubscribe();
+        let default_addr = format!("127.0.0.1:{}", DEFAULT_ADMIN_PORT);
         tokio::spawn(async move {
-            if let Err(e) = admin_server.run("127.0.0.1:48123", admin_shutdown_rx).await {
+            if let Err(e) = admin_server.run(&default_addr, admin_shutdown_rx).await {
                 tracing::warn!("Local Admin Web Server encountered error: {}", e);
             }
         });
@@ -191,6 +219,8 @@ impl ServiceController {
         let telemetry_pipeline = self.telemetry_pipeline.clone();
         let mut proc_interval = tokio::time::interval(std::time::Duration::from_secs(5));
         let mut err_interval = tokio::time::interval(std::time::Duration::from_secs(15));
+        let mut session_watchdog_interval =
+            tokio::time::interval(std::time::Duration::from_secs(10));
 
         tokio::select! {
             _ = dns_proxy.run_udp_listener() => {
@@ -199,6 +229,42 @@ impl ServiceController {
             _ = async {
                 loop {
                     tokio::select! {
+                        _ = session_watchdog_interval.tick() => {
+                            // Watchdog: Ensure User Session Helper (famshield-session.exe) is running
+                            if !famshield_windows::SessionManager::is_session_helper_running() {
+                                if let Some(session_id) = famshield_windows::SessionManager::get_active_console_session_id() {
+                                    tracing::warn!(
+                                        "⚠️ Watchdog Alert: famshield-session.exe is NOT running in active user session {}! Attempting auto-spawn...",
+                                        session_id
+                                    );
+
+                                    // Queue security alert for visibility in telemetry and dashboard
+                                    let alert_payload = serde_json::json!({
+                                        "alert_type": "session_helper_missing",
+                                        "severity": "medium",
+                                        "session_id": session_id,
+                                        "message": "User session helper (famshield-session.exe) is not running. System tray and keystroke monitoring are interrupted.",
+                                        "timestamp": chrono::Utc::now().to_rfc3339(),
+                                    });
+                                    let _ = telemetry_pipeline.queue_event(&TelemetryEvent::new(
+                                        format!("alert-sess-{}", chrono::Utc::now().timestamp_micros()),
+                                        "security_alert",
+                                        chrono::Utc::now(),
+                                        alert_payload,
+                                    ));
+
+                                    match famshield_windows::SessionManager::ensure_session_helper() {
+                                        Ok(true) => {
+                                            tracing::info!("✅ Watchdog: Successfully auto-spawned famshield-session.exe into session {}", session_id);
+                                        }
+                                        Ok(false) => {}
+                                        Err(e) => {
+                                            tracing::warn!("❌ Watchdog: Failed to auto-spawn famshield-session.exe: {}", e);
+                                        }
+                                    }
+                                }
+                            }
+                        }
                         _ = proc_interval.tick() => {
                             if let Ok(events) = proc_monitor.detect_changes() {
                                 if !events.is_empty() {

@@ -1,6 +1,8 @@
 export interface StatusResponse {
   protection_active: boolean;
   monitor_mode: boolean;
+  session_helper_running: boolean;
+  session_helper_status: string;
   dns_proxy_addr: string;
   wfp_status: string;
   operating_mode: 'StandaloneFree' | 'OnlineManaged';

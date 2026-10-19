@@ -57,6 +57,8 @@ pub struct VerifyResponse {
 pub struct StatusResponse {
     pub protection_active: bool,
     pub monitor_mode: bool,
+    pub session_helper_running: bool,
+    pub session_helper_status: String,
     pub dns_proxy_addr: String,
     pub wfp_status: String,
     pub operating_mode: String,
@@ -250,20 +252,68 @@ impl LocalAdminServer {
                 "/api/keywords/violation",
                 post(handle_record_keyword_violation),
             )
+            .route(
+                "/api/system/session-helper/start",
+                post(handle_start_session_helper),
+            )
             .with_state(self.state.clone())
     }
 
-    /// Launch HTTP server on specified address (e.g., "127.0.0.1:48123")
+    /// Launch HTTP server on specified address (e.g., "127.0.0.1:38123"), automatically falling back if port is reserved by Hyper-V/OS
     pub async fn run(
         &self,
         bind_addr: &str,
         mut shutdown_rx: broadcast::Receiver<()>,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let app = self.router();
-        let listener = tokio::net::TcpListener::bind(bind_addr).await?;
+
+        let listener = match tokio::net::TcpListener::bind(bind_addr).await {
+            Ok(l) => {
+                if let Ok(addr) = l.local_addr() {
+                    let port_file = std::env::var("ProgramData")
+                        .map(std::path::PathBuf::from)
+                        .unwrap_or_else(|_| std::path::PathBuf::from("."))
+                        .join("FamShield")
+                        .join("admin_port.txt");
+                    let _ = std::fs::write(port_file, addr.port().to_string());
+                }
+                l
+            }
+            Err(e) => {
+                warn!(
+                    "Failed to bind Local Admin server to {} ({}). Attempting fallback ports...",
+                    bind_addr, e
+                );
+                let fallback_ports = [38123, 18123, 28123, 48123];
+                let mut bound = None;
+                for &port in &fallback_ports {
+                    let fallback_addr = format!("127.0.0.1:{}", port);
+                    if let Ok(l) = tokio::net::TcpListener::bind(&fallback_addr).await {
+                        info!(
+                            "Successfully bound Local Admin server to fallback {}",
+                            fallback_addr
+                        );
+                        let port_file = std::env::var("ProgramData")
+                            .map(std::path::PathBuf::from)
+                            .unwrap_or_else(|_| std::path::PathBuf::from("."))
+                            .join("FamShield")
+                            .join("admin_port.txt");
+                        let _ = std::fs::write(port_file, port.to_string());
+                        bound = Some(l);
+                        break;
+                    }
+                }
+                match bound {
+                    Some(l) => l,
+                    None => return Err(Box::new(e)),
+                }
+            }
+        };
+
+        let local_addr = listener.local_addr()?;
         info!(
             "FamShield Local Admin Web Server listening on http://{}",
-            bind_addr
+            local_addr
         );
 
         axum::serve(listener, app)
@@ -534,9 +584,18 @@ async fn handle_status(
     let active_app = state.active_app.lock().await.clone();
     let monitor_mode = state.service.is_monitor_mode();
 
+    let session_helper_running = famshield_windows::SessionManager::is_session_helper_running();
+    let session_helper_status = if session_helper_running {
+        "RUNNING".to_string()
+    } else {
+        "STOPPED".to_string()
+    };
+
     Ok(Json(StatusResponse {
         protection_active: true,
         monitor_mode,
+        session_helper_running,
+        session_helper_status,
         dns_proxy_addr: "127.0.0.2:53".to_string(),
         wfp_status: "Active (Dynamic User-Mode Session)".to_string(),
         operating_mode,
@@ -1377,4 +1436,26 @@ async fn handle_record_keyword_violation(
         .record_keyword_violation(&record)
         .map(|_| StatusCode::CREATED)
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
+}
+
+async fn handle_start_session_helper(
+    State(state): State<ServerState>,
+    headers: HeaderMap,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    if !check_auth(&state, &headers, None).await {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+    match famshield_windows::SessionManager::ensure_session_helper() {
+        Ok(launched) => Ok(Json(serde_json::json!({
+            "success": true,
+            "launched": launched,
+            "running": famshield_windows::SessionManager::is_session_helper_running(),
+            "message": if launched { "Đã khởi chạy lại Trợ lý phiên (famshield-session.exe)" } else { "Trợ lý phiên đã đang hoạt động" }
+        }))),
+        Err(e) => Ok(Json(serde_json::json!({
+            "success": false,
+            "running": famshield_windows::SessionManager::is_session_helper_running(),
+            "message": format!("Không thể khởi chạy Trợ lý phiên: {}", e)
+        }))),
+    }
 }

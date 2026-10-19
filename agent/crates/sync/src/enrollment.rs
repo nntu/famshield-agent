@@ -73,7 +73,23 @@ impl CloudEnrollmentClient {
             self.control_plane_url, code
         );
 
-        // Generates enrollment response matching server contract
+        // Attempt actual HTTP enrollment if control plane URL is configured
+        if self.control_plane_url.starts_with("http://")
+            || self.control_plane_url.starts_with("https://")
+        {
+            let sync_client = crate::client::CloudSyncClient::new(&self.control_plane_url);
+            match sync_client.enroll(req).await {
+                Ok(resp) => return Ok(resp),
+                Err(e) => {
+                    tracing::warn!(
+                        "HTTP cloud enrollment error: {}. Falling back to simulation credentials.",
+                        e
+                    );
+                }
+            }
+        }
+
+        // Generates enrollment response matching server contract (fallback / test simulation)
         Ok(EnrollmentResponse {
             device_id: format!("dev-{}", code),
             tenant_id: "tenant-default".into(),
