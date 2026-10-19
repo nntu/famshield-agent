@@ -102,3 +102,46 @@ fn test_visual_evidence_purge() {
     let purged = storage.purge_expired_evidence(now).unwrap();
     assert_eq!(purged, 1);
 }
+
+#[test]
+fn test_error_logs_smart_deduplication() {
+    let storage = StorageEngine::in_memory().unwrap();
+
+    // 1. Record same error multiple times
+    let id1 = storage
+        .record_error_log("dns_proxy", "ERROR", "Upstream DNS timeout: 1.1.1.1:53", Some("stack1"))
+        .unwrap();
+    let id2 = storage
+        .record_error_log("dns_proxy", "ERROR", "Upstream DNS timeout: 1.1.1.1:53", Some("stack2"))
+        .unwrap();
+    let id3 = storage
+        .record_error_log("dns_proxy", "ERROR", "Upstream DNS timeout: 1.1.1.1:53", None)
+        .unwrap();
+
+    // Fingerprint ID must be identical for identical error pattern
+    assert_eq!(id1, id2);
+    assert_eq!(id2, id3);
+
+    // 2. Query unsynced errors: should only have 1 deduplicated record with count = 3
+    let errors = storage.list_unsynced_errors(10).unwrap();
+    assert_eq!(errors.len(), 1);
+    assert_eq!(errors[0].error_id, id1);
+    assert_eq!(errors[0].occurrence_count, 3);
+    assert_eq!(errors[0].module, "dns_proxy");
+
+    // 3. Mark as synced
+    storage.mark_errors_synced(&[id1.clone()]).unwrap();
+    let unsynced_after = storage.list_unsynced_errors(10).unwrap();
+    assert_eq!(unsynced_after.len(), 0);
+
+    // 4. If same error happens again, it updates count to 4 and marks synced = 0 again
+    let id4 = storage
+        .record_error_log("dns_proxy", "ERROR", "Upstream DNS timeout: 1.1.1.1:53", None)
+        .unwrap();
+    assert_eq!(id4, id1);
+
+    let re_emerged = storage.list_unsynced_errors(10).unwrap();
+    assert_eq!(re_emerged.len(), 1);
+    assert_eq!(re_emerged[0].occurrence_count, 4);
+    assert!(!re_emerged[0].synced);
+}

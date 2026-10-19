@@ -112,7 +112,9 @@ impl NatsDispatcher {
                     "severity": e.severity,
                     "message": e.message,
                     "stack_trace": e.stack_trace,
-                    "occurred_at": e.occurred_at.to_rfc3339(),
+                    "occurrence_count": e.occurrence_count,
+                    "first_seen_at": e.first_seen_at.to_rfc3339(),
+                    "last_seen_at": e.last_seen_at.to_rfc3339(),
                 })
             })
             .collect();
@@ -398,6 +400,7 @@ mod tests {
         let installer = Arc::new(InstallerInterceptor::new());
         let dispatcher = NatsDispatcher::new("dev-555666", storage, blocklist, installer);
 
+        let now = chrono::Utc::now();
         let errors = vec![
             ErrorLogRecord {
                 error_id: "err-dns-01".into(),
@@ -405,7 +408,9 @@ mod tests {
                 severity: "ERROR".into(),
                 message: "Upstream DNS timeout: 1.1.1.1:53".into(),
                 stack_trace: Some("at dns::proxy::resolve".into()),
-                occurred_at: chrono::Utc::now(),
+                occurrence_count: 5,
+                first_seen_at: now,
+                last_seen_at: now,
                 synced: false,
             },
         ];

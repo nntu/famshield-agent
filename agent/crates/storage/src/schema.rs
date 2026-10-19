@@ -54,18 +54,20 @@ pub fn initialize_database(conn: &mut Connection) -> Result<(), StorageError> {
 fn apply_v2_schema(conn: &Connection) -> Result<(), StorageError> {
     conn.execute_batch(
         "
-        -- Centralized Error & Exception logs for remote telemetry synchronization
+        -- Centralized Error & Exception logs with Smart Fingerprinting & Deduplication
         CREATE TABLE IF NOT EXISTS error_logs (
-            error_id TEXT PRIMARY KEY,
+            error_id TEXT PRIMARY KEY,       -- SHA-256 fingerprint (module + severity + normalized_message)
             module TEXT NOT NULL,
-            severity TEXT NOT NULL, -- 'WARN', 'ERROR', 'FATAL'
+            severity TEXT NOT NULL,          -- 'WARN', 'ERROR', 'FATAL'
             message TEXT NOT NULL,
             stack_trace TEXT,
-            occurred_at TEXT NOT NULL,
+            occurrence_count INTEGER NOT NULL DEFAULT 1,
+            first_seen_at TEXT NOT NULL,
+            last_seen_at TEXT NOT NULL,
             synced INTEGER NOT NULL DEFAULT 0
         );
         CREATE INDEX IF NOT EXISTS idx_error_logs_synced ON error_logs(synced);
-        CREATE INDEX IF NOT EXISTS idx_error_logs_occurred ON error_logs(occurred_at);
+        CREATE INDEX IF NOT EXISTS idx_error_logs_last_seen ON error_logs(last_seen_at);
         ",
     )?;
     Ok(())

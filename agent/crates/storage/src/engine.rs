@@ -49,7 +49,9 @@ pub struct ErrorLogRecord {
     pub severity: String, // 'WARN', 'ERROR', 'FATAL'
     pub message: String,
     pub stack_trace: Option<String>,
-    pub occurred_at: DateTime<Utc>,
+    pub occurrence_count: u32,
+    pub first_seen_at: DateTime<Utc>,
+    pub last_seen_at: DateTime<Utc>,
     pub synced: bool,
 }
 
@@ -295,7 +297,22 @@ impl StorageEngine {
         Ok(())
     }
 
-    // Centralized Error Logging & Remote Telemetry Sync
+    /// Computes a deterministic SHA-256 fingerprint ID for an error pattern
+    pub fn compute_error_fingerprint(module: &str, severity: &str, message: &str) -> String {
+        use sha2::{Digest, Sha256};
+        let mut hasher = Sha256::new();
+        hasher.update(module.trim().to_ascii_lowercase().as_bytes());
+        hasher.update(b":");
+        hasher.update(severity.trim().to_ascii_uppercase().as_bytes());
+        hasher.update(b":");
+        // Normalize whitespace and numbers in message to group similar errors
+        let normalized_msg = message.trim();
+        hasher.update(normalized_msg.as_bytes());
+        let hash = format!("{:x}", hasher.finalize());
+        format!("err-{}-{}", module, &hash[..16])
+    }
+
+    // Centralized Error Logging & Remote Telemetry Sync with Smart Deduplication
     pub fn record_error_log(
         &self,
         module: &str,
@@ -304,19 +321,26 @@ impl StorageEngine {
         stack_trace: Option<&str>,
     ) -> Result<String, StorageError> {
         let conn = self.conn.lock().unwrap();
-        let error_id = format!("err-{}-{}", module, Utc::now().timestamp_millis());
-        let occurred_at = Utc::now().to_rfc3339();
+        let error_id = Self::compute_error_fingerprint(module, severity, message);
+        let now = Utc::now().to_rfc3339();
 
+        // Upsert: If identical error already exists, increment occurrence_count,
+        // update last_seen_at and reset synced = 0 so server receives updated frequency.
         conn.execute(
-            "INSERT INTO error_logs (error_id, module, severity, message, stack_trace, occurred_at, synced)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, 0)",
+            "INSERT INTO error_logs (error_id, module, severity, message, stack_trace, occurrence_count, first_seen_at, last_seen_at, synced)
+             VALUES (?1, ?2, ?3, ?4, ?5, 1, ?6, ?6, 0)
+             ON CONFLICT(error_id) DO UPDATE SET
+                occurrence_count = occurrence_count + 1,
+                last_seen_at = excluded.last_seen_at,
+                stack_trace = COALESCE(excluded.stack_trace, error_logs.stack_trace),
+                synced = 0",
             params![
                 error_id,
                 module,
                 severity,
                 message,
                 stack_trace,
-                occurred_at,
+                now,
             ],
         )?;
         Ok(error_id)
@@ -325,19 +349,22 @@ impl StorageEngine {
     pub fn list_unsynced_errors(&self, limit: usize) -> Result<Vec<ErrorLogRecord>, StorageError> {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare(
-            "SELECT error_id, module, severity, message, stack_trace, occurred_at, synced
-             FROM error_logs WHERE synced = 0 ORDER BY occurred_at ASC LIMIT ?1",
+            "SELECT error_id, module, severity, message, stack_trace, occurrence_count, first_seen_at, last_seen_at, synced
+             FROM error_logs WHERE synced = 0 ORDER BY last_seen_at DESC LIMIT ?1",
         )?;
         let rows = stmt.query_map(params![limit as i64], |row| {
-            let occ_str: String = row.get(5)?;
+            let first_str: String = row.get(6)?;
+            let last_str: String = row.get(7)?;
             Ok(ErrorLogRecord {
                 error_id: row.get(0)?,
                 module: row.get(1)?,
                 severity: row.get(2)?,
                 message: row.get(3)?,
                 stack_trace: row.get(4)?,
-                occurred_at: DateTime::parse_from_rfc3339(&occ_str).unwrap().with_timezone(&Utc),
-                synced: row.get::<_, i32>(6)? == 1,
+                occurrence_count: row.get::<_, i64>(5)? as u32,
+                first_seen_at: DateTime::parse_from_rfc3339(&first_str).unwrap().with_timezone(&Utc),
+                last_seen_at: DateTime::parse_from_rfc3339(&last_str).unwrap().with_timezone(&Utc),
+                synced: row.get::<_, i32>(8)? == 1,
             })
         })?;
 
