@@ -1,0 +1,18 @@
+services:
+  control-plane:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: childprotect-control-plane
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - PORT=8080
+      - LOG_LEVEL=info
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/healthz || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
