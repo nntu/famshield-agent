@@ -486,8 +486,9 @@ mod tests {
         let installer = Arc::new(InstallerInterceptor::new());
         let signing_key = "secure-command-signing-key-998877";
 
-        let dispatcher = NatsDispatcher::new("dev-verified-01", storage, blocklist.clone(), installer)
-            .with_signing_key(signing_key);
+        let dispatcher =
+            NatsDispatcher::new("dev-verified-01", storage, blocklist.clone(), installer)
+                .with_signing_key(signing_key);
 
         let mut cmd = RemoteCommand {
             command_id: "cmd-sec-101".into(),
@@ -535,7 +536,9 @@ mod tests {
         let res = dispatcher.dispatch_command(&cmd);
         assert!(res.is_err());
         match res.unwrap_err() {
-            SyncError::Authentication(msg) => assert!(msg.contains("Invalid HMAC command signature")),
+            SyncError::Authentication(msg) => {
+                assert!(msg.contains("Invalid HMAC command signature"))
+            }
             other => panic!("Expected Authentication error, got: {:?}", other),
         }
     }
@@ -640,19 +643,17 @@ mod tests {
         let dispatcher = NatsDispatcher::new("dev-555666", storage, blocklist, installer);
 
         let now = chrono::Utc::now();
-        let errors = vec![
-            ErrorLogRecord {
-                error_id: "err-dns-01".into(),
-                module: "dns_proxy".into(),
-                severity: "ERROR".into(),
-                message: "Upstream DNS timeout: 1.1.1.1:53".into(),
-                stack_trace: Some("at dns::proxy::resolve".into()),
-                occurrence_count: 5,
-                first_seen_at: now,
-                last_seen_at: now,
-                synced: false,
-            },
-        ];
+        let errors = vec![ErrorLogRecord {
+            error_id: "err-dns-01".into(),
+            module: "dns_proxy".into(),
+            severity: "ERROR".into(),
+            message: "Upstream DNS timeout: 1.1.1.1:53".into(),
+            stack_trace: Some("at dns::proxy::resolve".into()),
+            occurrence_count: 5,
+            first_seen_at: now,
+            last_seen_at: now,
+            synced: false,
+        }];
 
         let json_str = dispatcher.format_error_logs_batch(&errors).unwrap();
         assert!(json_str.contains("err-dns-01"));

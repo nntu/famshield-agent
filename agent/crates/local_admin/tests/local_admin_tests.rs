@@ -149,14 +149,17 @@ fn test_service_authenticate_enforces_lockout() {
     let lockout_err = service.authenticate("9999");
     assert!(matches!(
         lockout_err,
-        Err(famshield_local_admin::LocalAdminError::Auth(AuthError::Locked(_)))
+        Err(famshield_local_admin::LocalAdminError::Auth(
+            AuthError::Locked(_)
+        ))
     ));
 
     // Even correct PIN is blocked during active lockout window
     let blocked_correct = service.authenticate("1234");
     assert!(matches!(
         blocked_correct,
-        Err(famshield_local_admin::LocalAdminError::Auth(AuthError::Locked(_)))
+        Err(famshield_local_admin::LocalAdminError::Auth(
+            AuthError::Locked(_)
+        ))
     ));
 }
-

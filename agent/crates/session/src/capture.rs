@@ -5,7 +5,8 @@ use tracing::{info, warn};
 #[cfg(windows)]
 use windows::Win32::Graphics::Gdi::{
     BitBlt, CreateCompatibleBitmap, CreateCompatibleDC, DeleteDC, DeleteObject, GetDC, GetDIBits,
-    ReleaseDC, SelectObject, BITMAPINFO, BITMAPINFOHEADER, BI_RGB, DIB_RGB_COLORS, HGDIOBJ, SRCCOPY,
+    ReleaseDC, SelectObject, BITMAPINFO, BITMAPINFOHEADER, BI_RGB, DIB_RGB_COLORS, HGDIOBJ,
+    SRCCOPY,
 };
 #[cfg(windows)]
 use windows::Win32::UI::WindowsAndMessaging::{
@@ -34,17 +35,17 @@ impl SmartVisualVerifier {
         let (target_w, target_h) = Self::calculate_target_dimensions(src_w, src_h);
 
         // Downscale to target dimensions and convert BGRA -> RGB
-        let mut rgb = Self::downscale_and_convert_to_rgb(
-            &bgra_pixels,
-            src_w,
-            src_h,
-            target_w,
-            target_h,
-        );
+        let mut rgb =
+            Self::downscale_and_convert_to_rgb(&bgra_pixels, src_w, src_h, target_w, target_h);
 
         // Apply fast 3-pass box blur (converges to Gaussian blur in RAM)
         if self.blur_radius > 0 {
-            Self::apply_gaussian_blur(&mut rgb, target_w as usize, target_h as usize, self.blur_radius as usize);
+            Self::apply_gaussian_blur(
+                &mut rgb,
+                target_w as usize,
+                target_h as usize,
+                self.blur_radius as usize,
+            );
         }
 
         // Compress to JPEG (<150 KiB quota)
@@ -71,7 +72,10 @@ impl SmartVisualVerifier {
             let height = GetSystemMetrics(SM_CYSCREEN);
 
             if width <= 0 || height <= 0 {
-                warn!("GDI desktop metrics unavailable (width={}, height={}), generating fallback", width, height);
+                warn!(
+                    "GDI desktop metrics unavailable (width={}, height={}), generating fallback",
+                    width, height
+                );
                 return Ok(Self::fallback_synthetic_frame(640, 480));
             }
 
@@ -85,14 +89,18 @@ impl SmartVisualVerifier {
             let hdc_mem = CreateCompatibleDC(hdc_screen);
             if hdc_mem.is_invalid() {
                 ReleaseDC(hwnd, hdc_screen);
-                return Err(SessionError::ScreenCapture("CreateCompatibleDC failed".into()));
+                return Err(SessionError::ScreenCapture(
+                    "CreateCompatibleDC failed".into(),
+                ));
             }
 
             let hbitmap = CreateCompatibleBitmap(hdc_screen, width, height);
             if hbitmap.is_invalid() {
                 let _ = DeleteDC(hdc_mem);
                 ReleaseDC(hwnd, hdc_screen);
-                return Err(SessionError::ScreenCapture("CreateCompatibleBitmap failed".into()));
+                return Err(SessionError::ScreenCapture(
+                    "CreateCompatibleBitmap failed".into(),
+                ));
             }
 
             let old_obj = SelectObject(hdc_mem, HGDIOBJ(hbitmap.0));
@@ -155,10 +163,10 @@ impl SmartVisualVerifier {
         for y in 0..height as usize {
             for x in 0..width as usize {
                 let idx = (y * width as usize + x) * 4;
-                buffer[idx] = (x % 256) as u8;       // B
-                buffer[idx + 1] = (y % 256) as u8;   // G
+                buffer[idx] = (x % 256) as u8; // B
+                buffer[idx + 1] = (y % 256) as u8; // G
                 buffer[idx + 2] = ((x + y) % 256) as u8; // R
-                buffer[idx + 3] = 255;               // A
+                buffer[idx + 3] = 255; // A
             }
         }
         (width, height, buffer)
@@ -189,9 +197,9 @@ impl SmartVisualVerifier {
                 let dst_idx = (y * dst_w as usize + x) * 3;
 
                 if src_idx + 2 < bgra.len() {
-                    rgb[dst_idx] = bgra[src_idx + 2];     // R
+                    rgb[dst_idx] = bgra[src_idx + 2]; // R
                     rgb[dst_idx + 1] = bgra[src_idx + 1]; // G
-                    rgb[dst_idx + 2] = bgra[src_idx];     // B
+                    rgb[dst_idx + 2] = bgra[src_idx]; // B
                 }
             }
         }

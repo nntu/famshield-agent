@@ -209,7 +209,13 @@ impl TelemetryPipeline {
             rule_id: rule_id.map(|s| s.to_string()),
         };
 
-        let event_id = format!("dns-{}-{}", self.device_id, occurred_at.timestamp_nanos_opt().unwrap_or_else(|| occurred_at.timestamp_millis() * 1_000_000));
+        let event_id = format!(
+            "dns-{}-{}",
+            self.device_id,
+            occurred_at
+                .timestamp_nanos_opt()
+                .unwrap_or_else(|| occurred_at.timestamp_millis() * 1_000_000)
+        );
         let event = TelemetryEvent::new(
             &event_id,
             TelemetryEventType::DnsQuery.as_str(),

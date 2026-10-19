@@ -109,13 +109,28 @@ fn test_error_logs_smart_deduplication() {
 
     // 1. Record same error multiple times
     let id1 = storage
-        .record_error_log("dns_proxy", "ERROR", "Upstream DNS timeout: 1.1.1.1:53", Some("stack1"))
+        .record_error_log(
+            "dns_proxy",
+            "ERROR",
+            "Upstream DNS timeout: 1.1.1.1:53",
+            Some("stack1"),
+        )
         .unwrap();
     let id2 = storage
-        .record_error_log("dns_proxy", "ERROR", "Upstream DNS timeout: 1.1.1.1:53", Some("stack2"))
+        .record_error_log(
+            "dns_proxy",
+            "ERROR",
+            "Upstream DNS timeout: 1.1.1.1:53",
+            Some("stack2"),
+        )
         .unwrap();
     let id3 = storage
-        .record_error_log("dns_proxy", "ERROR", "Upstream DNS timeout: 1.1.1.1:53", None)
+        .record_error_log(
+            "dns_proxy",
+            "ERROR",
+            "Upstream DNS timeout: 1.1.1.1:53",
+            None,
+        )
         .unwrap();
 
     // Fingerprint ID must be identical for identical error pattern
@@ -130,13 +145,20 @@ fn test_error_logs_smart_deduplication() {
     assert_eq!(errors[0].module, "dns_proxy");
 
     // 3. Mark as synced
-    storage.mark_errors_synced(std::slice::from_ref(&id1)).unwrap();
+    storage
+        .mark_errors_synced(std::slice::from_ref(&id1))
+        .unwrap();
     let unsynced_after = storage.list_unsynced_errors(10).unwrap();
     assert_eq!(unsynced_after.len(), 0);
 
     // 4. If same error happens again, it updates count to 4 and marks synced = 0 again
     let id4 = storage
-        .record_error_log("dns_proxy", "ERROR", "Upstream DNS timeout: 1.1.1.1:53", None)
+        .record_error_log(
+            "dns_proxy",
+            "ERROR",
+            "Upstream DNS timeout: 1.1.1.1:53",
+            None,
+        )
         .unwrap();
     assert_eq!(id4, id1);
 
@@ -158,13 +180,20 @@ fn test_outbox_lifecycle_and_retry_backoff() {
         .enqueue_outbox("evt-01", "heartbeat", t0, r#"{"uptime": 100}"#)
         .unwrap();
     storage
-        .enqueue_outbox("evt-02", "dns_query", t0 + Duration::seconds(1), r#"{"domain": "safe.org"}"#)
+        .enqueue_outbox(
+            "evt-02",
+            "dns_query",
+            t0 + Duration::seconds(1),
+            r#"{"domain": "safe.org"}"#,
+        )
         .unwrap();
 
     assert_eq!(storage.count_outbox().unwrap(), 2);
 
     // 2. Peek outbox
-    let pending = storage.peek_outbox_at(10, t0 + Duration::seconds(2)).unwrap();
+    let pending = storage
+        .peek_outbox_at(10, t0 + Duration::seconds(2))
+        .unwrap();
     assert_eq!(pending.len(), 2);
     assert_eq!(pending[0].event_id, "evt-01");
     assert_eq!(pending[0].attempts, 0);
@@ -176,7 +205,9 @@ fn test_outbox_lifecycle_and_retry_backoff() {
         .unwrap();
 
     // At t0 + 10s: only evt-02 is ready, evt-01 is backing off
-    let ready_t10 = storage.peek_outbox_at(10, t0 + Duration::seconds(10)).unwrap();
+    let ready_t10 = storage
+        .peek_outbox_at(10, t0 + Duration::seconds(10))
+        .unwrap();
     assert_eq!(ready_t10.len(), 1);
     assert_eq!(ready_t10[0].event_id, "evt-02");
 
@@ -185,7 +216,9 @@ fn test_outbox_lifecycle_and_retry_backoff() {
     assert_eq!(storage.count_outbox().unwrap(), 1);
 
     // At t0 + 35s: evt-01 becomes ready again with attempt count = 1
-    let ready_t35 = storage.peek_outbox_at(10, t0 + Duration::seconds(35)).unwrap();
+    let ready_t35 = storage
+        .peek_outbox_at(10, t0 + Duration::seconds(35))
+        .unwrap();
     assert_eq!(ready_t35.len(), 1);
     assert_eq!(ready_t35[0].event_id, "evt-01");
     assert_eq!(ready_t35[0].attempts, 1);
@@ -194,4 +227,3 @@ fn test_outbox_lifecycle_and_retry_backoff() {
     storage.dequeue_outbox(&["evt-01".to_string()]).unwrap();
     assert_eq!(storage.count_outbox().unwrap(), 0);
 }
-

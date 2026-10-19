@@ -20,7 +20,9 @@ fn handle_reset_pin(args: &[String]) -> Result<bool, Box<dyn std::error::Error>>
             println!("==> [FamShield Administrator Elevation] Resetting Master PIN...");
             let db_path = get_data_dir().join("famshield.db");
             let storage = StorageEngine::open(&db_path)?;
-            match famshield_local_admin::MasterPinAuthenticator::reset_pin_elevated(&storage, new_pin) {
+            match famshield_local_admin::MasterPinAuthenticator::reset_pin_elevated(
+                &storage, new_pin,
+            ) {
                 Ok(()) => {
                     println!("[FamShield] SUCCESS: Master PIN has been successfully reset!");
                     return Ok(true);
@@ -151,7 +153,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Ok(());
     }
 
-    let is_console = args.iter().any(|a| a == "--console" || a == "-c" || a == "run-console");
+    let is_console = args
+        .iter()
+        .any(|a| a == "--console" || a == "-c" || a == "run-console");
 
     #[cfg(windows)]
     if !is_console {

@@ -1,5 +1,7 @@
 # FamShield Windows Endpoint Agent
 
+[🇻🇳 Tiếng Việt](README.md) | [🇬🇧 English](README.en.md) | [🤝 Hướng Dẫn Đóng Góp (Contributing)](CONTRIBUTING.md)
+
 **FamShield Agent** là thành phần bảo vệ máy trạm Windows thuộc hệ sinh thái **FamShield Parental Control & Endpoint Security**. 
 
 Dự án được xây dựng 100% bằng **Rust hiện đại**, chú trọng an toàn bộ nhớ tuyệt đối, hiệu năng cực cao, không gây BSOD/treo máy, và chạy ngầm siêu nhẹ (< 15MB RAM).
@@ -104,3 +106,17 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 ```
 Toàn bộ **57 unit tests** đạt trạng thái pass 100% trên 29 test suites (DNS wire parser, WFP filter lifecycle, GDI capture blur, Argon2id lockout, DPAPI secret migration, SQLite Outbox retry backoff, Telemetry batching, ETW Kernel tracing, Signed Updater ECDSA P-256, và Freemium HMAC command authentication).
+
+---
+
+## 5. Dành Cho Nhà Phát Triển & Đóng Góp (Contributing)
+
+Chúng tôi hoan nghênh mọi đóng góp từ cộng đồng (sửa lỗi, bổ sung tính năng, tối ưu hiệu năng và tài liệu)!
+
+- 📜 **Quy định đóng góp chi tiết**: Vui lòng đọc kỹ [CONTRIBUTING.md](CONTRIBUTING.md) trước khi tạo Pull Request.
+- 🚦 **Tiêu chuẩn Pull Request**:
+  - Mã nguồn phải định dạng chuẩn `cargo fmt`.
+  - Không có cảnh báo clippy (`cargo clippy --workspace --all-targets -- -D warnings`).
+  - Toàn bộ unit tests phải pass 100% (`cargo test --workspace`).
+  - Viết commit message theo chuẩn [Conventional Commits](https://www.conventionalcommits.org/).
+- 🐛 **Báo cáo sự cố hoặc yêu cầu tính năng**: Sử dụng [GitHub Issues](https://github.com/nntu/famshield-agent/issues) theo mẫu sẵn có.

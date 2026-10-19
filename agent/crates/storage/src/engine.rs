@@ -372,8 +372,12 @@ impl StorageEngine {
                 message: row.get(3)?,
                 stack_trace: row.get(4)?,
                 occurrence_count: row.get::<_, i64>(5)? as u32,
-                first_seen_at: DateTime::parse_from_rfc3339(&first_str).unwrap().with_timezone(&Utc),
-                last_seen_at: DateTime::parse_from_rfc3339(&last_str).unwrap().with_timezone(&Utc),
+                first_seen_at: DateTime::parse_from_rfc3339(&first_str)
+                    .unwrap()
+                    .with_timezone(&Utc),
+                last_seen_at: DateTime::parse_from_rfc3339(&last_str)
+                    .unwrap()
+                    .with_timezone(&Utc),
                 synced: row.get::<_, i32>(8)? == 1,
             })
         })?;
@@ -446,10 +450,14 @@ impl StorageEngine {
             Ok(OutboxRecord {
                 event_id: row.get(0)?,
                 event_type: row.get(1)?,
-                occurred_at: DateTime::parse_from_rfc3339(&occ_str).unwrap().with_timezone(&Utc),
+                occurred_at: DateTime::parse_from_rfc3339(&occ_str)
+                    .unwrap()
+                    .with_timezone(&Utc),
                 payload: row.get(3)?,
                 attempts: row.get::<_, i64>(4)? as u32,
-                next_attempt_at: DateTime::parse_from_rfc3339(&next_str).unwrap().with_timezone(&Utc),
+                next_attempt_at: DateTime::parse_from_rfc3339(&next_str)
+                    .unwrap()
+                    .with_timezone(&Utc),
             })
         })?;
 
@@ -502,4 +510,3 @@ impl StorageEngine {
         Ok(count as usize)
     }
 }
-

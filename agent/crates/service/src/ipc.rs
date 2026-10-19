@@ -103,7 +103,10 @@ impl NamedPipeServer {
     }
 
     #[cfg(windows)]
-    pub async fn run(&self, mut shutdown_rx: broadcast::Receiver<()>) -> Result<(), std::io::Error> {
+    pub async fn run(
+        &self,
+        mut shutdown_rx: broadcast::Receiver<()>,
+    ) -> Result<(), std::io::Error> {
         info!(
             "Starting Named Pipe IPC server on '{}' with security SDDL: {}",
             IPC_PIPE_NAME, IPC_PIPE_SDDL
@@ -138,7 +141,10 @@ impl NamedPipeServer {
     }
 
     #[cfg(not(windows))]
-    pub async fn run(&self, mut shutdown_rx: broadcast::Receiver<()>) -> Result<(), std::io::Error> {
+    pub async fn run(
+        &self,
+        mut shutdown_rx: broadcast::Receiver<()>,
+    ) -> Result<(), std::io::Error> {
         info!("Mock Named Pipe IPC server active on non-windows platform");
         let _ = shutdown_rx.recv().await;
         Ok(())
@@ -178,18 +184,16 @@ fn create_secured_named_pipe(
     first_instance: bool,
 ) -> Result<tokio::net::windows::named_pipe::NamedPipeServer, std::io::Error> {
     use tokio::net::windows::named_pipe::ServerOptions;
+    use windows::core::w;
     use windows::Win32::Security::Authorization::ConvertStringSecurityDescriptorToSecurityDescriptorW;
     use windows::Win32::Security::{PSECURITY_DESCRIPTOR, SECURITY_ATTRIBUTES};
-    use windows::core::w;
 
     let sddl = w!("D:(A;;GRGW;;;AU)(A;;GA;;;SY)(A;;GA;;;BA)");
     let mut sd = PSECURITY_DESCRIPTOR::default();
     let res = unsafe {
         ConvertStringSecurityDescriptorToSecurityDescriptorW(
-            sddl,
-            1, // SDDL_REVISION_1
-            &mut sd,
-            None,
+            sddl, 1, // SDDL_REVISION_1
+            &mut sd, None,
         )
     };
 

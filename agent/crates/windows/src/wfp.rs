@@ -8,11 +8,10 @@ use windows::Win32::Foundation::HANDLE;
 #[cfg(windows)]
 use windows::Win32::NetworkManagement::WindowsFilteringPlatform::{
     FwpmEngineClose0, FwpmEngineOpen0, FwpmFilterAdd0, FwpmFilterDeleteById0,
-    FWPM_CONDITION_IP_REMOTE_ADDRESS, FWPM_CONDITION_IP_REMOTE_PORT,
-    FWPM_FILTER0, FWPM_FILTER_CONDITION0, FWPM_LAYER_ALE_AUTH_CONNECT_V4,
-    FWPM_LAYER_ALE_AUTH_CONNECT_V6, FWPM_SESSION0, FWPM_SESSION_FLAG_DYNAMIC,
-    FWPM_SUBLAYER_UNIVERSAL, FWP_ACTION_BLOCK, FWP_ACTION_PERMIT,
-    FWP_CONDITION_VALUE0, FWP_MATCH_EQUAL, FWP_UINT16, FWP_UINT32, FWP_UINT8,
+    FWPM_CONDITION_IP_REMOTE_ADDRESS, FWPM_CONDITION_IP_REMOTE_PORT, FWPM_FILTER0,
+    FWPM_FILTER_CONDITION0, FWPM_LAYER_ALE_AUTH_CONNECT_V4, FWPM_LAYER_ALE_AUTH_CONNECT_V6,
+    FWPM_SESSION0, FWPM_SESSION_FLAG_DYNAMIC, FWPM_SUBLAYER_UNIVERSAL, FWP_ACTION_BLOCK,
+    FWP_ACTION_PERMIT, FWP_CONDITION_VALUE0, FWP_MATCH_EQUAL, FWP_UINT16, FWP_UINT32, FWP_UINT8,
     FWP_V4_ADDR_AND_MASK, FWP_V4_ADDR_MASK,
 };
 
@@ -160,14 +159,8 @@ impl WfpSessionGuard {
         filter.filterCondition = conditions.as_mut_ptr();
 
         let mut filter_id = 0u64;
-        let res = unsafe {
-            FwpmFilterAdd0(
-                self.engine_handle,
-                &filter,
-                None,
-                Some(&mut filter_id),
-            )
-        };
+        let res =
+            unsafe { FwpmFilterAdd0(self.engine_handle, &filter, None, Some(&mut filter_id)) };
         if res != 0 {
             return Err(WindowsError::Wfp(format!(
                 "FwpmFilterAdd0 (permit loopback) failed with code: {:#x}",
@@ -213,14 +206,8 @@ impl WfpSessionGuard {
         filter.filterCondition = conditions.as_mut_ptr();
 
         let mut filter_id = 0u64;
-        let res = unsafe {
-            FwpmFilterAdd0(
-                self.engine_handle,
-                &filter,
-                None,
-                Some(&mut filter_id),
-            )
-        };
+        let res =
+            unsafe { FwpmFilterAdd0(self.engine_handle, &filter, None, Some(&mut filter_id)) };
         if res != 0 {
             return Err(WindowsError::Wfp(format!(
                 "FwpmFilterAdd0 (permit upstream {}) failed with code: {:#x}",
@@ -236,13 +223,11 @@ impl WfpSessionGuard {
         port_val.r#type = FWP_UINT16;
         port_val.Anonymous.uint16 = 53;
 
-        let mut conditions = [
-            FWPM_FILTER_CONDITION0 {
-                fieldKey: FWPM_CONDITION_IP_REMOTE_PORT,
-                matchType: FWP_MATCH_EQUAL,
-                conditionValue: port_val,
-            },
-        ];
+        let mut conditions = [FWPM_FILTER_CONDITION0 {
+            fieldKey: FWPM_CONDITION_IP_REMOTE_PORT,
+            matchType: FWP_MATCH_EQUAL,
+            conditionValue: port_val,
+        }];
 
         let mut filter = FWPM_FILTER0::default();
         filter.displayData.name = windows::core::PWSTR(
@@ -257,14 +242,8 @@ impl WfpSessionGuard {
         filter.filterCondition = conditions.as_mut_ptr();
 
         let mut filter_id = 0u64;
-        let res = unsafe {
-            FwpmFilterAdd0(
-                self.engine_handle,
-                &filter,
-                None,
-                Some(&mut filter_id),
-            )
-        };
+        let res =
+            unsafe { FwpmFilterAdd0(self.engine_handle, &filter, None, Some(&mut filter_id)) };
         if res != 0 {
             return Err(WindowsError::Wfp(format!(
                 "FwpmFilterAdd0 (block v4 dns) failed with code: {:#x}",
@@ -280,13 +259,11 @@ impl WfpSessionGuard {
         port_val.r#type = FWP_UINT16;
         port_val.Anonymous.uint16 = 53;
 
-        let mut conditions = [
-            FWPM_FILTER_CONDITION0 {
-                fieldKey: FWPM_CONDITION_IP_REMOTE_PORT,
-                matchType: FWP_MATCH_EQUAL,
-                conditionValue: port_val,
-            },
-        ];
+        let mut conditions = [FWPM_FILTER_CONDITION0 {
+            fieldKey: FWPM_CONDITION_IP_REMOTE_PORT,
+            matchType: FWP_MATCH_EQUAL,
+            conditionValue: port_val,
+        }];
 
         let mut filter = FWPM_FILTER0::default();
         filter.displayData.name = windows::core::PWSTR(
@@ -301,14 +278,8 @@ impl WfpSessionGuard {
         filter.filterCondition = conditions.as_mut_ptr();
 
         let mut filter_id = 0u64;
-        let res = unsafe {
-            FwpmFilterAdd0(
-                self.engine_handle,
-                &filter,
-                None,
-                Some(&mut filter_id),
-            )
-        };
+        let res =
+            unsafe { FwpmFilterAdd0(self.engine_handle, &filter, None, Some(&mut filter_id)) };
         if res != 0 {
             return Err(WindowsError::Wfp(format!(
                 "FwpmFilterAdd0 (block v6 dns) failed with code: {:#x}",

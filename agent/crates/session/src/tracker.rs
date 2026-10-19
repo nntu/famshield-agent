@@ -1,16 +1,16 @@
-use std::time::Instant;
 use famshield_core::domain::ExecutableName;
+use std::time::Instant;
 
 #[cfg(windows)]
-use windows::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, GetWindowThreadProcessId};
-#[cfg(windows)]
-use windows::Win32::UI::Input::KeyboardAndMouse::{GetLastInputInfo, LASTINPUTINFO};
+use windows::Win32::Foundation::CloseHandle;
 #[cfg(windows)]
 use windows::Win32::System::ProcessStatus::GetProcessImageFileNameW;
 #[cfg(windows)]
 use windows::Win32::System::Threading::{OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION};
 #[cfg(windows)]
-use windows::Win32::Foundation::CloseHandle;
+use windows::Win32::UI::Input::KeyboardAndMouse::{GetLastInputInfo, LASTINPUTINFO};
+#[cfg(windows)]
+use windows::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, GetWindowThreadProcessId};
 
 /// Tracks active foreground application and detects user idle state (keyboard/mouse).
 #[derive(Clone, Debug)]

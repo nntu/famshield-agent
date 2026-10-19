@@ -95,4 +95,3 @@ fn test_ipc_pipe_sddl_security_format() {
     assert!(IPC_PIPE_SDDL.contains("BA")); // Builtin Administrators
     assert!(IPC_PIPE_SDDL.contains("AU")); // Authenticated Users
 }
-

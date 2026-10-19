@@ -102,7 +102,10 @@ impl EtwTraceSession {
 
     #[cfg(not(windows))]
     pub fn start(session_name: &str) -> Result<Self, WindowsError> {
-        info!("Mock ETW session started for '{}' on non-windows platform", session_name);
+        info!(
+            "Mock ETW session started for '{}' on non-windows platform",
+            session_name
+        );
         Ok(Self {
             session_name: session_name.to_string(),
             active: true,

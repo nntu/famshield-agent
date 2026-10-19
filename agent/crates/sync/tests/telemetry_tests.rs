@@ -81,14 +81,22 @@ fn test_telemetry_pipeline_outbox_queue_and_batching() {
     assert!(dns_id.starts_with("dns-dev-pc-99-"));
 
     let sec_id = pipeline
-        .queue_security_alert("tamper_attempt", "CRITICAL", "hosts file modified", serde_json::json!({}))
+        .queue_security_alert(
+            "tamper_attempt",
+            "CRITICAL",
+            "hosts file modified",
+            serde_json::json!({}),
+        )
         .unwrap();
     assert!(sec_id.starts_with("sec-dev-pc-99-"));
 
     assert_eq!(pipeline.pending_count().unwrap(), 3);
 
     // 3. Prepare next batch with limit 2
-    let batch1 = pipeline.prepare_next_batch(2).unwrap().expect("Batch should exist");
+    let batch1 = pipeline
+        .prepare_next_batch(2)
+        .unwrap()
+        .expect("Batch should exist");
     assert_eq!(batch1.event_count, 2);
     assert_eq!(batch1.device_id, "dev-pc-99");
     assert_eq!(batch1.events[0].event_id, hb_id);
@@ -99,7 +107,10 @@ fn test_telemetry_pipeline_outbox_queue_and_batching() {
     assert_eq!(pipeline.pending_count().unwrap(), 1);
 
     // 5. Prepare next batch -> gets the remaining security alert
-    let batch2 = pipeline.prepare_next_batch(2).unwrap().expect("Batch should exist");
+    let batch2 = pipeline
+        .prepare_next_batch(2)
+        .unwrap()
+        .expect("Batch should exist");
     assert_eq!(batch2.event_count, 1);
     assert_eq!(batch2.events[0].event_id, sec_id);
 
