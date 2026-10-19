@@ -8,6 +8,10 @@ description = "Per-session helper for foreground tracking and DXGI visual verifi
 
 [dependencies]
 childprotect-core = { workspace = true }
+childprotect-service = { path = "../service" }
 tokio = { workspace = true }
 tracing = { workspace = true }
 thiserror = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+
