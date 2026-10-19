@@ -1,12 +1,12 @@
-use std::sync::Arc;
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 use tracing::{info, warn};
 
+use crate::error::SyncError;
 use famshield_dns::blocklist::BlocklistStore;
 use famshield_local_admin::MasterPinAuthenticator;
 use famshield_storage::StorageEngine;
 use famshield_windows::{InstallerInterceptor, SessionManager};
-use crate::error::SyncError;
 
 /// Command payload pushed from Server via NATS JetStream: `devices.{device_id}.commands`
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -62,7 +62,10 @@ impl NatsDispatcher {
     }
 
     /// Build a standardized telemetry payload for a process lifecycle event
-    pub fn build_process_event(&self, event: &famshield_windows::ProcessLifecycleEvent) -> serde_json::Value {
+    pub fn build_process_event(
+        &self,
+        event: &famshield_windows::ProcessLifecycleEvent,
+    ) -> serde_json::Value {
         serde_json::json!({
             "event_id": event.event_id,
             "device_id": self.device_id,
@@ -81,10 +84,8 @@ impl NatsDispatcher {
         &self,
         events: &[famshield_windows::ProcessLifecycleEvent],
     ) -> Result<String, SyncError> {
-        let serialized_events: Vec<serde_json::Value> = events
-            .iter()
-            .map(|e| self.build_process_event(e))
-            .collect();
+        let serialized_events: Vec<serde_json::Value> =
+            events.iter().map(|e| self.build_process_event(e)).collect();
 
         let batch = serde_json::json!({
             "batch_id": format!("batch-proc-{}", chrono::Utc::now().timestamp_millis()),
@@ -106,27 +107,29 @@ impl NatsDispatcher {
         match cmd.command_type.as_str() {
             "lock_session" => {
                 info!("Executing immediate session lock via LockWorkStation API...");
-                SessionManager::lock_workstation()
-                    .map_err(|e| SyncError::Command(format!("Failed to lock workstation: {}", e)))?;
+                SessionManager::lock_workstation().map_err(|e| {
+                    SyncError::Command(format!("Failed to lock workstation: {}", e))
+                })?;
                 info!("Session locked successfully.");
                 Ok(())
             }
 
             "update_blacklist" => {
                 // Extract list of domain strings from payload
-                let domains: Vec<String> = if let Some(arr) = cmd.payload.get("domains").and_then(|v| v.as_array()) {
-                    arr.iter()
-                        .filter_map(|v| v.as_str().map(|s| s.to_string()))
-                        .collect()
-                } else if let Some(arr) = cmd.payload.as_array() {
-                    arr.iter()
-                        .filter_map(|v| v.as_str().map(|s| s.to_string()))
-                        .collect()
-                } else {
-                    return Err(SyncError::Command(
-                        "Payload must contain 'domains' array or be a string array".into(),
-                    ));
-                };
+                let domains: Vec<String> =
+                    if let Some(arr) = cmd.payload.get("domains").and_then(|v| v.as_array()) {
+                        arr.iter()
+                            .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                            .collect()
+                    } else if let Some(arr) = cmd.payload.as_array() {
+                        arr.iter()
+                            .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                            .collect()
+                    } else {
+                        return Err(SyncError::Command(
+                            "Payload must contain 'domains' array or be a string array".into(),
+                        ));
+                    };
 
                 info!(
                     "Atomically hot-swapping DNS blocklist with {} domains...",
@@ -156,7 +159,8 @@ impl NatsDispatcher {
                 // Policy update payload can be parsed and saved to storage
                 if let Some(policy_obj) = cmd.payload.get("policy") {
                     let policy_str = policy_obj.to_string();
-                    if let Ok(policy) = serde_json::from_str::<famshield_core::Policy>(&policy_str) {
+                    if let Ok(policy) = serde_json::from_str::<famshield_core::Policy>(&policy_str)
+                    {
                         self.storage.save_policy(&policy, &policy_str)?;
                         info!("Policy v{} applied and persisted.", policy.version);
                     }
@@ -170,7 +174,9 @@ impl NatsDispatcher {
                     .get("request_id")
                     .or_else(|| cmd.payload.get("file_hash"))
                     .and_then(|v| v.as_str())
-                    .ok_or_else(|| SyncError::Command("Missing 'request_id' or 'file_hash'".into()))?;
+                    .ok_or_else(|| {
+                        SyncError::Command("Missing 'request_id' or 'file_hash'".into())
+                    })?;
 
                 info!("Server approved installation for: {}", id_or_hash);
                 self.installer
@@ -185,7 +191,9 @@ impl NatsDispatcher {
                     .get("request_id")
                     .or_else(|| cmd.payload.get("file_hash"))
                     .and_then(|v| v.as_str())
-                    .ok_or_else(|| SyncError::Command("Missing 'request_id' or 'file_hash'".into()))?;
+                    .ok_or_else(|| {
+                        SyncError::Command("Missing 'request_id' or 'file_hash'".into())
+                    })?;
 
                 info!("Server denied installation for: {}", id_or_hash);
                 self.installer
@@ -196,7 +204,10 @@ impl NatsDispatcher {
 
             unknown => {
                 warn!("Received unknown remote command type: '{}'", unknown);
-                Err(SyncError::Command(format!("Unknown command type: {}", unknown)))
+                Err(SyncError::Command(format!(
+                    "Unknown command type: {}",
+                    unknown
+                )))
             }
         }
     }
@@ -215,7 +226,10 @@ mod tests {
 
         assert_eq!(dispatcher.command_subject(), "devices.dev-999888.commands");
         assert_eq!(dispatcher.event_subject(), "devices.dev-999888.events");
-        assert_eq!(dispatcher.heartbeat_subject(), "devices.dev-999888.heartbeat");
+        assert_eq!(
+            dispatcher.heartbeat_subject(),
+            "devices.dev-999888.heartbeat"
+        );
     }
 
     #[test]

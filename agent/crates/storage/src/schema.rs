@@ -1,5 +1,5 @@
-use rusqlite::Connection;
 use crate::error::StorageError;
+use rusqlite::Connection;
 
 pub const CURRENT_SCHEMA_VERSION: u32 = 1;
 
@@ -26,11 +26,9 @@ pub fn initialize_database(conn: &mut Connection) -> Result<(), StorageError> {
     )?;
 
     let current_version: Option<u32> = tx
-        .query_row(
-            "SELECT MAX(version) FROM schema_migrations",
-            [],
-            |row| row.get(0),
-        )
+        .query_row("SELECT MAX(version) FROM schema_migrations", [], |row| {
+            row.get(0)
+        })
         .unwrap_or(None);
 
     let v = current_version.unwrap_or(0);

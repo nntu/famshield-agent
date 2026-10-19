@@ -77,7 +77,10 @@ impl DnsProxy {
 
         let upstream_sock = UdpSocket::bind("0.0.0.0:0").await?;
         let upstream_target: SocketAddr = self.upstream_addr.parse().map_err(|e| {
-            DnsError::Format(format!("Invalid upstream address {}: {}", self.upstream_addr, e))
+            DnsError::Format(format!(
+                "Invalid upstream address {}: {}",
+                self.upstream_addr, e
+            ))
         })?;
 
         let mut buf = [0u8; 4096];
@@ -132,7 +135,11 @@ impl DnsProxy {
             }
 
             // 3. Upstream Forwarding
-            if let Ok(_) = upstream_sock.send_to(query_wire, upstream_target).await {
+            if upstream_sock
+                .send_to(query_wire, upstream_target)
+                .await
+                .is_ok()
+            {
                 let mut resp_buf = [0u8; 4096];
                 if let Ok(resp_len) = upstream_sock.recv(&mut resp_buf).await {
                     let resp_wire = &resp_buf[..resp_len];

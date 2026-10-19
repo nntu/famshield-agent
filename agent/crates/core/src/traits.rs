@@ -1,5 +1,5 @@
-use std::time::Instant;
 use chrono::{DateTime, Utc};
+use std::time::Instant;
 
 /// Abstract clock trait enabling deterministic time testing (DST, midnight quota reset).
 pub trait Clock: Send + Sync {
@@ -37,8 +37,8 @@ impl MockClock {
     }
 
     pub fn advance(&mut self, duration: std::time::Duration) {
-        self.utc = self.utc + chrono::Duration::from_std(duration).unwrap();
-        self.monotonic = self.monotonic + duration;
+        self.utc += chrono::Duration::from_std(duration).unwrap();
+        self.monotonic += duration;
     }
 
     pub fn set_utc(&mut self, utc: DateTime<Utc>) {

@@ -2,10 +2,9 @@
 use windows::Win32::{
     Foundation::HWND,
     UI::Shell::{
-        Shell_NotifyIconW, NOTIFYICONDATAW, NIIF_INFO, NIIF_WARNING, NIM_MODIFY, NIF_INFO,
+        Shell_NotifyIconW, NIF_INFO, NIIF_INFO, NIIF_WARNING, NIM_MODIFY, NOTIFYICONDATAW,
     },
 };
-
 
 pub struct FriendlyToast;
 
@@ -24,12 +23,14 @@ impl FriendlyToast {
     /// Show toast notification using the existing Tray Icon HWND
     #[cfg(windows)]
     pub fn show(hwnd: HWND, title: &str, message: &str, is_warning: bool) {
-        let mut nid = NOTIFYICONDATAW::default();
-        nid.cbSize = std::mem::size_of::<NOTIFYICONDATAW>() as u32;
-        nid.hWnd = hwnd;
-        nid.uID = 1;
-        nid.uFlags = NIF_INFO;
-        nid.dwInfoFlags = if is_warning { NIIF_WARNING } else { NIIF_INFO };
+        let mut nid = NOTIFYICONDATAW {
+            cbSize: std::mem::size_of::<NOTIFYICONDATAW>() as u32,
+            hWnd: hwnd,
+            uID: 1,
+            uFlags: NIF_INFO,
+            dwInfoFlags: if is_warning { NIIF_WARNING } else { NIIF_INFO },
+            ..Default::default()
+        };
 
         Self::copy_to_u16_slice(title, &mut nid.szInfoTitle);
         Self::copy_to_u16_slice(message, &mut nid.szInfo);

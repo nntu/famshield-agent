@@ -1,7 +1,4 @@
-﻿use famshield_service::{
-    dispatcher::IpcDispatcher,
-    ipc::IpcMessage,
-};
+use famshield_service::{dispatcher::IpcDispatcher, ipc::IpcMessage};
 use famshield_storage::StorageEngine;
 
 #[tokio::test]
@@ -16,7 +13,9 @@ async fn test_ipc_dispatcher_session_hello() {
 
     let reply = dispatcher.dispatch(msg).await;
     match reply {
-        IpcMessage::Response { success, message, .. } => {
+        IpcMessage::Response {
+            success, message, ..
+        } => {
             assert!(success);
             assert!(message.contains("Session 1 registered"));
         }

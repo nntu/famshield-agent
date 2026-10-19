@@ -1,4 +1,5 @@
 pub mod auth;
+mod secret_protection;
 pub mod service;
 pub mod ui;
 

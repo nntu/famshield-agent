@@ -1,7 +1,7 @@
+use crate::error::WindowsError;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use tracing::{info, warn};
-use crate::error::WindowsError;
 
 /// Details of a software installation attempt
 #[derive(Clone, Debug)]
@@ -41,8 +41,15 @@ impl InstallerInterceptor {
         let file_name = lower.rsplit(&['/', '\\'][..]).next().unwrap_or(&lower);
 
         let installer_keywords = [
-            "setup", "install", "installer", "update", "patch", 
-            "msiexec", "unins", "config", "deploy"
+            "setup",
+            "install",
+            "installer",
+            "update",
+            "patch",
+            "msiexec",
+            "unins",
+            "config",
+            "deploy",
         ];
 
         let has_keyword = installer_keywords.iter().any(|&kw| file_name.contains(kw));
@@ -68,14 +75,20 @@ impl InstallerInterceptor {
     }
 
     /// Approve an installation request by request_id or file_hash
-    pub fn approve_installation(&self, request_id_or_hash: &str) -> Result<Option<InstallationRequest>, WindowsError> {
+    pub fn approve_installation(
+        &self,
+        request_id_or_hash: &str,
+    ) -> Result<Option<InstallationRequest>, WindowsError> {
         let mut pending_guard = self.pending.lock().unwrap();
         let mut approved_guard = self.approved_hashes.lock().unwrap();
 
         // Check if matching by request_id
         if let Some(req) = pending_guard.remove(request_id_or_hash) {
             approved_guard.insert(req.file_hash_sha256.clone(), 0);
-            info!("Installation request '{}' approved! Resuming process PID {}", req.request_id, req.process_id);
+            info!(
+                "Installation request '{}' approved! Resuming process PID {}",
+                req.request_id, req.process_id
+            );
             return Ok(Some(req));
         }
 
@@ -91,22 +104,34 @@ impl InstallerInterceptor {
         if let Some(k) = matched_key {
             let req = pending_guard.remove(&k).unwrap();
             approved_guard.insert(req.file_hash_sha256.clone(), 0);
-            info!("Installation for hash '{}' approved! Resuming process PID {}", request_id_or_hash, req.process_id);
+            info!(
+                "Installation for hash '{}' approved! Resuming process PID {}",
+                request_id_or_hash, req.process_id
+            );
             return Ok(Some(req));
         }
 
         // Otherwise just record the hash as pre-approved
         approved_guard.insert(request_id_or_hash.to_string(), 0);
-        info!("Hash '{}' added to approved installer whitelist", request_id_or_hash);
+        info!(
+            "Hash '{}' added to approved installer whitelist",
+            request_id_or_hash
+        );
         Ok(None)
     }
 
     /// Deny and reject an installation attempt
-    pub fn deny_installation(&self, request_id_or_hash: &str) -> Result<Option<InstallationRequest>, WindowsError> {
+    pub fn deny_installation(
+        &self,
+        request_id_or_hash: &str,
+    ) -> Result<Option<InstallationRequest>, WindowsError> {
         let mut pending_guard = self.pending.lock().unwrap();
 
         if let Some(req) = pending_guard.remove(request_id_or_hash) {
-            warn!("Installation request '{}' denied! Terminating process PID {}", req.request_id, req.process_id);
+            warn!(
+                "Installation request '{}' denied! Terminating process PID {}",
+                req.request_id, req.process_id
+            );
             return Ok(Some(req));
         }
 
@@ -120,7 +145,10 @@ impl InstallerInterceptor {
 
         if let Some(k) = matched_key {
             let req = pending_guard.remove(&k).unwrap();
-            warn!("Installation for hash '{}' denied! Terminating process PID {}", request_id_or_hash, req.process_id);
+            warn!(
+                "Installation for hash '{}' denied! Terminating process PID {}",
+                request_id_or_hash, req.process_id
+            );
             return Ok(Some(req));
         }
 
@@ -134,9 +162,13 @@ mod tests {
 
     #[test]
     fn test_is_installer_binary() {
-        assert!(InstallerInterceptor::is_installer_binary("C:\\Users\\Kid\\Downloads\\RobloxPlayerSetup.exe"));
+        assert!(InstallerInterceptor::is_installer_binary(
+            "C:\\Users\\Kid\\Downloads\\RobloxPlayerSetup.exe"
+        ));
         assert!(InstallerInterceptor::is_installer_binary("SteamSetup.exe"));
-        assert!(InstallerInterceptor::is_installer_binary("installer_v2.msi"));
+        assert!(InstallerInterceptor::is_installer_binary(
+            "installer_v2.msi"
+        ));
         assert!(InstallerInterceptor::is_installer_binary("game_patch.exe"));
         assert!(!InstallerInterceptor::is_installer_binary("notepad.exe"));
         assert!(!InstallerInterceptor::is_installer_binary("chrome.exe"));

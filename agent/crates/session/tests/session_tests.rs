@@ -1,6 +1,6 @@
-use std::time::{Duration, Instant};
 use famshield_core::domain::ExecutableName;
 use famshield_session::{capture::SmartVisualVerifier, tracker::ForegroundTracker};
+use std::time::{Duration, Instant};
 
 #[test]
 fn test_foreground_tracker_idle_detection() {
@@ -28,7 +28,9 @@ fn test_foreground_tracker_idle_detection() {
 #[test]
 fn test_smart_visual_verifier_frame_generation() {
     let verifier = SmartVisualVerifier::new(15);
-    let frame = verifier.capture_blurred_frame().expect("Frame capture should succeed");
+    let frame = verifier
+        .capture_blurred_frame()
+        .expect("Frame capture should succeed");
 
     assert!(!frame.is_empty());
     // Verify valid JPEG SOI bytes
@@ -42,10 +44,12 @@ fn test_smart_visual_verifier_frame_generation() {
 fn test_friendly_toast_and_pin_dialog_exports() {
     use famshield_session::{FriendlyToast, PinDialog, SystemTray};
 
+    assert_eq!(std::mem::size_of::<PinDialog>(), 0);
+    assert_eq!(std::mem::size_of::<SystemTray>(), 0);
+
     // Smoke check invoking warning without crashing on non-interactive/headless
     FriendlyToast::warn_time_remaining(0, 5);
     FriendlyToast::notify_quota_expired(0);
     FriendlyToast::notify_content_blocked(0, "game.example.com");
     FriendlyToast::notify_time_extended(0, 15);
 }
-

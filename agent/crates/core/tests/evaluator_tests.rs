@@ -1,18 +1,19 @@
-﻿use std::time::Duration;
-use chrono::{DateTime, TimeZone, Utc};
+use chrono::{TimeZone, Utc};
 use famshield_core::{
     decision::{Action, ReasonCode},
-    domain::{ApplicationCategory, ExecutableName, MonotonicUsage, NormalizedDomain},
+    domain::{ApplicationCategory, ExecutableName, NormalizedDomain},
     evaluator::{DomainEvaluationContext, PolicyEvaluator, ProcessEvaluationContext},
     policy::Policy,
     traits::{Clock, MockClock},
 };
+use std::time::Duration;
 
 const SAMPLE_POLICY: &str = include_str!("../../../../contracts/examples/policy.v1.json");
 
 #[test]
 fn test_parse_policy_fixture() {
-    let policy: Policy = serde_json::from_str(SAMPLE_POLICY).expect("Must parse sample policy fixture");
+    let policy: Policy =
+        serde_json::from_str(SAMPLE_POLICY).expect("Must parse sample policy fixture");
     assert_eq!(policy.schema_version, 1);
     assert_eq!(policy.policy_id, "school-night-default");
     assert_eq!(policy.application.rules.len(), 1);
@@ -78,5 +79,8 @@ fn test_mock_clock_advancement() {
 
     assert_eq!(clock.now_utc(), start);
     clock.advance(Duration::from_secs(3600));
-    assert_eq!(clock.now_utc(), Utc.with_ymd_and_hms(2026, 10, 19, 1, 0, 0).unwrap());
+    assert_eq!(
+        clock.now_utc(),
+        Utc.with_ymd_and_hms(2026, 10, 19, 1, 0, 0).unwrap()
+    );
 }

@@ -1,8 +1,8 @@
-use chrono::{DateTime, Datelike, Timelike, Utc};
 use crate::decision::{Decision, ReasonCode};
 use crate::domain::{ApplicationCategory, ExecutableName, MonotonicUsage, NormalizedDomain};
 use crate::error::CoreError;
 use crate::policy::{DayOfWeek, Policy, RuleAction, Schedule, TimeWindow, VisualTrigger};
+use chrono::{DateTime, Datelike, Timelike, Utc};
 
 /// Evaluates processes and network requests against loaded policy.
 pub struct PolicyEvaluator {
@@ -67,12 +67,23 @@ impl PolicyEvaluator {
         }
 
         // Active rules only
-        let enabled_rules: Vec<_> = self.policy.application.rules.iter().filter(|r| r.enabled).collect();
+        let enabled_rules: Vec<_> = self
+            .policy
+            .application
+            .rules
+            .iter()
+            .filter(|r| r.enabled)
+            .collect();
 
         // 1. Exact hash match
         if let Some(hash) = ctx.sha256_hash {
             for rule in &enabled_rules {
-                if rule.identity.sha256.iter().any(|h| h.eq_ignore_ascii_case(hash)) {
+                if rule
+                    .identity
+                    .sha256
+                    .iter()
+                    .any(|h| h.eq_ignore_ascii_case(hash))
+                {
                     return self.evaluate_application_rule(rule, ctx.current_usage, now);
                 }
             }
@@ -81,7 +92,12 @@ impl PolicyEvaluator {
         // 2. Signer thumbprint match
         if let Some(signer) = ctx.signer_thumbprint {
             for rule in &enabled_rules {
-                if rule.identity.signer_thumbprints.iter().any(|s| s.eq_ignore_ascii_case(signer)) {
+                if rule
+                    .identity
+                    .signer_thumbprints
+                    .iter()
+                    .any(|s| s.eq_ignore_ascii_case(signer))
+                {
                     return self.evaluate_application_rule(rule, ctx.current_usage, now);
                 }
             }
@@ -91,7 +107,12 @@ impl PolicyEvaluator {
         if let Some(path) = ctx.canonical_path {
             let lower_path = path.to_ascii_lowercase();
             for rule in &enabled_rules {
-                if rule.identity.canonical_paths.iter().any(|p| p.to_ascii_lowercase() == lower_path) {
+                if rule
+                    .identity
+                    .canonical_paths
+                    .iter()
+                    .any(|p| p.to_ascii_lowercase() == lower_path)
+                {
                     return self.evaluate_application_rule(rule, ctx.current_usage, now);
                 }
             }
@@ -100,7 +121,12 @@ impl PolicyEvaluator {
         // 4. Executable name match
         if let Some(exe) = ctx.executable_name {
             for rule in &enabled_rules {
-                if rule.identity.executable_names.iter().any(|e| e.eq_ignore_ascii_case(exe.as_str())) {
+                if rule
+                    .identity
+                    .executable_names
+                    .iter()
+                    .any(|e| e.eq_ignore_ascii_case(exe.as_str()))
+                {
                     return self.evaluate_application_rule(rule, ctx.current_usage, now);
                 }
             }
@@ -109,7 +135,12 @@ impl PolicyEvaluator {
         // 5. Application family match
         if let Some(fam) = ctx.application_family {
             for rule in &enabled_rules {
-                if rule.identity.application_families.iter().any(|f| f.eq_ignore_ascii_case(fam)) {
+                if rule
+                    .identity
+                    .application_families
+                    .iter()
+                    .any(|f| f.eq_ignore_ascii_case(fam))
+                {
                     return self.evaluate_application_rule(rule, ctx.current_usage, now);
                 }
             }
@@ -156,7 +187,9 @@ impl PolicyEvaluator {
         for rule in self.policy.web.rules.iter().filter(|r| r.enabled) {
             for pattern in &rule.domains {
                 let pattern_norm = pattern.trim().trim_end_matches('.').to_ascii_lowercase();
-                if target_domain == pattern_norm || target_domain.ends_with(&format!(".{}", pattern_norm)) {
+                if target_domain == pattern_norm
+                    || target_domain.ends_with(&format!(".{}", pattern_norm))
+                {
                     return self.evaluate_domain_rule(rule, ctx.current_usage, now);
                 }
             }
@@ -164,7 +197,9 @@ impl PolicyEvaluator {
 
         // Fallback to default WebMode
         match self.policy.web.mode {
-            crate::policy::WebMode::AllowByDefault => Ok(Decision::allow(ReasonCode::DefaultActionAllow)),
+            crate::policy::WebMode::AllowByDefault => {
+                Ok(Decision::allow(ReasonCode::DefaultActionAllow))
+            }
             crate::policy::WebMode::DenyByDefault => {
                 let mut d = Decision::block(ReasonCode::DefaultActionBlock);
                 if self.is_visual_verification_enabled(VisualTrigger::DomainBlocked) {
@@ -192,7 +227,14 @@ impl PolicyEvaluator {
             }
             RuleAction::Allow => {
                 // Check schedule windows & quota
-                self.evaluate_schedule(&rule.schedule, usage, now, &rule.id, &rule.name, VisualTrigger::AppBlocked)
+                self.evaluate_schedule(
+                    &rule.schedule,
+                    usage,
+                    now,
+                    &rule.id,
+                    &rule.name,
+                    VisualTrigger::AppBlocked,
+                )
             }
         }
     }
@@ -212,9 +254,14 @@ impl PolicyEvaluator {
                 }
                 Ok(d)
             }
-            RuleAction::Allow => {
-                self.evaluate_schedule(&rule.schedule, usage, now, &rule.id, &rule.name, VisualTrigger::DomainBlocked)
-            }
+            RuleAction::Allow => self.evaluate_schedule(
+                &rule.schedule,
+                usage,
+                now,
+                &rule.id,
+                &rule.name,
+                VisualTrigger::DomainBlocked,
+            ),
         }
     }
 
@@ -229,7 +276,10 @@ impl PolicyEvaluator {
     ) -> Result<Decision, CoreError> {
         // 1. Time windows check
         if !schedule.windows.is_empty() {
-            let in_window = schedule.windows.iter().any(|w| self.is_time_in_window(w, now));
+            let in_window = schedule
+                .windows
+                .iter()
+                .any(|w| self.is_time_in_window(w, now));
             if !in_window {
                 let mut d = Decision::block(ReasonCode::OutsideAllowedSchedule)
                     .with_rule(rule_id.to_string(), rule_name.to_string());
@@ -261,7 +311,8 @@ impl PolicyEvaluator {
                 .with_quota_remaining(remaining));
         }
 
-        Ok(Decision::allow(ReasonCode::ExplicitRuleAllow).with_rule(rule_id.to_string(), rule_name.to_string()))
+        Ok(Decision::allow(ReasonCode::ExplicitRuleAllow)
+            .with_rule(rule_id.to_string(), rule_name.to_string()))
     }
 
     fn is_time_in_window(&self, window: &TimeWindow, now: DateTime<Utc>) -> bool {

@@ -1,10 +1,10 @@
-use std::path::Path;
-use std::sync::{Arc, Mutex};
-use chrono::{DateTime, Utc};
-use rusqlite::{params, Connection};
-use famshield_core::policy::Policy;
 use crate::error::StorageError;
 use crate::schema::initialize_database;
+use chrono::{DateTime, Utc};
+use famshield_core::policy::Policy;
+use rusqlite::{params, Connection};
+use std::path::Path;
+use std::sync::{Arc, Mutex};
 
 #[derive(Clone)]
 pub struct StorageEngine {
@@ -120,8 +120,12 @@ impl StorageEngine {
                 rule_type: row.get(1)?,
                 payload: row.get(2)?,
                 enabled: row.get::<_, i32>(3)? == 1,
-                created_at: DateTime::parse_from_rfc3339(&created_str).unwrap().with_timezone(&Utc),
-                updated_at: DateTime::parse_from_rfc3339(&updated_str).unwrap().with_timezone(&Utc),
+                created_at: DateTime::parse_from_rfc3339(&created_str)
+                    .unwrap()
+                    .with_timezone(&Utc),
+                updated_at: DateTime::parse_from_rfc3339(&updated_str)
+                    .unwrap()
+                    .with_timezone(&Utc),
             })
         })?;
 
@@ -134,7 +138,10 @@ impl StorageEngine {
 
     pub fn delete_local_rule(&self, rule_id: &str) -> Result<bool, StorageError> {
         let conn = self.conn.lock().unwrap();
-        let affected = conn.execute("DELETE FROM local_rules WHERE rule_id = ?1", params![rule_id])?;
+        let affected = conn.execute(
+            "DELETE FROM local_rules WHERE rule_id = ?1",
+            params![rule_id],
+        )?;
         Ok(affected > 0)
     }
 
@@ -181,7 +188,10 @@ impl StorageEngine {
         Ok(())
     }
 
-    pub fn list_recent_query_logs(&self, limit: usize) -> Result<Vec<QueryLogRecord>, StorageError> {
+    pub fn list_recent_query_logs(
+        &self,
+        limit: usize,
+    ) -> Result<Vec<QueryLogRecord>, StorageError> {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare(
             "SELECT domain, qtype, action, reason, rule_id, occurred_at 
@@ -195,7 +205,9 @@ impl StorageEngine {
                 action: row.get(2)?,
                 reason: row.get(3)?,
                 rule_id: row.get(4)?,
-                occurred_at: DateTime::parse_from_rfc3339(&occ_str).unwrap().with_timezone(&Utc),
+                occurred_at: DateTime::parse_from_rfc3339(&occ_str)
+                    .unwrap()
+                    .with_timezone(&Utc),
             })
         })?;
 
@@ -206,7 +218,10 @@ impl StorageEngine {
         Ok(logs)
     }
 
-    pub fn list_visual_evidence(&self, limit: usize) -> Result<Vec<VisualEvidenceRecord>, StorageError> {
+    pub fn list_visual_evidence(
+        &self,
+        limit: usize,
+    ) -> Result<Vec<VisualEvidenceRecord>, StorageError> {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare(
             "SELECT evidence_id, event_id, occurred_at, trigger, image_payload, size_bytes, expires_at
@@ -219,11 +234,15 @@ impl StorageEngine {
             Ok(VisualEvidenceRecord {
                 evidence_id: row.get(0)?,
                 event_id: row.get(1)?,
-                occurred_at: DateTime::parse_from_rfc3339(&occ_str).unwrap().with_timezone(&Utc),
+                occurred_at: DateTime::parse_from_rfc3339(&occ_str)
+                    .unwrap()
+                    .with_timezone(&Utc),
                 trigger: row.get(3)?,
                 size_bytes: row.get::<_, i64>(5)? as usize,
                 image_payload: payload,
-                expires_at: DateTime::parse_from_rfc3339(&exp_str).unwrap().with_timezone(&Utc),
+                expires_at: DateTime::parse_from_rfc3339(&exp_str)
+                    .unwrap()
+                    .with_timezone(&Utc),
             })
         })?;
 
@@ -265,4 +284,3 @@ impl StorageEngine {
         Ok(())
     }
 }
-

@@ -1,6 +1,6 @@
+use crate::error::SyncError;
 use serde::{Deserialize, Serialize};
 use tracing::info;
-use crate::error::SyncError;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct EnrollmentRequest {
@@ -31,10 +31,15 @@ impl CloudEnrollmentClient {
     /// Transitions a Local Mode standalone endpoint to Online Managed Mode.
     /// Validates enrollment code, generates keypair, receives signed mTLS certificates,
     /// and switches endpoint operational state.
-    pub async fn enroll_device(&self, req: &EnrollmentRequest) -> Result<EnrollmentResponse, SyncError> {
+    pub async fn enroll_device(
+        &self,
+        req: &EnrollmentRequest,
+    ) -> Result<EnrollmentResponse, SyncError> {
         let code = req.enrollment_code.trim();
         if code.len() != 6 || !code.chars().all(|c| c.is_ascii_digit()) {
-            return Err(SyncError::Enrollment("Enrollment code must be a 6-digit number".into()));
+            return Err(SyncError::Enrollment(
+                "Enrollment code must be a 6-digit number".into(),
+            ));
         }
 
         info!(
@@ -46,8 +51,10 @@ impl CloudEnrollmentClient {
         Ok(EnrollmentResponse {
             device_id: format!("dev-{}", code),
             tenant_id: "tenant-default".into(),
-            client_certificate_pem: "-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----".into(),
-            ca_certificate_pem: "-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----".into(),
+            client_certificate_pem: "-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----"
+                .into(),
+            ca_certificate_pem: "-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----"
+                .into(),
         })
     }
 }

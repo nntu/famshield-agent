@@ -1,6 +1,6 @@
+use arc_swap::ArcSwap;
 use std::collections::HashSet;
 use std::sync::Arc;
-use arc_swap::ArcSwap;
 
 #[derive(Clone, Default)]
 pub struct BlocklistStore {
@@ -23,7 +23,11 @@ impl BlocklistStore {
     {
         let mut set = HashSet::new();
         for item in iter {
-            let s = item.as_ref().trim().trim_end_matches('.').to_ascii_lowercase();
+            let s = item
+                .as_ref()
+                .trim()
+                .trim_end_matches('.')
+                .to_ascii_lowercase();
             if !s.is_empty() {
                 set.insert(s);
             }
@@ -34,7 +38,10 @@ impl BlocklistStore {
     /// Check if target domain matches blocklist via exact match or parent subdomain suffix.
     pub fn is_blocked(&self, target_domain: &str) -> bool {
         let current = self.domains.load();
-        let norm = target_domain.trim().trim_end_matches('.').to_ascii_lowercase();
+        let norm = target_domain
+            .trim()
+            .trim_end_matches('.')
+            .to_ascii_lowercase();
 
         if current.contains(&norm) {
             return true;

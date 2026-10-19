@@ -1,11 +1,7 @@
-﻿use std::sync::Arc;
-use std::time::Instant;
 use famshield_dns::{
-    blocklist::BlocklistStore,
-    buffer::BytePacketBuffer,
-    cache::DnsCache,
-    proxy::DnsProxy,
+    blocklist::BlocklistStore, buffer::BytePacketBuffer, cache::DnsCache, proxy::DnsProxy,
 };
+use std::time::Instant;
 
 #[test]
 fn test_byte_packet_buffer_qname_read_write() {
@@ -49,7 +45,9 @@ fn test_serve_stale_dns_cache() {
 
     // Simulate elapsed time past TTL (e.g. 15s later)
     let later = now + std::time::Duration::from_secs(15);
-    let (found_stale, is_stale_later) = cache.get(&key, later).expect("Should find stale item (RFC 8767)");
+    let (found_stale, is_stale_later) = cache
+        .get(&key, later)
+        .expect("Should find stale item (RFC 8767)");
     assert_eq!(found_stale, wire);
     assert!(is_stale_later);
 }
@@ -59,7 +57,7 @@ fn test_build_blocked_response_format() {
     let mut query = BytePacketBuffer::new();
     query.write_u16(0x5678).unwrap(); // ID
     query.write_u16(0x0100).unwrap(); // Standard query flags
-    query.write_u16(1).unwrap();      // 1 question
+    query.write_u16(1).unwrap(); // 1 question
     query.write_u16(0).unwrap();
     query.write_u16(0).unwrap();
     query.write_u16(0).unwrap();

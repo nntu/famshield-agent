@@ -1,5 +1,5 @@
-﻿use std::time::Instant;
 use famshield_core::domain::ExecutableName;
+use std::time::Instant;
 
 #[derive(Clone, Debug)]
 pub struct ForegroundTracker {

@@ -8,17 +8,16 @@ use windows::{
         System::LibraryLoader::GetModuleHandleW,
         UI::{
             Shell::{
-                Shell_NotifyIconW, NOTIFYICONDATAW, NIF_ICON, NIF_MESSAGE, NIF_TIP, NIM_ADD,
-                NIM_DELETE,
+                Shell_NotifyIconW, NIF_ICON, NIF_MESSAGE, NIF_TIP, NIM_ADD, NIM_DELETE,
+                NOTIFYICONDATAW,
             },
             WindowsAndMessaging::{
                 AppendMenuW, CreatePopupMenu, CreateWindowExW, DefWindowProcW, DestroyMenu,
                 DestroyWindow, DispatchMessageW, GetCursorPos, GetMessageW, LoadIconW,
                 PostQuitMessage, RegisterClassW, SetForegroundWindow, TrackPopupMenu,
                 TranslateMessage, CW_USEDEFAULT, IDI_APPLICATION, MF_DISABLED, MF_GRAYED,
-                MF_SEPARATOR, MF_STRING, TPM_BOTTOMALIGN, TPM_LEFTALIGN, TPM_RETURNCMD,
-                WM_CLOSE, WM_DESTROY, WM_LBUTTONUP, WM_RBUTTONUP, WM_USER, WNDCLASSW,
-                WS_OVERLAPPEDWINDOW,
+                MF_SEPARATOR, MF_STRING, TPM_BOTTOMALIGN, TPM_LEFTALIGN, TPM_RETURNCMD, WM_CLOSE,
+                WM_DESTROY, WM_LBUTTONUP, WM_RBUTTONUP, WM_USER, WNDCLASSW, WS_OVERLAPPEDWINDOW,
             },
         },
     },
@@ -85,13 +84,15 @@ impl SystemTray {
             Err(_) => return,
         };
 
-        let mut nid = NOTIFYICONDATAW::default();
-        nid.cbSize = std::mem::size_of::<NOTIFYICONDATAW>() as u32;
-        nid.hWnd = hwnd;
-        nid.uID = 1;
-        nid.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
-        nid.uCallbackMessage = WM_TRAYICON;
-        nid.hIcon = icon;
+        let mut nid = NOTIFYICONDATAW {
+            cbSize: std::mem::size_of::<NOTIFYICONDATAW>() as u32,
+            hWnd: hwnd,
+            uID: 1,
+            uFlags: NIF_ICON | NIF_MESSAGE | NIF_TIP,
+            uCallbackMessage: WM_TRAYICON,
+            hIcon: icon,
+            ..Default::default()
+        };
 
         let tip = "FamShield - Đang bảo vệ 🛡️";
         let mut idx = 0;

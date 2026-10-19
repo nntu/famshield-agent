@@ -1,5 +1,5 @@
-use tracing::info;
 use crate::error::WindowsError;
+use tracing::info;
 
 #[cfg(windows)]
 use windows::Win32::Foundation::HANDLE;
@@ -43,7 +43,10 @@ impl WfpSessionGuard {
             }
         }
 
-        info!("Opened dynamic WFP user-mode session for '{}'", session_name);
+        info!(
+            "Opened dynamic WFP user-mode session for '{}'",
+            session_name
+        );
         Ok(Self {
             engine_handle: handle,
             active: true,
@@ -52,7 +55,10 @@ impl WfpSessionGuard {
 
     #[cfg(not(windows))]
     pub fn open_dynamic(session_name: &str) -> Result<Self, WindowsError> {
-        info!("Mock dynamic WFP session for '{}' on non-windows platform", session_name);
+        info!(
+            "Mock dynamic WFP session for '{}' on non-windows platform",
+            session_name
+        );
         Ok(Self { active: true })
     }
 

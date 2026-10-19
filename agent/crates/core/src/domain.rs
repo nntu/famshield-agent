@@ -1,7 +1,7 @@
-﻿use std::fmt;
-use std::time::Duration;
-use serde::{Deserialize, Serialize};
 use crate::error::CoreError;
+use serde::{Deserialize, Serialize};
+use std::fmt;
+use std::time::Duration;
 
 /// Validated, lowercased, punycode-normalized FQDN without trailing dot.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -18,13 +18,25 @@ impl NormalizedDomain {
         let lower = trimmed.to_ascii_lowercase();
         for label in lower.split('.') {
             if label.is_empty() || label.len() > 63 {
-                return Err(CoreError::InvalidDomain(format!("Invalid label in domain: {}", raw)));
+                return Err(CoreError::InvalidDomain(format!(
+                    "Invalid label in domain: {}",
+                    raw
+                )));
             }
-            if !label.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_') {
-                return Err(CoreError::InvalidDomain(format!("Invalid character in domain: {}", raw)));
+            if !label
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+            {
+                return Err(CoreError::InvalidDomain(format!(
+                    "Invalid character in domain: {}",
+                    raw
+                )));
             }
             if label.starts_with('-') || label.ends_with('-') {
-                return Err(CoreError::InvalidDomain(format!("Label starts/ends with hyphen: {}", raw)));
+                return Err(CoreError::InvalidDomain(format!(
+                    "Label starts/ends with hyphen: {}",
+                    raw
+                )));
             }
         }
 
@@ -68,7 +80,9 @@ impl ExecutableName {
     pub fn parse(raw: &str) -> Result<Self, CoreError> {
         let trimmed = raw.trim();
         if trimmed.is_empty() || trimmed.len() > 260 {
-            return Err(CoreError::InvalidExecutableIdentity("Invalid executable name length".into()));
+            return Err(CoreError::InvalidExecutableIdentity(
+                "Invalid executable name length".into(),
+            ));
         }
         Ok(ExecutableName(trimmed.to_ascii_lowercase()))
     }

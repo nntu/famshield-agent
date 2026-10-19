@@ -1,5 +1,5 @@
-use tracing::info;
 use famshield_session::{ForegroundTracker, PinDialog, SystemTray};
+use tracing::info;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

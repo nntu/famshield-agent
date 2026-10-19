@@ -1,5 +1,6 @@
+use chrono::{Duration, TimeZone, Utc};
 use famshield_local_admin::{
-    auth::MasterPinAuthenticator,
+    auth::{AuthError, MasterPinAuthenticator, META_PIN_HASH, META_RECOVERY_KEY_HASH},
     service::{CreateRuleRequest, LocalAdminService},
 };
 use famshield_storage::StorageEngine;
@@ -39,16 +40,30 @@ fn test_local_admin_rule_creation_and_listing() {
 #[test]
 fn test_master_pin_reset_workflows() {
     let storage = StorageEngine::in_memory().unwrap();
-    let service = LocalAdminService::new(storage);
+    let service = LocalAdminService::new(storage.clone());
 
-    // 1. Initial default PIN is "1234"
-    assert!(service.authenticate_storage("1234").unwrap());
-    assert!(!service.authenticate_storage("9999").unwrap());
+    // 1. No insecure default PIN is accepted before guardian setup.
+    assert!(matches!(
+        service.authenticate_storage("1234"),
+        Err(famshield_local_admin::LocalAdminError::Auth(
+            AuthError::NotConfigured
+        ))
+    ));
 
     // 2. Set new PIN "5678" -> Generates Recovery Key
     let recovery_key = service.set_master_pin("5678").unwrap();
     assert!(recovery_key.starts_with("FAM-"));
     assert_eq!(recovery_key.len(), 18); // "FAM-XXXX-XXXX-XXXX"
+    assert!(!storage
+        .get_meta(META_PIN_HASH)
+        .unwrap()
+        .unwrap()
+        .starts_with("$argon2"));
+    assert!(!storage
+        .get_meta(META_RECOVERY_KEY_HASH)
+        .unwrap()
+        .unwrap()
+        .starts_with("$argon2"));
 
     // Verify new PIN works and old default fails
     assert!(service.authenticate_storage("5678").unwrap());
@@ -71,3 +86,51 @@ fn test_master_pin_reset_workflows() {
     assert!(!service.authenticate_storage("9012").unwrap());
 }
 
+#[test]
+fn test_legacy_pin_hash_is_migrated_after_successful_authentication() {
+    let storage = StorageEngine::in_memory().unwrap();
+    let legacy_hash = MasterPinAuthenticator::hash_pin("8642").unwrap();
+    storage.set_meta(META_PIN_HASH, &legacy_hash).unwrap();
+
+    assert!(MasterPinAuthenticator::verify_storage_pin(&storage, "8642").unwrap());
+    let migrated = storage.get_meta(META_PIN_HASH).unwrap().unwrap();
+    assert_ne!(migrated, legacy_hash);
+    assert!(MasterPinAuthenticator::verify_storage_pin(&storage, "8642").unwrap());
+}
+
+#[test]
+fn test_master_pin_persistent_exponential_lockout() {
+    let storage = StorageEngine::in_memory().unwrap();
+    MasterPinAuthenticator::set_master_pin(&storage, "2468").unwrap();
+    let now = Utc.with_ymd_and_hms(2026, 10, 19, 12, 0, 0).unwrap();
+
+    for _ in 0..4 {
+        assert!(!MasterPinAuthenticator::verify_storage_pin_at(&storage, "0000", now).unwrap());
+    }
+
+    let locked = MasterPinAuthenticator::verify_storage_pin_at(&storage, "0000", now);
+    assert!(matches!(locked, Err(AuthError::Locked(_))));
+    assert!(matches!(
+        MasterPinAuthenticator::verify_storage_pin_at(
+            &storage,
+            "2468",
+            now + Duration::seconds(29)
+        ),
+        Err(AuthError::Locked(_))
+    ));
+
+    assert!(MasterPinAuthenticator::verify_storage_pin_at(
+        &storage,
+        "2468",
+        now + Duration::seconds(30)
+    )
+    .unwrap());
+
+    // Successful authentication clears the persistent throttle state.
+    assert!(!MasterPinAuthenticator::verify_storage_pin_at(
+        &storage,
+        "0000",
+        now + Duration::seconds(31)
+    )
+    .unwrap());
+}

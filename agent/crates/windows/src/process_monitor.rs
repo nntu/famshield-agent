@@ -1,14 +1,14 @@
+use crate::error::WindowsError;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-use serde::{Deserialize, Serialize};
-use crate::error::WindowsError;
 
+#[cfg(windows)]
+use windows::Win32::Foundation::CloseHandle;
 #[cfg(windows)]
 use windows::Win32::System::Diagnostics::ToolHelp::{
     CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W, TH32CS_SNAPPROCESS,
 };
-#[cfg(windows)]
-use windows::Win32::Foundation::CloseHandle;
 
 /// Snapshot of a running process on Windows
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -55,8 +55,9 @@ impl ProcessMonitor {
         {
             let mut list = Vec::new();
             unsafe {
-                let snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0)
-                    .map_err(|e| WindowsError::Process(format!("CreateToolhelp32Snapshot failed: {}", e)))?;
+                let snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0).map_err(|e| {
+                    WindowsError::Process(format!("CreateToolhelp32Snapshot failed: {}", e))
+                })?;
 
                 let mut entry = PROCESSENTRY32W {
                     dwSize: std::mem::size_of::<PROCESSENTRY32W>() as u32,
@@ -111,7 +112,16 @@ impl ProcessMonitor {
     /// Performs one detection cycle and returns delta events (started / terminated)
     pub fn detect_changes(&self) -> Result<Vec<ProcessLifecycleEvent>, WindowsError> {
         let current_list = Self::enumerate_processes()?;
-        let now_str = chrono::Utc::now().to_rfc3339();
+        self.detect_changes_from_snapshot(current_list, chrono::Utc::now())
+    }
+
+    fn detect_changes_from_snapshot(
+        &self,
+        current_list: Vec<ProcessInfo>,
+        observed_at: chrono::DateTime<chrono::Utc>,
+    ) -> Result<Vec<ProcessLifecycleEvent>, WindowsError> {
+        let now_str = observed_at.to_rfc3339();
+        let timestamp_millis = observed_at.timestamp_millis();
 
         let mut current_map = HashMap::new();
         for proc in current_list {
@@ -119,13 +129,15 @@ impl ProcessMonitor {
         }
 
         let mut events = Vec::new();
-        let mut known = self.known_processes.lock().unwrap();
+        let mut known = self.known_processes.lock().map_err(|_| {
+            WindowsError::Process("process snapshot state lock was poisoned".into())
+        })?;
 
         // Check for newly started processes
         for (pid, proc) in current_map.iter() {
             if !known.contains_key(pid) {
                 events.push(ProcessLifecycleEvent {
-                    event_id: format!("proc-start-{}-{}", pid, chrono::Utc::now().timestamp_millis()),
+                    event_id: format!("proc-start-{pid}-{timestamp_millis}"),
                     event_type: "process_started".into(),
                     pid: *pid,
                     ppid: proc.ppid,
@@ -139,7 +151,7 @@ impl ProcessMonitor {
         for (pid, proc) in known.iter() {
             if !current_map.contains_key(pid) {
                 events.push(ProcessLifecycleEvent {
-                    event_id: format!("proc-term-{}-{}", pid, chrono::Utc::now().timestamp_millis()),
+                    event_id: format!("proc-term-{pid}-{timestamp_millis}"),
                     event_type: "process_terminated".into(),
                     pid: *pid,
                     ppid: proc.ppid,
@@ -151,6 +163,11 @@ impl ProcessMonitor {
 
         // Replace known with current map
         *known = current_map;
+        events.sort_by(|left, right| {
+            left.pid
+                .cmp(&right.pid)
+                .then_with(|| left.event_type.cmp(&right.event_type))
+        });
         Ok(events)
     }
 }
@@ -168,13 +185,60 @@ mod tests {
     #[test]
     fn test_detect_changes_lifecycle() {
         let monitor = ProcessMonitor::new();
-        // First tick populates known processes
-        let events = monitor.detect_changes().unwrap();
-        assert!(!events.is_empty());
+        let observed_at = chrono::DateTime::parse_from_rfc3339("2026-01-02T03:04:05Z")
+            .unwrap()
+            .with_timezone(&chrono::Utc);
+        let first_snapshot = vec![
+            ProcessInfo {
+                pid: 10,
+                ppid: 1,
+                name: "parent.exe".into(),
+                executable_path: None,
+            },
+            ProcessInfo {
+                pid: 20,
+                ppid: 10,
+                name: "child.exe".into(),
+                executable_path: None,
+            },
+        ];
+
+        let events = monitor
+            .detect_changes_from_snapshot(first_snapshot.clone(), observed_at)
+            .unwrap();
+        assert_eq!(events.len(), 2);
         assert!(events.iter().all(|e| e.event_type == "process_started"));
 
-        // Second tick with no changes returns 0 events
-        let events2 = monitor.detect_changes().unwrap();
+        let events2 = monitor
+            .detect_changes_from_snapshot(first_snapshot, observed_at)
+            .unwrap();
         assert!(events2.is_empty());
+
+        let third_snapshot = vec![
+            ProcessInfo {
+                pid: 20,
+                ppid: 10,
+                name: "child.exe".into(),
+                executable_path: None,
+            },
+            ProcessInfo {
+                pid: 30,
+                ppid: 20,
+                name: "grandchild.exe".into(),
+                executable_path: None,
+            },
+        ];
+        let events3 = monitor
+            .detect_changes_from_snapshot(third_snapshot, observed_at)
+            .unwrap();
+        assert_eq!(events3.len(), 2);
+        assert_eq!(
+            (events3[0].pid, events3[0].event_type.as_str()),
+            (10, "process_terminated")
+        );
+        assert_eq!(
+            (events3[1].pid, events3[1].event_type.as_str()),
+            (30, "process_started")
+        );
     }
 }

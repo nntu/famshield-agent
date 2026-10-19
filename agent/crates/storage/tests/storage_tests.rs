@@ -1,4 +1,4 @@
-﻿use chrono::Utc;
+use chrono::Utc;
 use famshield_core::policy::Policy;
 use famshield_storage::{LocalRuleRecord, QueryLogRecord, StorageEngine, VisualEvidenceRecord};
 
@@ -10,7 +10,10 @@ fn test_storage_policy_lifecycle() {
     let policy: Policy = serde_json::from_str(SAMPLE_POLICY).unwrap();
 
     storage.save_policy(&policy, SAMPLE_POLICY).unwrap();
-    let loaded = storage.load_active_policy().unwrap().expect("Policy should be loaded");
+    let loaded = storage
+        .load_active_policy()
+        .unwrap()
+        .expect("Policy should be loaded");
 
     assert_eq!(loaded.policy_id, policy.policy_id);
     assert_eq!(loaded.version, policy.version);

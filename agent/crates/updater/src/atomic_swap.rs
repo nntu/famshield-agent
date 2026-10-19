@@ -13,7 +13,11 @@ pub struct WindowsAtomicUpdater {
 }
 
 impl WindowsAtomicUpdater {
-    pub fn new(current_version: impl Into<String>, app_data_dir: &Path, install_dir: &Path) -> Self {
+    pub fn new(
+        current_version: impl Into<String>,
+        app_data_dir: &Path,
+        install_dir: &Path,
+    ) -> Self {
         Self {
             current_version: current_version.into(),
             install_dir: install_dir.to_path_buf(),
@@ -67,7 +71,10 @@ impl WindowsAtomicUpdater {
         // 1. Backup currently running active binary if present
         if active_file.exists() {
             fs::copy(&active_file, &backup_file)?;
-            info!("Backed up active binary {:?} to {:?}", active_file, backup_file);
+            info!(
+                "Backed up active binary {:?} to {:?}",
+                active_file, backup_file
+            );
         }
 
         // 2. Perform atomic replacement
@@ -98,7 +105,10 @@ impl WindowsAtomicUpdater {
             info!("Rollback successful: Restored active binary from backup.");
             Ok(())
         } else {
-            error!("Rollback failed: No backup file available at {:?}", backup_file);
+            error!(
+                "Rollback failed: No backup file available at {:?}",
+                backup_file
+            );
             Err(UpdateError::ManifestInvalid(
                 "Rollback failed: Backup file does not exist".into(),
             ))

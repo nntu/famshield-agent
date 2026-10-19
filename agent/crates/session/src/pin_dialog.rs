@@ -11,10 +11,10 @@ use windows::{
             WindowsAndMessaging::{
                 CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, GetDesktopWindow,
                 GetDlgItem, GetMessageW, GetWindowRect, GetWindowTextW, MessageBoxW,
-                PostQuitMessage, RegisterClassW, SetForegroundWindow, ShowWindow,
-                TranslateMessage, BS_DEFPUSHBUTTON, ES_CENTER, ES_PASSWORD, MB_ICONWARNING,
-                MB_OK, SW_SHOW, SW_SHOWNORMAL, WM_CLOSE, WM_COMMAND, WM_DESTROY, WNDCLASSW,
-                WS_BORDER, WS_CAPTION, WS_CHILD, WS_OVERLAPPED, WS_SYSMENU, WS_VISIBLE,
+                PostQuitMessage, RegisterClassW, SetForegroundWindow, ShowWindow, TranslateMessage,
+                BS_DEFPUSHBUTTON, ES_CENTER, ES_PASSWORD, MB_ICONWARNING, MB_OK, SW_SHOW,
+                SW_SHOWNORMAL, WM_CLOSE, WM_COMMAND, WM_DESTROY, WNDCLASSW, WS_BORDER, WS_CAPTION,
+                WS_CHILD, WS_OVERLAPPED, WS_SYSMENU, WS_VISIBLE,
             },
         },
     },
@@ -115,7 +115,12 @@ impl PinDialog {
             windows::Win32::UI::WindowsAndMessaging::WINDOW_EX_STYLE(0),
             w!("EDIT"),
             w!(""),
-            WS_CHILD | WS_VISIBLE | WS_BORDER | windows::Win32::UI::WindowsAndMessaging::WINDOW_STYLE((ES_PASSWORD | ES_CENTER) as u32),
+            WS_CHILD
+                | WS_VISIBLE
+                | WS_BORDER
+                | windows::Win32::UI::WindowsAndMessaging::WINDOW_STYLE(
+                    (ES_PASSWORD | ES_CENTER) as u32,
+                ),
             80,
             55,
             210,
@@ -131,7 +136,9 @@ impl PinDialog {
             windows::Win32::UI::WindowsAndMessaging::WINDOW_EX_STYLE(0),
             w!("BUTTON"),
             w!("Xác nhận"),
-            WS_CHILD | WS_VISIBLE | windows::Win32::UI::WindowsAndMessaging::WINDOW_STYLE(BS_DEFPUSHBUTTON as u32),
+            WS_CHILD
+                | WS_VISIBLE
+                | windows::Win32::UI::WindowsAndMessaging::WINDOW_STYLE(BS_DEFPUSHBUTTON as u32),
             80,
             105,
             100,
@@ -177,7 +184,7 @@ impl PinDialog {
     ) -> LRESULT {
         match msg {
             WM_COMMAND => {
-                let cmd_id = (wparam.0 & 0xffff) as usize;
+                let cmd_id = wparam.0 & 0xffff;
                 if cmd_id == ID_BTN_OK {
                     let mut pin_buf = [0u16; 64];
                     let edit_hwnd = GetDlgItem(hwnd, ID_EDIT_PIN as i32).unwrap_or_default();
@@ -187,7 +194,14 @@ impl PinDialog {
                         // Open local dashboard in default browser
                         let url = w!("http://127.0.0.1:48123");
                         let open_op = w!("open");
-                        let _ = ShellExecuteW(None, open_op, url, PCWSTR::null(), PCWSTR::null(), SW_SHOWNORMAL);
+                        let _ = ShellExecuteW(
+                            None,
+                            open_op,
+                            url,
+                            PCWSTR::null(),
+                            PCWSTR::null(),
+                            SW_SHOWNORMAL,
+                        );
 
                         let _ = DestroyWindow(hwnd);
                     } else {

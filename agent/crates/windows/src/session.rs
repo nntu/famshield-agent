@@ -1,5 +1,5 @@
-use tracing::info;
 use crate::error::WindowsError;
+use tracing::info;
 
 #[cfg(windows)]
 use windows::Win32::System::Shutdown::LockWorkStation;
@@ -18,7 +18,9 @@ impl SessionManager {
                 info!("Workstation locked successfully");
                 Ok(())
             } else {
-                Err(WindowsError::Win32("Failed to execute LockWorkStation".into()))
+                Err(WindowsError::Win32(
+                    "Failed to execute LockWorkStation".into(),
+                ))
             }
         }
         #[cfg(not(windows))]

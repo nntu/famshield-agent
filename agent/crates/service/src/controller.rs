@@ -2,6 +2,7 @@ use std::sync::Arc;
 use tokio::sync::broadcast;
 use tracing::info;
 
+use crate::dispatcher::IpcDispatcher;
 use famshield_dns::{
     blocklist::BlocklistStore, cache::DnsCache, proxy::DnsProxy, DEFAULT_BIND_ADDR,
     DEFAULT_UPSTREAM,
@@ -9,7 +10,6 @@ use famshield_dns::{
 use famshield_storage::StorageEngine;
 use famshield_sync::NatsDispatcher;
 use famshield_windows::{wfp::WfpSessionGuard, InstallerInterceptor, ProcessMonitor};
-use crate::dispatcher::IpcDispatcher;
 
 /// Core service controller orchestrating DNS, WFP, Local IPC, Storage, and NATS JetStream dispatcher.
 pub struct ServiceController {
@@ -17,7 +17,6 @@ pub struct ServiceController {
     ipc_dispatcher: Arc<IpcDispatcher>,
     dns_blocklist: Arc<BlocklistStore>,
     dns_cache: Arc<DnsCache>,
-    installer: Arc<InstallerInterceptor>,
     process_monitor: Arc<ProcessMonitor>,
     nats_dispatcher: Arc<NatsDispatcher>,
 }
@@ -49,7 +48,6 @@ impl ServiceController {
             ipc_dispatcher,
             dns_blocklist,
             dns_cache,
-            installer,
             process_monitor,
             nats_dispatcher,
         }

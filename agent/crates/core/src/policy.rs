@@ -1,5 +1,5 @@
-use serde::{Deserialize, Serialize};
 use crate::domain::ApplicationCategory;
+use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Policy {

@@ -1,5 +1,5 @@
-﻿use tracing::info;
 use crate::error::SessionError;
+use tracing::info;
 
 pub struct SmartVisualVerifier {
     blur_radius: u32,

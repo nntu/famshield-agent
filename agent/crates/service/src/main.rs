@@ -1,7 +1,7 @@
-use std::path::PathBuf;
-use tracing::info;
 use famshield_service::ServiceController;
 use famshield_storage::StorageEngine;
+use std::path::PathBuf;
+use tracing::info;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -22,7 +22,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     if let Some(pos) = args.iter().position(|a| a == "--reset-pin") {
         if let Some(new_pin) = args.get(pos + 1) {
             println!("==> [FamShield Administrator Elevation] Resetting Master PIN...");
-            match famshield_local_admin::MasterPinAuthenticator::reset_pin_elevated(&storage, new_pin) {
+            match famshield_local_admin::MasterPinAuthenticator::reset_pin_elevated(
+                &storage, new_pin,
+            ) {
                 Ok(()) => {
                     println!("[FamShield] SUCCESS: Master PIN has been successfully reset!");
                     return Ok(());

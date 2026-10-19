@@ -2,8 +2,8 @@ use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use famshield_storage::{LocalRuleRecord, StorageEngine, StorageError};
 use crate::auth::{AuthError, MasterPinAuthenticator};
+use famshield_storage::{LocalRuleRecord, StorageEngine, StorageError};
 
 #[derive(Debug, Error)]
 pub enum LocalAdminError {
@@ -50,7 +50,11 @@ impl LocalAdminService {
     }
 
     /// Reset Master PIN using Emergency Recovery Key.
-    pub fn reset_pin_with_recovery_key(&self, recovery_key: &str, new_pin: &str) -> Result<(), LocalAdminError> {
+    pub fn reset_pin_with_recovery_key(
+        &self,
+        recovery_key: &str,
+        new_pin: &str,
+    ) -> Result<(), LocalAdminError> {
         MasterPinAuthenticator::reset_pin_with_recovery_key(&self.storage, recovery_key, new_pin)?;
         Ok(())
     }
@@ -66,7 +70,6 @@ impl LocalAdminService {
         let valid = MasterPinAuthenticator::verify_pin(pin, stored_hash)?;
         Ok(valid)
     }
-
 
     /// Save a local rule in SQLite after verifying structure.
     pub fn create_rule(&self, req: CreateRuleRequest) -> Result<(), LocalAdminError> {
@@ -97,15 +100,20 @@ impl LocalAdminService {
     }
 
     /// Query recent DNS logs for local reporting.
-    pub fn list_query_logs(&self, limit: usize) -> Result<Vec<famshield_storage::QueryLogRecord>, LocalAdminError> {
+    pub fn list_query_logs(
+        &self,
+        limit: usize,
+    ) -> Result<Vec<famshield_storage::QueryLogRecord>, LocalAdminError> {
         let logs = self.storage.list_recent_query_logs(limit)?;
         Ok(logs)
     }
 
     /// Query visual evidence gallery for local guardian review.
-    pub fn list_visual_evidence(&self, limit: usize) -> Result<Vec<famshield_storage::VisualEvidenceRecord>, LocalAdminError> {
+    pub fn list_visual_evidence(
+        &self,
+        limit: usize,
+    ) -> Result<Vec<famshield_storage::VisualEvidenceRecord>, LocalAdminError> {
         let list = self.storage.list_visual_evidence(limit)?;
         Ok(list)
     }
 }
-
