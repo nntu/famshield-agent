@@ -26,6 +26,11 @@ Tất cả các thay đổi quan trọng của dự án **FamShield Windows Agen
   - Triển khai `OnlineUpdateClient`: Tự động kiểm tra phiên bản mới từ máy chủ đám mây (`manifest_url`), so sánh semver (`UpToDate`, `UpdateAvailable`, `Incompatible`), tải và xác thực chữ ký ECDSA P-256 + SHA-256.
   - Triển khai `OfflineUpdateEngine`: Hỗ trợ cập nhật ngoại tuyến 100% không cần Internet (qua USB flash drive hoặc hot-folder), xác thực chữ ký manifest và SHA-256 nhị phân trước khi hoán đổi.
   - Cơ chế hoán đổi nguyên tử (atomic staging swap) kèm Watchdog timer 30s tự động khôi phục bản cũ nếu phiên bản mới khởi động thất bại.
+- **Bộ Nhận Diện Logo & Tích Hợp Icon Windows PE (`assets/`, `service`, `session`, `installer`)**:
+  - Thiết kế logo nhận diện thương hiệu FamShield: Biểu tượng khiên bảo mật 3D công nghệ cao với dải màu cyan/blue phát sáng và biểu tượng gia đình bảo vệ tối giản.
+  - Tạo bộ icon đa độ phân giải chuẩn Windows (`.ico`: 256x256, 128x128, 64x64, 48x48, 32x32, 16x16).
+  - Tích hợp nhúng trực tiếp tài nguyên icon vào cấu trúc PE của các file nhị phân `famshield-service.exe` và `famshield-session.exe` thông qua `windres`.
+  - Cấu hình icon trình cài đặt (`SetupIconFile`), shortcut Desktop và Start Menu trong kịch bản Inno Setup `installer/FamShield.iss`.
 - **Tự động Ký số Authenticode & Tích hợp Bộ Cài Đặt (`build.ps1`, `installer/FamShield.iss`)**:
   - Hỗ trợ tự động tạo và tin cậy chứng chỉ Authenticode Code Signing cục bộ.
   - Ký số SHA-256 kèm RFC 3161 timestamping cho toàn bộ nhị phân `famshield-service.exe`, `famshield-session.exe`, và `FamShieldSetup.exe`.

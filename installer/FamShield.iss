@@ -26,14 +26,23 @@ OutputBaseFilename=FamShieldSetup-{#MyAppVersion}
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
+SetupIconFile=..\assets\famshield.ico
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
+[Tasks]
+Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
+
 [Files]
 Source: "..\target\release\famshield-service.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\target\release\famshield-session.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\assets\famshield.ico"; DestDir: "{app}"; Flags: ignoreversion
 Source: "certs\FamShieldRoot.cer"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
+
+[Icons]
+Name: "{autoprograms}\FamShield Security"; Filename: "{app}\famshield-session.exe"; IconFilename: "{app}\famshield.ico"
+Name: "{autodesktop}\FamShield"; Filename: "{app}\famshield-session.exe"; IconFilename: "{app}\famshield.ico"; Tasks: desktopicon
 
 [Dirs]
 Name: "{commonappdata}\FamShield"; Permissions: users-modify
