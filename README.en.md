@@ -65,6 +65,8 @@ The Rust workspace is split into crates by responsibility:
 3. Follow the setup wizard. It registers the Windows Service, configures DNS for the agent, and launches the initial setup experience.
 4. Create a Master PIN and complete the setup in Web Admin.
 
+> **Signing:** The current installer is not signed with a CA-issued Authenticode certificate. Windows may display a warning when downloading or running it; install it only if you trust the release source.
+
 Web Admin normally opens at [http://127.0.0.1:38123](http://127.0.0.1:38123). If that port is unavailable, the agent tries fallback ports; the active port is recorded in `%ProgramData%\FamShield\admin_port.txt`.
 
 > **Network note:** FamShield changes Windows DNS settings to enforce policies. During uninstall, the uninstaller resets adapter DNS settings to DHCP. If the device uses static DNS, record its configuration before installing or uninstalling.
@@ -112,6 +114,10 @@ cargo test --workspace
 - [Changelog](CHANGELOG.md)
 - [OpenAPI contract](contracts/openapi.yaml)
 - [Policy JSON Schema](contracts/policy.schema.json)
+
+## License
+
+This project is released under the [MIT License](LICENSE).
 
 ## Contributing
 

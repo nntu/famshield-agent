@@ -21,7 +21,10 @@ Tất cả các thay đổi quan trọng của dự án **FamShield Windows Agen
 
 ---
 
-## [1.0.0] - 2026-10-20
+## [1.0.0] - 2026-10-21
+
+### Added
+- Phát hành mã nguồn theo giấy phép MIT; đồng bộ khai báo giấy phép trong Cargo workspace và README tiếng Việt/tiếng Anh.
 
 ### Security
 - **Cloud enrollment và remote command fail-closed**:
@@ -29,6 +32,7 @@ Tất cả các thay đổi quan trọng của dự án **FamShield Windows Agen
   - Mã hóa `command_signing_key` bằng DPAPI machine-scope, tự động migrate khóa plain-text cũ và dùng Device ID làm commit marker cuối cùng của enrollment.
   - Từ chối mọi remote command khi chưa cấu hình signing key; service tự nạp khóa đã giải mã khi khởi động.
   - Bắt buộc xác thực phiên quản trị cho endpoint ghi nhận vi phạm từ khóa.
+- Loại bỏ việc đóng gói và tự cài chứng thư root self-signed dành cho phát triển vào installer; release unsigned không còn tự thêm CA không được xác minh vào kho tin cậy Windows.
 
 ### Fixed
 - **Khắc Phục Lỗi Cài Đặt Không Tắt Tiến Trình Cũ & Không Dừng/Xóa Dịch Vụ Cũ (`installer/FamShield.iss`, `build.ps1`, `update-famshield.ps1`)**:

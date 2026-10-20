@@ -65,6 +65,8 @@ Workspace Rust được chia thành các crate theo trách nhiệm:
 3. Làm theo hướng dẫn trên màn hình. Trình cài đặt đăng ký Windows Service, cấu hình DNS cho agent và khởi chạy giao diện thiết lập ban đầu.
 4. Tạo Master PIN và hoàn tất cấu hình trong Web Admin.
 
+> **Chữ ký:** Bộ cài phát hành hiện chưa được ký bằng chứng thư Authenticode do CA cấp. Windows có thể hiển thị cảnh báo khi tải hoặc chạy; chỉ cài nếu bạn tin tưởng nguồn phát hành.
+
 Web Admin thường mở tại [http://127.0.0.1:38123](http://127.0.0.1:38123). Nếu cổng này không khả dụng, agent sẽ thử các cổng dự phòng; cổng đang dùng được ghi tại `%ProgramData%\FamShield\admin_port.txt`.
 
 > **Lưu ý về mạng:** FamShield thay đổi cấu hình DNS của Windows để áp dụng chính sách. Khi gỡ cài đặt, bộ gỡ cài đặt đặt DNS adapter về DHCP; nếu thiết bị đang dùng DNS tĩnh, hãy ghi lại cấu hình trước khi cài hoặc gỡ.
@@ -112,6 +114,10 @@ cargo test --workspace
 - [Nhật ký thay đổi](CHANGELOG.md)
 - [Hợp đồng OpenAPI](contracts/openapi.yaml)
 - [JSON Schema chính sách](contracts/policy.schema.json)
+
+## Giấy phép
+
+Mã nguồn được phát hành theo giấy phép [MIT](LICENSE).
 
 ## Đóng góp
 
