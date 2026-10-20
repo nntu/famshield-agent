@@ -12,41 +12,22 @@ interface EvidenceTabProps {
 export const EvidenceTab: React.FC<EvidenceTabProps> = ({
   evidenceList,
   lang,
-  onRefresh,
 }) => {
   const t = translations[lang];
   const [selectedEvidence, setSelectedEvidence] = useState<EvidenceItem | null>(null);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+    <div className="flex flex-col gap-6">
       {/* Privacy Notice Banner */}
-      <div style={{
-        background: 'rgba(56, 189, 248, 0.08)',
-        border: '1px solid rgba(56, 189, 248, 0.25)',
-        borderRadius: 16,
-        padding: '18px 24px',
-        display: 'flex',
-        alignItems: 'center',
-        gap: 16,
-      }}>
-        <div style={{
-          width: 44,
-          height: 44,
-          borderRadius: 12,
-          background: 'rgba(56, 189, 248, 0.15)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: '#38bdf8',
-          flexShrink: 0,
-        }}>
+      <div className="bg-sky-50 border border-sky-200 rounded-2xl p-4 sm:p-5 flex items-center gap-4 shadow-xs">
+        <div className="w-11 h-11 rounded-xl bg-sky-100 flex items-center justify-center text-sky-600 shrink-0">
           <Shield size={24} />
         </div>
         <div>
-          <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#38bdf8', marginBottom: 2 }}>
+          <h3 className="text-sm sm:text-base font-bold text-sky-900 mb-0.5">
             {t.privacy_title}
           </h3>
-          <p style={{ fontSize: '0.84rem', color: '#94a3b8' }}>
+          <p className="text-xs sm:text-sm text-sky-700">
             {t.privacy_desc}
           </p>
         </div>
@@ -54,23 +35,12 @@ export const EvidenceTab: React.FC<EvidenceTabProps> = ({
 
       {/* Grid of Evidence */}
       {evidenceList.length === 0 ? (
-        <div style={{
-          background: '#0f172a',
-          border: '1px solid #1e293b',
-          borderRadius: 16,
-          padding: '60px 20px',
-          textAlign: 'center',
-          color: '#94a3b8',
-        }}>
-          <AlertTriangle size={36} color="#475569" style={{ margin: '0 auto 12px' }} />
-          <div style={{ fontSize: '1rem', fontWeight: 600 }}>{t.no_evidence}</div>
+        <div className="bg-white border border-slate-200 rounded-2xl p-12 text-center text-slate-500 shadow-xs">
+          <AlertTriangle size={36} className="text-slate-400 mx-auto mb-3" />
+          <div className="text-sm font-semibold">{t.no_evidence}</div>
         </div>
       ) : (
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
-          gap: 20,
-        }}>
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
           {evidenceList.map((item) => {
             const timeStr = new Date(item.occurred_at).toLocaleString();
             const expHours = Math.max(0, Math.round((new Date(item.expires_at).getTime() - Date.now()) / (1000 * 60 * 60)));
@@ -78,109 +48,43 @@ export const EvidenceTab: React.FC<EvidenceTabProps> = ({
             return (
               <div
                 key={item.evidence_id}
-                style={{
-                  background: '#0f172a',
-                  border: '1px solid #1e293b',
-                  borderRadius: 16,
-                  overflow: 'hidden',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  transition: 'transform 0.15s, border-color 0.15s',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.transform = 'translateY(-3px)';
-                  e.currentTarget.style.borderColor = '#38bdf8';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.transform = 'none';
-                  e.currentTarget.style.borderColor = '#1e293b';
-                }}
+                className="bg-white border border-slate-200 rounded-2xl overflow-hidden flex flex-col hover:border-sky-500 hover:shadow-md transition-all"
               >
                 {/* Thumbnail */}
-                <div style={{
-                  position: 'relative',
-                  width: '100%',
-                  height: 170,
-                  background: '#070b14',
-                  overflow: 'hidden',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  cursor: 'pointer',
-                }}
+                <div
+                  className="relative w-full h-44 bg-slate-100 overflow-hidden flex items-center justify-center cursor-pointer group"
                   onClick={() => setSelectedEvidence(item)}
                 >
                   <img
                     src={item.thumbnail_url}
                     alt="Violation Capture"
-                    style={{
-                      width: '100%',
-                      height: '100%',
-                      objectFit: 'cover',
-                      filter: 'blur(3px)',
-                      transition: 'filter 0.3s',
-                    }}
+                    className="w-full h-full object-cover blur-[3px] group-hover:blur-[2px] transition-all"
                   />
-                  <div style={{
-                    position: 'absolute',
-                    top: 10,
-                    right: 10,
-                    background: 'rgba(7, 11, 20, 0.85)',
-                    backdropFilter: 'blur(4px)',
-                    color: '#fbbf24',
-                    padding: '3px 8px',
-                    borderRadius: 6,
-                    fontSize: '0.72rem',
-                    fontWeight: 700,
-                    border: '1px solid rgba(251, 191, 36, 0.3)',
-                  }}>
+                  <div className="absolute top-2.5 right-2.5 bg-slate-900/80 backdrop-blur-xs text-amber-300 px-2 py-0.5 rounded-md text-2xs font-bold border border-amber-300/30">
                     🔒 Blurred 480p
                   </div>
                 </div>
 
                 {/* Details */}
-                <div style={{ padding: 16, display: 'flex', flexDirection: 'column', flex: 1, justifyContent: 'space-between' }}>
+                <div className="p-4 flex flex-col flex-1 justify-between gap-3">
                   <div>
-                    <div style={{ fontSize: '0.95rem', fontWeight: 700, color: '#f8fafc', marginBottom: 4 }}>
+                    <div className="text-sm font-bold text-slate-800 mb-1">
                       ⚠️ {item.trigger}
                     </div>
-                    <div style={{ fontSize: '0.78rem', color: '#94a3b8', marginBottom: 12 }}>
+                    <div className="text-xs text-slate-500">
                       {timeStr} • {(item.size_bytes / 1024).toFixed(1)} KB
                     </div>
                   </div>
 
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    paddingTop: 10,
-                    borderTop: '1px solid #1e293b',
-                  }}>
-                    <div style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 4,
-                      fontSize: '0.78rem',
-                      color: '#38bdf8',
-                      fontWeight: 600,
-                    }}>
+                  <div className="flex items-center justify-between pt-2.5 border-t border-slate-100">
+                    <div className="flex items-center gap-1 text-xs text-sky-600 font-semibold">
                       <Clock size={13} />
                       <span>{t.evidence_purge_countdown.replace('{hours}', expHours.toString())}</span>
                     </div>
 
                     <button
                       onClick={() => setSelectedEvidence(item)}
-                      style={{
-                        background: 'transparent',
-                        border: 'none',
-                        color: '#94a3b8',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 4,
-                        fontSize: '0.78rem',
-                        fontWeight: 600,
-                      }}
+                      className="text-slate-500 hover:text-sky-600 cursor-pointer flex items-center gap-1 text-xs font-semibold transition-colors"
                     >
                       <Eye size={13} />
                       <span>{t.btn_view_detail}</span>
@@ -195,74 +99,35 @@ export const EvidenceTab: React.FC<EvidenceTabProps> = ({
 
       {/* Enlarged Evidence Modal */}
       {selectedEvidence && (
-        <div style={{
-          position: 'fixed',
-          inset: 0,
-          background: 'rgba(7, 11, 20, 0.85)',
-          backdropFilter: 'blur(8px)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 100,
-          padding: 20,
-        }}>
-          <div style={{
-            background: '#0f172a',
-            border: '1px solid #1e293b',
-            borderRadius: 16,
-            maxWidth: 720,
-            width: '100%',
-            overflow: 'hidden',
-            boxShadow: '0 25px 60px rgba(0,0,0,0.6)',
-          }}>
-            <div style={{
-              padding: '16px 20px',
-              borderBottom: '1px solid #1e293b',
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-            }}>
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <div className="bg-white border border-slate-200 rounded-2xl max-w-2xl w-full overflow-hidden shadow-2xl">
+            <div className="p-4 sm:p-5 border-b border-slate-200 flex justify-between items-center">
               <div>
-                <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#f8fafc' }}>
+                <h3 className="text-base font-bold text-slate-900">
                   {t.evidence_modal_title}
                 </h3>
-                <div style={{ fontSize: '0.78rem', color: '#94a3b8' }}>
+                <div className="text-xs text-slate-500">
                   Sự kiện: {selectedEvidence.trigger}
                 </div>
               </div>
               <button
                 onClick={() => setSelectedEvidence(null)}
-                style={{
-                  background: '#1e293b',
-                  border: 'none',
-                  color: '#94a3b8',
-                  padding: 6,
-                  borderRadius: 8,
-                  cursor: 'pointer',
-                }}
+                className="bg-slate-100 hover:bg-slate-200 text-slate-600 p-1.5 rounded-lg cursor-pointer transition-colors"
               >
                 <X size={18} />
               </button>
             </div>
 
-            <div style={{ padding: 20 }}>
-              <div style={{
-                borderRadius: 10,
-                overflow: 'hidden',
-                background: '#070b14',
-                border: '1px solid #1e293b',
-                display: 'flex',
-                justifyContent: 'center',
-                alignItems: 'center',
-              }}>
+            <div className="p-5">
+              <div className="rounded-xl overflow-hidden bg-slate-50 border border-slate-200 flex justify-center items-center">
                 <img
                   src={selectedEvidence.thumbnail_url}
                   alt="Enlarged Visual Evidence"
-                  style={{ maxWidth: '100%', maxHeight: 420, objectFit: 'contain', filter: 'blur(3px)' }}
+                  className="max-w-full max-h-[420px] object-contain blur-[3px]"
                 />
               </div>
 
-              <div style={{ marginTop: 14, fontSize: '0.8rem', color: '#94a3b8', textAlign: 'center' }}>
+              <div className="mt-3.5 text-xs text-slate-500 text-center">
                 🔒 {t.evidence_modal_notice}
               </div>
             </div>

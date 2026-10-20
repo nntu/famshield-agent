@@ -19,8 +19,10 @@ $repoRoot = $PSScriptRoot
 
 Write-Host "[1/6] Dang dung FamShieldService va session agent..." -ForegroundColor Yellow
 Stop-Service -Name $serviceName -Force -ErrorAction SilentlyContinue
+& taskkill.exe /F /IM famshield-service.exe /T 2>$null | Out-Null
+& taskkill.exe /F /IM famshield-session.exe /T 2>$null | Out-Null
 Get-Process -Name "famshield-service", "famshield-session" -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
-Start-Sleep -Milliseconds 800
+Start-Sleep -Milliseconds 1200
 
 Write-Host "[2/6] Don dep khoa NRPT cu gay loi 9572 DNS_ERROR_INVALID_POLICY_TABLE..." -ForegroundColor Yellow
 $corruptedKeys = @(

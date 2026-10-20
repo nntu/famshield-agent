@@ -1,0 +1,153 @@
+@import "tailwindcss";
+
+:root {
+  --bg-main: #f8fafc;
+  --bg-card: #ffffff;
+  --bg-card-subtle: #f1f5f9;
+  --border-color: #e2e8f0;
+  --border-subtle: #f1f5f9;
+  --text-primary: #0f172a;
+  --text-secondary: #64748b;
+  --text-muted: #94a3b8;
+  --accent: #0284c7;
+  --accent-hover: #0369a1;
+  --accent-light: #e0f2fe;
+}
+
+body {
+  background-color: #f8fafc;
+  color: #0f172a;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Custom scrollbars for clean modern light UI */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* 
+  LIGHT THEME GLOBAL MAPPINGS & OVERRIDES
+  Maps legacy dark tokens to modern light theme tokens 
+*/
+
+/* Cards and Surfaces */
+[style*="background: #0f172a"],
+[style*="background:#0f172a"],
+[style*="background: rgb(15, 23, 42)"],
+[style*="background: rgba(15, 23, 42"] {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.05) !important;
+}
+
+/* Backgrounds / Inner wells / Table containers */
+[style*="background: #070b14"],
+[style*="background:#070b14"],
+[style*="background: #0b1120"],
+[style*="background:#0b1120"],
+[style*="background: #090d16"] {
+  background-color: #f8fafc !important;
+  border-color: #e2e8f0 !important;
+}
+
+/* Dark Slate containers / Sub-cards */
+[style*="background: #1e293b"],
+[style*="background:#1e293b"],
+[style*="background: rgba(30, 41, 59"] {
+  background-color: #f1f5f9 !important;
+  color: #1e293b !important;
+  border-color: #e2e8f0 !important;
+}
+
+/* Border overrides */
+[style*="border: 1px solid #1e293b"],
+[style*="border:1px solid #1e293b"],
+[style*="border: 1px solid #334155"],
+[style*="border:1px solid #334155"],
+[style*="border: 2px solid #1e293b"],
+[style*="border: 2px solid #334155"],
+[style*="border: 1px solid rgba(255, 255, 255, 0.1)"] {
+  border-color: #e2e8f0 !important;
+}
+
+[style*="borderBottom: '1px solid #1e293b'"],
+[style*="border-bottom: 1px solid #1e293b"],
+[style*="border-bottom:1px solid #1e293b"] {
+  border-bottom-color: #e2e8f0 !important;
+}
+
+[style*="borderTop: '1px solid #1e293b'"],
+[style*="border-top: 1px solid #1e293b"],
+[style*="border-top:1px solid #1e293b"] {
+  border-top-color: #e2e8f0 !important;
+}
+
+/* Text colors */
+[style*="color: #f8fafc"],
+[style*="color:#f8fafc"],
+[style*="color: #f1f5f9"],
+[style*="color:#f1f5f9"] {
+  color: #0f172a !important;
+}
+
+[style*="color: #94a3b8"],
+[style*="color:#94a3b8"] {
+  color: #64748b !important;
+}
+
+[style*="color: #cbd5e1"],
+[style*="color:#cbd5e1"],
+[style*="color: #e2e8f0"],
+[style*="color:#e2e8f0"] {
+  color: #334155 !important;
+}
+
+/* Table header styling */
+thead tr {
+  background-color: #f8fafc !important;
+  border-bottom-color: #e2e8f0 !important;
+}
+
+thead th {
+  color: #475569 !important;
+}
+
+tbody tr:hover {
+  background-color: #f8fafc !important;
+}
+
+/* Form controls light theme */
+input[type="text"],
+input[type="password"],
+input[type="number"],
+input[type="search"],
+select,
+textarea {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+  border-color: #cbd5e1 !important;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: #94a3b8 !important;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: #0284c7 !important;
+  box-shadow: 0 0 0 2px rgba(2, 132, 199, 0.15) !important;
+}

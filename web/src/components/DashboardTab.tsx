@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Activity, ShieldCheck, AlertOctagon, Layers, ArrowRight, RefreshCw, Smartphone, AlertTriangle, Play, Lock } from 'lucide-react';
+import { ShieldCheck, AlertOctagon, Layers, ArrowRight, RefreshCw, Smartphone, Play } from 'lucide-react';
 import { Language, QueryLogRecord, StatusResponse, TabType } from '../types';
 import { translations } from '../i18n';
 import { api } from '../api';
@@ -47,27 +47,17 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
   const quotaPct = Math.min(100, Math.round((quotaUsed / quotaTotal) * 100));
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+    <div className="flex flex-col gap-6">
       {/* Session Helper Alert Banner */}
       {status && !status.session_helper_running && (
-        <div style={{
-          background: 'linear-gradient(90deg, rgba(239, 68, 68, 0.16) 0%, rgba(185, 28, 28, 0.1) 100%)',
-          border: '1px solid #ef4444',
-          borderRadius: 14,
-          padding: '16px 20px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 16,
-          boxShadow: '0 4px 20px rgba(239, 68, 68, 0.15)',
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-            <span style={{ fontSize: '1.6rem' }}>⚠️</span>
+        <div className="bg-red-50 border border-red-200 rounded-2xl p-4 sm:p-5 flex items-center justify-between gap-4 shadow-xs">
+          <div className="flex items-center gap-3.5">
+            <span className="text-2xl">⚠️</span>
             <div>
-              <div style={{ fontWeight: 700, color: '#f87171', fontSize: '1rem', marginBottom: 2 }}>
+              <div className="font-bold text-red-700 text-sm sm:text-base mb-0.5">
                 {lang === 'vi' ? 'Cảnh Báo: Trợ Lý Phiên Người Dùng (famshield-session.exe) Chưa Chạy' : 'Warning: User Session Helper (famshield-session.exe) Not Running'}
               </div>
-              <div style={{ color: '#cbd5e1', fontSize: '0.85rem' }}>
+              <div className="text-red-600/90 text-xs sm:text-sm">
                 {lang === 'vi'
                   ? 'Biểu tượng khay hệ thống (Tray icon), hạn mức thời gian ứng dụng và giám sát từ khóa nhạy cảm đang bị gián đoạn. Dịch vụ ngầm (Windows Service) vẫn đang bảo vệ DNS.'
                   : 'System tray icon, real-time app limits, and keystroke monitoring are interrupted. Windows Service is still guarding DNS.'}
@@ -77,67 +67,33 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
           <button
             disabled={startingHelper}
             onClick={handleStartHelper}
-            style={{
-              background: '#ef4444',
-              color: '#ffffff',
-              border: 'none',
-              padding: '9px 18px',
-              borderRadius: 8,
-              fontSize: '0.82rem',
-              fontWeight: 700,
-              cursor: startingHelper ? 'not-allowed' : 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              whiteSpace: 'nowrap',
-              boxShadow: '0 2px 10px rgba(239, 68, 68, 0.3)',
-            }}
+            className="bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold flex items-center gap-2 whitespace-nowrap cursor-pointer transition-colors shadow-xs"
           >
             <Play size={14} />
             {startingHelper
               ? (lang === 'vi' ? 'Đang khởi chạy...' : 'Starting...')
-              : (lang === 'vi' ? 'Khởi Chạy Lại Trợ Lý' : 'Restart Session Helper')}
+              : (lang === 'vi' ? 'Khởi Chạy Lại' : 'Restart Helper')}
           </button>
         </div>
       )}
 
       {/* Monitor Mode Alert Banner */}
       {status?.monitor_mode && (
-        <div style={{
-          background: 'linear-gradient(90deg, rgba(245, 158, 11, 0.15) 0%, rgba(217, 119, 6, 0.1) 100%)',
-          border: '1px solid #f59e0b',
-          borderRadius: 14,
-          padding: '16px 20px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 16,
-          boxShadow: '0 4px 20px rgba(245, 158, 11, 0.1)',
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-            <span style={{ fontSize: '1.6rem' }}>👁️</span>
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 sm:p-5 flex items-center justify-between gap-4 shadow-xs">
+          <div className="flex items-center gap-3.5">
+            <span className="text-2xl">👁️</span>
             <div>
-              <div style={{ fontWeight: 700, color: '#fbbf24', fontSize: '1rem', marginBottom: 2 }}>
+              <div className="font-bold text-amber-800 text-sm sm:text-base mb-0.5">
                 {t.mode_monitor}
               </div>
-              <div style={{ color: '#cbd5e1', fontSize: '0.85rem' }}>
+              <div className="text-amber-700 text-xs sm:text-sm">
                 {t.banner_monitor_mode}
               </div>
             </div>
           </div>
           <button
             onClick={() => onNavigateTab('security')}
-            style={{
-              background: '#f59e0b',
-              color: '#0f172a',
-              border: 'none',
-              padding: '8px 16px',
-              borderRadius: 8,
-              fontWeight: 700,
-              fontSize: '0.85rem',
-              cursor: 'pointer',
-              whiteSpace: 'nowrap',
-            }}
+            className="bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold whitespace-nowrap cursor-pointer transition-colors shadow-xs"
           >
             {t.nav_security} &rarr;
           </button>
@@ -146,27 +102,14 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
 
       {/* 2FA Disabled Security Banner */}
       {totpStatus && !totpStatus.enabled && (
-        <div
-          style={{
-            background: 'linear-gradient(90deg, rgba(245, 158, 11, 0.14) 0%, rgba(15, 23, 42, 0.85) 100%)',
-            border: '1px solid rgba(245, 158, 11, 0.4)',
-            borderRadius: 14,
-            padding: '14px 20px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            flexWrap: 'wrap',
-            gap: 14,
-            boxShadow: '0 4px 16px rgba(245, 158, 11, 0.1)',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <span style={{ fontSize: '1.5rem' }}>🔐</span>
+        <div className="bg-sky-50 border border-sky-200 rounded-2xl p-4 sm:p-5 flex items-center justify-between flex-wrap gap-4 shadow-xs">
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">🔐</span>
             <div>
-              <div style={{ fontWeight: 700, color: '#fef3c7', fontSize: '0.95rem', marginBottom: 2 }}>
+              <div className="font-bold text-sky-900 text-sm sm:text-base mb-0.5">
                 {lang === 'vi' ? 'Khuyến Nghị Bảo Mật: Chưa Kích Hoạt Xác Thực 2 Lớp (2FA / OTP)' : 'Security Notice: Two-Factor Authentication (2FA) is Disabled'}
               </div>
-              <div style={{ color: '#cbd5e1', fontSize: '0.82rem' }}>
+              <div className="text-sky-700 text-xs sm:text-sm">
                 {lang === 'vi'
                   ? 'Bảo vệ bảng điều khiển chống nhìn lén Master PIN bằng mã OTP 6 số sinh từ Google/Microsoft Authenticator (100% ngoại tuyến).'
                   : 'Protect your Master PIN with 6-digit OTP codes from Google/Microsoft Authenticator (100% offline).'}
@@ -176,18 +119,7 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
           <button
             type="button"
             onClick={() => onNavigateTab('security')}
-            style={{
-              background: '#f59e0b',
-              color: '#0f172a',
-              border: 'none',
-              padding: '8px 18px',
-              borderRadius: 8,
-              fontSize: '0.84rem',
-              fontWeight: 800,
-              cursor: 'pointer',
-              whiteSpace: 'nowrap',
-              boxShadow: '0 2px 10px rgba(245, 158, 11, 0.3)',
-            }}
+            className="bg-sky-600 hover:bg-sky-700 text-white px-4 py-2 rounded-xl text-xs sm:text-sm font-bold whitespace-nowrap cursor-pointer transition-colors shadow-xs"
           >
             {lang === 'vi' ? '👉 Kích Hoạt 2FA Ngay' : '👉 Enable 2FA Now'}
           </button>
@@ -195,237 +127,150 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
       )}
 
       {/* 4 Stat Cards */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-        gap: 20,
-      }}>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
         {/* Card 1: Active App */}
-        <div style={{
-          background: '#0f172a',
-          border: '1px solid #1e293b',
-          borderRadius: 16,
-          padding: 22,
-          position: 'relative',
-          overflow: 'hidden',
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
-            <span style={{ fontSize: '0.9rem', color: '#94a3b8', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Smartphone size={16} color="#38bdf8" />
-              {t.card_app_title}
-            </span>
-            <span style={{
-              background: status?.session_helper_running ? 'rgba(52, 211, 153, 0.15)' : 'rgba(239, 68, 68, 0.15)',
-              color: status?.session_helper_running ? '#34d399' : '#f87171',
-              padding: '3px 8px',
-              borderRadius: 6,
-              fontSize: '0.75rem',
-              fontWeight: 700,
-            }}>
-              {status?.session_helper_running
-                ? (lang === 'vi' ? '🟢 Trợ lý đang chạy' : '🟢 Tray Active')
-                : (lang === 'vi' ? '🔴 Trợ lý chưa chạy' : '🔴 Tray Stopped')}
-            </span>
-          </div>
+        <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs flex flex-col justify-between">
+          <div>
+            <div className="flex justify-between items-start mb-2.5">
+              <span className="text-xs font-semibold text-slate-500 flex items-center gap-2">
+                <Smartphone size={16} className="text-sky-600" />
+                {t.card_app_title}
+              </span>
+              <span
+                className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${
+                  status?.session_helper_running
+                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                    : 'bg-red-50 text-red-700 border-red-200'
+                }`}
+              >
+                {status?.session_helper_running
+                  ? (lang === 'vi' ? '🟢 Trợ lý online' : '🟢 Active')
+                  : (lang === 'vi' ? '🔴 Chưa chạy' : '🔴 Stopped')}
+              </span>
+            </div>
 
-          <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#f8fafc', marginBottom: 6 }}>
-            {status?.active_foreground_app || 'Roblox.exe'}
-          </div>
+            <div className="text-2xl font-extrabold text-slate-900 mb-1 truncate">
+              {status?.active_foreground_app || 'Roblox.exe'}
+            </div>
 
-          <div style={{ fontSize: '0.82rem', color: '#94a3b8', marginBottom: 12 }}>
-            {t.dash_quota_text.replace('{used}', quotaUsed.toString()).replace('{total}', quotaTotal.toString())}
-          </div>
+            <div className="text-xs text-slate-500 mb-3">
+              {t.dash_quota_text.replace('{used}', quotaUsed.toString()).replace('{total}', quotaTotal.toString())}
+            </div>
 
-          {/* Quota Progress Bar */}
-          <div style={{ height: 8, background: '#1e293b', borderRadius: 4, overflow: 'hidden' }}>
-            <div style={{
-              height: '100%',
-              width: `${quotaPct}%`,
-              background: quotaPct > 80 ? 'linear-gradient(90deg, #f59e0b, #ef4444)' : 'linear-gradient(90deg, #38bdf8, #34d399)',
-              borderRadius: 4,
-              transition: 'width 0.5s ease',
-            }} />
+            {/* Quota Progress Bar */}
+            <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all duration-500 ${
+                  quotaPct > 80
+                    ? 'bg-gradient-to-r from-amber-500 to-red-500'
+                    : 'bg-gradient-to-r from-sky-500 to-emerald-500'
+                }`}
+                style={{ width: `${quotaPct}%` }}
+              />
+            </div>
           </div>
 
           <button
             onClick={() => onNavigateTab('activity')}
-            style={{
-              marginTop: 12,
-              background: 'transparent',
-              color: '#38bdf8',
-              border: 'none',
-              padding: 0,
-              fontSize: '0.8rem',
-              fontWeight: 600,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 4,
-            }}
+            className="mt-3 text-xs font-semibold text-sky-600 hover:text-sky-700 flex items-center gap-1 cursor-pointer"
           >
-            <span>{lang === 'vi' ? 'Xem chi tiết hoạt động & nhật ký ứng dụng' : 'View full activity & app timeline'} &rarr;</span>
+            <span>{lang === 'vi' ? 'Xem chi tiết hoạt động' : 'View full activity'} &rarr;</span>
           </button>
         </div>
 
         {/* Card 2: DNS & WFP Filter */}
-        <div style={{
-          background: '#0f172a',
-          border: '1px solid #1e293b',
-          borderRadius: 16,
-          padding: 22,
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
-            <span style={{ fontSize: '0.9rem', color: '#94a3b8', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>
-              <ShieldCheck size={16} color={status?.monitor_mode ? "#fbbf24" : "#34d399"} />
-              {t.card_dns_title}
-            </span>
-            <span style={{
-              background: 'rgba(56, 189, 248, 0.15)',
-              color: '#38bdf8',
-              padding: '3px 8px',
-              borderRadius: 6,
-              fontSize: '0.75rem',
-              fontWeight: 700,
-            }}>
-              {status?.dns_proxy_addr || '127.0.0.2:53'}
-            </span>
-          </div>
+        <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs flex flex-col justify-between">
+          <div>
+            <div className="flex justify-between items-start mb-2.5">
+              <span className="text-xs font-semibold text-slate-500 flex items-center gap-2">
+                <ShieldCheck size={16} className={status?.monitor_mode ? 'text-amber-500' : 'text-emerald-600'} />
+                {t.card_dns_title}
+              </span>
+              <span className="bg-sky-50 text-sky-700 border border-sky-200 px-2 py-0.5 rounded-full text-xs font-bold">
+                {status?.dns_proxy_addr || '127.0.0.2:53'}
+              </span>
+            </div>
 
-          <div style={{ fontSize: '1.8rem', fontWeight: 800, color: status?.monitor_mode ? '#fbbf24' : '#34d399', marginBottom: 6 }}>
-            {status?.monitor_mode ? t.mode_monitor : t.status_protecting}
-          </div>
+            <div className={`text-2xl font-extrabold mb-1 ${status?.monitor_mode ? 'text-amber-600' : 'text-emerald-600'}`}>
+              {status?.monitor_mode ? t.mode_monitor : t.status_protecting}
+            </div>
 
-          <div style={{ fontSize: '0.82rem', color: '#94a3b8' }}>
-            {t.dash_dns_sub}
+            <div className="text-xs text-slate-500">
+              {t.dash_dns_sub}
+            </div>
           </div>
         </div>
 
         {/* Card 3: Blocked Today */}
-        <div style={{
-          background: '#0f172a',
-          border: '1px solid #1e293b',
-          borderRadius: 16,
-          padding: 22,
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
-            <span style={{ fontSize: '0.9rem', color: '#94a3b8', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>
-              <AlertOctagon size={16} color="#f87171" />
-              {t.card_blocked_today}
-            </span>
-            <span style={{
-              background: 'rgba(248, 113, 113, 0.15)',
-              color: '#f87171',
-              padding: '3px 8px',
-              borderRadius: 6,
-              fontSize: '0.75rem',
-              fontWeight: 700,
-            }}>
-              {t.tag_block}
-            </span>
-          </div>
+        <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs flex flex-col justify-between">
+          <div>
+            <div className="flex justify-between items-start mb-2.5">
+              <span className="text-xs font-semibold text-slate-500 flex items-center gap-2">
+                <AlertOctagon size={16} className="text-red-500" />
+                {t.card_blocked_today}
+              </span>
+              <span className="bg-red-50 text-red-700 border border-red-200 px-2 py-0.5 rounded-full text-xs font-bold">
+                {t.tag_block}
+              </span>
+            </div>
 
-          <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#f87171', marginBottom: 6 }}>
-            {status?.blocked_queries_today ?? 0}
-          </div>
+            <div className="text-2xl font-extrabold text-red-600 mb-1">
+              {status?.blocked_queries_today ?? 0}
+            </div>
 
-          <div style={{ fontSize: '0.82rem', color: '#94a3b8' }}>
-            {t.dash_blocked_sub.replace('{total}', (status?.total_queries_today ?? 0).toString())}
+            <div className="text-xs text-slate-500">
+              {t.dash_blocked_sub.replace('{total}', (status?.total_queries_today ?? 0).toString())}
+            </div>
           </div>
         </div>
 
         {/* Card 4: Rules in effect */}
-        <div style={{
-          background: '#0f172a',
-          border: '1px solid #1e293b',
-          borderRadius: 16,
-          padding: 22,
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
-            <span style={{ fontSize: '0.9rem', color: '#94a3b8', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Layers size={16} color="#a855f7" />
-              {t.card_rules_title}
-            </span>
-            <span style={{
-              background: '#1e293b',
-              color: '#cbd5e1',
-              padding: '3px 8px',
-              borderRadius: 6,
-              fontSize: '0.75rem',
-              fontWeight: 600,
-            }}>
-              {status?.rules_count ?? 0} quy tắc
-            </span>
-          </div>
+        <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs flex flex-col justify-between">
+          <div>
+            <div className="flex justify-between items-start mb-2.5">
+              <span className="text-xs font-semibold text-slate-500 flex items-center gap-2">
+                <Layers size={16} className="text-purple-600" />
+                {t.card_rules_title}
+              </span>
+              <span className="bg-slate-100 text-slate-600 border border-slate-200 px-2 py-0.5 rounded-full text-xs font-semibold">
+                {status?.rules_count ?? 0} quy tắc
+              </span>
+            </div>
 
-          <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#f8fafc', marginBottom: 6 }}>
-            {status?.rules_count ?? 0}
-          </div>
+            <div className="text-2xl font-extrabold text-slate-900 mb-1">
+              {status?.rules_count ?? 0}
+            </div>
 
-          <div style={{ fontSize: '0.82rem', color: '#94a3b8' }}>
-            {t.dash_rules_sub}
+            <div className="text-xs text-slate-500">
+              {t.dash_rules_sub}
+            </div>
           </div>
         </div>
       </div>
 
       {/* Mini Recent Query Feed */}
-      <div style={{
-        background: '#0f172a',
-        border: '1px solid #1e293b',
-        borderRadius: 16,
-        padding: 24,
-      }}>
-        <div style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: 18,
-          flexWrap: 'wrap',
-          gap: 12,
-        }}>
+      <div className="bg-white border border-slate-200 rounded-2xl p-5 sm:p-6 shadow-xs">
+        <div className="flex justify-between items-center mb-4 flex-wrap gap-3">
           <div>
-            <h2 style={{ fontSize: '1.2rem', fontWeight: 700, color: '#f8fafc' }}>
+            <h2 className="text-base sm:text-lg font-bold text-slate-900">
               {t.recent_logs_title}
             </h2>
-            <p style={{ fontSize: '0.82rem', color: '#94a3b8' }}>
+            <p className="text-xs text-slate-500">
               Theo dõi trực tiếp các yêu cầu phân giải DNS loopback mới nhất
             </p>
           </div>
 
-          <div style={{ display: 'flex', gap: 10 }}>
+          <div className="flex items-center gap-2.5">
             <button
               onClick={onRefresh}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                background: '#1e293b',
-                color: '#f8fafc',
-                border: '1px solid #334155',
-                padding: '8px 14px',
-                borderRadius: 8,
-                fontSize: '0.82rem',
-                fontWeight: 600,
-                cursor: 'pointer',
-              }}
+              className="flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 px-3 py-1.5 rounded-xl text-xs font-semibold cursor-pointer transition-colors shadow-2xs"
             >
               <RefreshCw size={14} />
               {t.btn_refresh}
             </button>
             <button
               onClick={() => onNavigateTab('logs')}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                background: '#38bdf8',
-                color: '#070b14',
-                border: 'none',
-                padding: '8px 14px',
-                borderRadius: 8,
-                fontSize: '0.82rem',
-                fontWeight: 700,
-                cursor: 'pointer',
-              }}
+              className="flex items-center gap-1.5 bg-sky-600 hover:bg-sky-700 text-white px-3 py-1.5 rounded-xl text-xs font-bold cursor-pointer transition-colors shadow-xs"
             >
               <span>{t.btn_view_all_logs}</span>
               <ArrowRight size={14} />
@@ -434,47 +279,46 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
         </div>
 
         {recentLogs.length === 0 ? (
-          <div style={{ textAlign: 'center', color: '#94a3b8', padding: '36px 0', fontSize: '0.9rem' }}>
+          <div className="text-center text-slate-400 py-9 text-sm">
             {t.no_logs}
           </div>
         ) : (
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.88rem' }}>
+          <div className="overflow-x-auto rounded-xl border border-slate-200">
+            <table className="w-full border-collapse text-xs sm:text-sm text-left">
               <thead>
-                <tr style={{ borderBottom: '1px solid #1e293b', background: 'rgba(15, 23, 42, 0.5)' }}>
-                  <th style={{ textAlign: 'left', padding: '12px 14px', color: '#94a3b8', fontWeight: 600 }}>{t.th_time}</th>
-                  <th style={{ textAlign: 'left', padding: '12px 14px', color: '#94a3b8', fontWeight: 600 }}>{t.th_domain}</th>
-                  <th style={{ textAlign: 'left', padding: '12px 14px', color: '#94a3b8', fontWeight: 600 }}>{t.th_type}</th>
-                  <th style={{ textAlign: 'left', padding: '12px 14px', color: '#94a3b8', fontWeight: 600 }}>{t.th_action}</th>
-                  <th style={{ textAlign: 'left', padding: '12px 14px', color: '#94a3b8', fontWeight: 600 }}>{t.th_reason}</th>
+                <tr className="border-b border-slate-200 bg-slate-50/80">
+                  <th className="text-left px-3.5 py-2.5 text-slate-600 font-semibold">{t.th_time}</th>
+                  <th className="text-left px-3.5 py-2.5 text-slate-600 font-semibold">{t.th_domain}</th>
+                  <th className="text-left px-3.5 py-2.5 text-slate-600 font-semibold">{t.th_type}</th>
+                  <th className="text-left px-3.5 py-2.5 text-slate-600 font-semibold">{t.th_action}</th>
+                  <th className="text-left px-3.5 py-2.5 text-slate-600 font-semibold">{t.th_reason}</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="divide-y divide-slate-100">
                 {recentLogs.slice(0, 5).map((log, idx) => {
                   const isBlock = log.action === 'BLOCK';
                   const timeStr = new Date(log.occurred_at).toLocaleTimeString();
                   return (
-                    <tr key={idx} style={{ borderBottom: '1px solid #1e293b' }}>
-                      <td style={{ padding: '12px 14px', color: '#94a3b8' }}>{timeStr}</td>
-                      <td style={{ padding: '12px 14px', color: '#f8fafc', fontWeight: 600 }}>{log.domain}</td>
-                      <td style={{ padding: '12px 14px' }}>
-                        <span style={{ background: '#1e293b', color: '#cbd5e1', padding: '2px 8px', borderRadius: 4, fontSize: '0.75rem' }}>
+                    <tr key={idx} className="hover:bg-slate-50/80 transition-colors">
+                      <td className="px-3.5 py-2.5 text-slate-500 whitespace-nowrap">{timeStr}</td>
+                      <td className="px-3.5 py-2.5 font-semibold text-slate-800">{log.domain}</td>
+                      <td className="px-3.5 py-2.5">
+                        <span className="bg-slate-100 text-slate-600 border border-slate-200 px-2 py-0.5 rounded text-2xs font-medium">
                           {log.qtype}
                         </span>
                       </td>
-                      <td style={{ padding: '12px 14px' }}>
-                        <span style={{
-                          background: isBlock ? 'rgba(248, 113, 113, 0.15)' : 'rgba(52, 211, 153, 0.15)',
-                          color: isBlock ? '#f87171' : '#34d399',
-                          padding: '3px 10px',
-                          borderRadius: 6,
-                          fontWeight: 700,
-                          fontSize: '0.78rem',
-                        }}>
+                      <td className="px-3.5 py-2.5">
+                        <span
+                          className={`px-2 py-0.5 rounded-full font-bold text-2xs border ${
+                            isBlock
+                              ? 'bg-red-50 text-red-700 border-red-200'
+                              : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                          }`}
+                        >
                           {isBlock ? t.tag_block : t.tag_allow}
                         </span>
                       </td>
-                      <td style={{ padding: '12px 14px', color: '#94a3b8', fontSize: '0.8rem' }}>{log.reason}</td>
+                      <td className="px-3.5 py-2.5 text-slate-500 text-xs">{log.reason}</td>
                     </tr>
                   );
                 })}

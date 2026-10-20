@@ -149,10 +149,10 @@ export const App: React.FC = () => {
 
   if (isConfigured === null) {
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#070b14', color: '#94a3b8' }}>
-        <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: '2.5rem', marginBottom: 12 }}>🛡️</div>
-          <div style={{ fontSize: '0.95rem', fontWeight: 500 }}>{lang === 'vi' ? 'Đang kiểm tra trạng thái FamShield...' : 'Connecting to FamShield...'}</div>
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 text-slate-600">
+        <div className="text-center p-8 bg-white rounded-2xl shadow-sm border border-slate-200">
+          <div className="text-4xl mb-3">🛡️</div>
+          <div className="text-sm font-medium text-slate-700">{lang === 'vi' ? 'Đang kiểm tra trạng thái FamShield...' : 'Connecting to FamShield...'}</div>
         </div>
       </div>
     );
@@ -168,7 +168,7 @@ export const App: React.FC = () => {
   }
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', background: '#070b14' }}>
+    <div className="min-h-screen flex flex-col bg-slate-50 text-slate-800 antialiased">
       <Navbar
         currentTab={currentTab}
         onTabChange={setCurrentTab}
@@ -179,7 +179,7 @@ export const App: React.FC = () => {
         isAuthenticated={isAuthenticated}
       />
 
-      <main style={{ flex: 1, maxWidth: 1400, width: '100%', margin: '0 auto', padding: '28px 24px' }}>
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6 sm:py-8">
         {currentTab === 'dashboard' && (
           <DashboardTab
             status={status}
@@ -243,33 +243,19 @@ export const App: React.FC = () => {
       />
 
       {/* Floating Toast Box */}
-      <div style={{
-        position: 'fixed',
-        bottom: 24,
-        right: 24,
-        zIndex: 200,
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 8,
-      }}>
+      <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-2">
         {toasts.map((toast) => (
           <div
             key={toast.id}
-            style={{
-              background: '#0f172a',
-              border: `1px solid ${toast.type === 'error' ? '#f87171' : toast.type === 'success' ? '#34d399' : '#38bdf8'}`,
-              color: '#f8fafc',
-              padding: '12px 18px',
-              borderRadius: 10,
-              fontSize: '0.88rem',
-              fontWeight: 500,
-              boxShadow: '0 10px 30px rgba(0,0,0,0.5)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 10,
-            }}
+            className={`bg-white border rounded-xl px-4 py-3 text-sm font-medium shadow-lg flex items-center gap-3 transition-all ${
+              toast.type === 'error'
+                ? 'border-red-300 text-red-700 bg-red-50/80'
+                : toast.type === 'success'
+                ? 'border-emerald-300 text-emerald-700 bg-emerald-50/80'
+                : 'border-sky-300 text-sky-700 bg-sky-50/80'
+            }`}
           >
-            <span>{toast.type === 'error' ? '⚠️' : toast.type === 'success' ? '✅' : 'ℹ️'}</span>
+            <span className="text-base">{toast.type === 'error' ? '⚠️' : toast.type === 'success' ? '✅' : 'ℹ️'}</span>
             <span>{toast.message}</span>
           </div>
         ))}

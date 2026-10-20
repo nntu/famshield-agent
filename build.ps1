@@ -205,17 +205,34 @@ function Install-Agent {
     Build-Agent
     Sign-AllBinaries
 
-    Write-Host "==> [2/3] Installing Binaries into $InstallDir..." -ForegroundColor Cyan
-    if (-not (Test-Path $InstallDir)) {
-        New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
-    }
+    Write-Host "==> [2/3] Stopping & removing existing service and terminating running processes..." -ForegroundColor Cyan
 
     # Stop service if running
     $svc = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
     if ($svc) {
         Write-Host "Stopping existing $ServiceName service..." -ForegroundColor Yellow
         Stop-Service -Name $ServiceName -Force -ErrorAction SilentlyContinue
-        Start-Sleep -Seconds 2
+        & sc.exe stop $ServiceName 2>$null | Out-Null
+    }
+
+    # Forcefully terminate any lingering famshield-service and famshield-session processes
+    Write-Host "Terminating lingering famshield-service and famshield-session processes..." -ForegroundColor Yellow
+    & taskkill.exe /F /IM famshield-service.exe /T 2>$null | Out-Null
+    & taskkill.exe /F /IM famshield-session.exe /T 2>$null | Out-Null
+    Get-Process -Name "famshield-service", "famshield-session" -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+
+    # Remove existing service cleanly so fresh installation can re-register it
+    if ($svc) {
+        Write-Host "Removing existing $ServiceName service..." -ForegroundColor Yellow
+        & sc.exe delete $ServiceName 2>$null | Out-Null
+        Start-Sleep -Milliseconds 1200
+    } else {
+        Start-Sleep -Milliseconds 500
+    }
+
+    Write-Host "==> Installing Binaries into $InstallDir..." -ForegroundColor Cyan
+    if (-not (Test-Path $InstallDir)) {
+        New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
     }
 
     Copy-Item -Path (Join-Path $TargetDir "famshield-service.exe") -Destination (Join-Path $InstallDir "famshield-service.exe") -Force
@@ -225,13 +242,20 @@ function Install-Agent {
 
     $BinPath = Join-Path $InstallDir "famshield-service.exe"
 
-    if (-not $svc) {
-        New-Service -Name $ServiceName -DisplayName "FamShield Security Platform" -BinaryPathName "`"$BinPath`"" -StartupType Automatic -Description "Unified parental control, NUMA DNS proxy and application filtering" | Out-Null
-        # Set to LocalSystem
-        sc.exe config $ServiceName obj= LocalSystem | Out-Null
-    } else {
-        sc.exe config $ServiceName binPath= "`"$BinPath`"" | Out-Null
+    # Wait for SCM to finish deletion if needed
+    $retries = 6
+    while ((Get-Service -Name $ServiceName -ErrorAction SilentlyContinue) -and ($retries -gt 0)) {
+        Start-Sleep -Milliseconds 500
+        $retries--
     }
+
+    $existingSvc = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
+    if (-not $existingSvc) {
+        & sc.exe create $ServiceName binPath= "`"$BinPath`"" start= auto obj= LocalSystem DisplayName= "FamShield Security Platform" | Out-Null
+    } else {
+        & sc.exe config $ServiceName binPath= "`"$BinPath`"" start= auto obj= LocalSystem DisplayName= "FamShield Security Platform" | Out-Null
+    }
+    & sc.exe description $ServiceName "Unified parental control, NUMA DNS proxy and application filtering" | Out-Null
 
     # Clean up legacy corrupted NRPT rule if present
     if (Test-Path $LegacyNrptPath) {
@@ -306,13 +330,22 @@ function Uninstall-Agent {
 
     Write-Host "==> Uninstalling FamShield Agent..." -ForegroundColor Yellow
 
-    # 1. Stop and remove service
+    # 1. Stop and remove service, kill all processes
     $svc = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
     if ($svc) {
         Write-Host "Stopping service $ServiceName..." -ForegroundColor Yellow
         Stop-Service -Name $ServiceName -Force -ErrorAction SilentlyContinue
+        & sc.exe stop $ServiceName 2>$null | Out-Null
+    }
+
+    Write-Host "Terminating lingering famshield-service and famshield-session processes..." -ForegroundColor Yellow
+    & taskkill.exe /F /IM famshield-service.exe /T 2>$null | Out-Null
+    & taskkill.exe /F /IM famshield-session.exe /T 2>$null | Out-Null
+    Get-Process -Name "famshield-service", "famshield-session" -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+
+    if ($svc) {
         Start-Sleep -Seconds 1
-        sc.exe delete $ServiceName | Out-Null
+        & sc.exe delete $ServiceName 2>$null | Out-Null
         Write-Host "Service $ServiceName removed." -ForegroundColor Green
     }
 

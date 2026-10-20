@@ -90,18 +90,17 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ lang, onComplete }) =>
       alignItems: 'center',
       justifyContent: 'center',
       padding: '24px',
-      background: 'radial-gradient(circle at 50% 10%, #1e1b4b 0%, #070b14 70%)',
+      background: 'radial-gradient(circle at 50% 10%, #e0f2fe 0%, #f8fafc 70%)',
     }}>
       <div style={{
         maxWidth: 720,
         width: '100%',
-        background: 'rgba(15, 23, 42, 0.85)',
-        backdropFilter: 'blur(20px)',
-        border: '1px solid rgba(56, 189, 248, 0.25)',
+        background: '#ffffff',
+        border: '1px solid #e2e8f0',
         borderRadius: 24,
         padding: '36px',
-        boxShadow: '0 25px 60px -15px rgba(0, 0, 0, 0.7), 0 0 40px rgba(56, 189, 248, 0.1)',
-        color: '#f8fafc',
+        boxShadow: '0 20px 50px -15px rgba(0, 0, 0, 0.08), 0 0 25px rgba(56, 189, 248, 0.08)',
+        color: '#0f172a',
       }}>
         {/* Progress Tracker */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 32 }}>
@@ -154,10 +153,10 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ lang, onComplete }) =>
         {/* STEP 1: WELCOME */}
         {step === 1 && (
           <div>
-            <h1 style={{ fontSize: '1.75rem', fontWeight: 800, marginBottom: 8, color: '#f8fafc' }}>
+            <h1 style={{ fontSize: '1.75rem', fontWeight: 800, marginBottom: 8, color: '#0f172a' }}>
               {isVi ? 'Chào mừng bạn đến với FamShield' : 'Welcome to FamShield'}
             </h1>
-            <p style={{ color: '#94a3b8', fontSize: '0.95rem', lineHeight: 1.6, marginBottom: 24 }}>
+            <p style={{ color: '#64748b', fontSize: '0.95rem', lineHeight: 1.6, marginBottom: 24 }}>
               {isVi
                 ? 'Giải pháp bảo vệ toàn diện máy trạm Windows dành cho gia đình. Khởi tạo cấu hình an toàn chỉ trong 1 phút để bắt đầu bảo vệ con em của bạn.'
                 : 'Comprehensive Windows endpoint protection for modern families. Configure your secure baseline in under 1 minute to start protecting your children.'}
@@ -165,22 +164,22 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ lang, onComplete }) =>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 16, marginBottom: 32 }}>
               <div style={{
-                background: 'rgba(30, 41, 59, 0.5)',
-                border: '1px solid #334155',
+                background: '#f8fafc',
+                border: '1px solid #e2e8f0',
                 borderRadius: 16,
                 padding: '16px 20px',
                 display: 'flex',
                 gap: 16,
                 alignItems: 'center',
               }}>
-                <span style={{ fontSize: '1.8rem', background: '#0284c7', width: 44, height: 44, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <span style={{ fontSize: '1.8rem', background: '#0284c7', color: '#fff', width: 44, height: 44, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   🔒
                 </span>
                 <div>
-                  <div style={{ fontWeight: 700, fontSize: '0.98rem', color: '#e2e8f0', marginBottom: 2 }}>
+                  <div style={{ fontWeight: 700, fontSize: '0.98rem', color: '#0f172a', marginBottom: 2 }}>
                     {isVi ? '100% Ngoại Tuyến & Riêng Tư (Zero Cloud Dependency)' : '100% Offline & Private (Zero Cloud Dependency)'}
                   </div>
-                  <div style={{ fontSize: '0.85rem', color: '#94a3b8' }}>
+                  <div style={{ fontSize: '0.85rem', color: '#64748b' }}>
                     {isVi
                       ? 'Hoạt động độc lập hoàn toàn, không phụ thuộc máy chủ internet, dữ liệu duyệt web tuyệt đối không bị lộ.'
                       : 'Runs fully self-contained on your PC with zero cloud dependency. Family web telemetry never leaves your device.'}
@@ -189,22 +188,22 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ lang, onComplete }) =>
               </div>
 
               <div style={{
-                background: 'rgba(30, 41, 59, 0.5)',
-                border: '1px solid #334155',
+                background: '#f8fafc',
+                border: '1px solid #e2e8f0',
                 borderRadius: 16,
                 padding: '16px 20px',
                 display: 'flex',
                 gap: 16,
                 alignItems: 'center',
               }}>
-                <span style={{ fontSize: '1.8rem', background: '#0d9488', width: 44, height: 44, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <span style={{ fontSize: '1.8rem', background: '#0d9488', color: '#fff', width: 44, height: 44, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   ⚡
                 </span>
                 <div>
-                  <div style={{ fontWeight: 700, fontSize: '0.98rem', color: '#e2e8f0', marginBottom: 2 }}>
+                  <div style={{ fontWeight: 700, fontSize: '0.98rem', color: '#0f172a', marginBottom: 2 }}>
                     {isVi ? 'Tường Lửa WFP & DNS Loopback Phản Ứng 0ms' : 'Dynamic WFP & Loopback DNS Filter (0ms Latency)'}
                   </div>
-                  <div style={{ fontSize: '0.85rem', color: '#94a3b8' }}>
+                  <div style={{ fontSize: '0.85rem', color: '#64748b' }}>
                     {isVi
                       ? 'Chặn đứng web đen, cờ bạc, lừa đảo tại cổng DNS 127.0.0.2:53 mà không làm suy giảm tốc độ mạng.'
                       : 'Instantly intercepts adult, gambling, and phishing domains at loopback DNS without network slowdown.'}
@@ -213,22 +212,22 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ lang, onComplete }) =>
               </div>
 
               <div style={{
-                background: 'rgba(30, 41, 59, 0.5)',
-                border: '1px solid #334155',
+                background: '#f8fafc',
+                border: '1px solid #e2e8f0',
                 borderRadius: 16,
                 padding: '16px 20px',
                 display: 'flex',
                 gap: 16,
                 alignItems: 'center',
               }}>
-                <span style={{ fontSize: '1.8rem', background: '#6366f1', width: 44, height: 44, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <span style={{ fontSize: '1.8rem', background: '#6366f1', color: '#fff', width: 44, height: 44, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   👁️
                 </span>
                 <div>
-                  <div style={{ fontWeight: 700, fontSize: '0.98rem', color: '#e2e8f0', marginBottom: 2 }}>
+                  <div style={{ fontWeight: 700, fontSize: '0.98rem', color: '#0f172a', marginBottom: 2 }}>
                     {isVi ? 'Bằng Chứng Thị Giác Xóa Mờ (Privacy-by-Design)' : 'Privacy-Preserving Visual Evidence'}
                   </div>
-                  <div style={{ fontSize: '0.85rem', color: '#94a3b8' }}>
+                  <div style={{ fontSize: '0.85rem', color: '#64748b' }}>
                     {isVi
                       ? 'Ảnh chụp vi phạm được làm mờ Gaussian trong RAM trước khi lưu đĩa, bảo vệ sự riêng tư của con cái.'
                       : 'Screenshots are Gaussian-blurred in RAM before saving. Raw text is never stored, auto-purged after 48h.'}
@@ -265,10 +264,10 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ lang, onComplete }) =>
         {/* STEP 2: MASTER PIN */}
         {step === 2 && (
           <div>
-            <h2 style={{ fontSize: '1.5rem', fontWeight: 800, marginBottom: 8 }}>
+            <h2 style={{ fontSize: '1.5rem', fontWeight: 800, marginBottom: 8, color: '#0f172a' }}>
               {isVi ? 'Đặt Mã Master PIN Phụ Huynh' : 'Set Guardian Master PIN'}
             </h2>
-            <p style={{ color: '#94a3b8', fontSize: '0.88rem', marginBottom: 24, lineHeight: 1.5 }}>
+            <p style={{ color: '#64748b', fontSize: '0.88rem', marginBottom: 24, lineHeight: 1.5 }}>
               {isVi
                 ? 'Mã PIN 6 chữ số này dùng để đăng nhập vào Bảng Quản Trị và mở khóa tạm thời khi có yêu cầu từ trẻ.'
                 : 'This 6-digit Master PIN unlocks the admin console and allows temporary quota overrides.'}
@@ -277,7 +276,7 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ lang, onComplete }) =>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 20 }}>
               {/* Enter PIN */}
               <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', color: '#cbd5e1', fontWeight: 600, marginBottom: 8 }}>
+                <label style={{ display: 'block', fontSize: '0.85rem', color: '#475569', fontWeight: 600, marginBottom: 8 }}>
                   {isVi ? 'Mã PIN mới (6 chữ số):' : 'New PIN (6 digits):'}
                 </label>
                 <input
@@ -288,14 +287,14 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ lang, onComplete }) =>
                   placeholder="••••••"
                   style={{
                     width: '100%',
-                    background: '#1e293b',
-                    border: '1px solid #475569',
+                    background: '#f8fafc',
+                    border: '1px solid #cbd5e1',
                     borderRadius: 12,
                     padding: '12px 16px',
                     fontSize: '1.4rem',
                     textAlign: 'center',
                     letterSpacing: '0.5rem',
-                    color: '#38bdf8',
+                    color: '#0284c7',
                     outline: 'none',
                     fontWeight: 700,
                   }}
@@ -304,7 +303,7 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ lang, onComplete }) =>
 
               {/* Confirm PIN */}
               <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', color: '#cbd5e1', fontWeight: 600, marginBottom: 8 }}>
+                <label style={{ display: 'block', fontSize: '0.85rem', color: '#475569', fontWeight: 600, marginBottom: 8 }}>
                   {isVi ? 'Xác nhận lại mã PIN:' : 'Confirm PIN:'}
                 </label>
                 <input
@@ -315,14 +314,14 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ lang, onComplete }) =>
                   placeholder="••••••"
                   style={{
                     width: '100%',
-                    background: '#1e293b',
-                    border: '1px solid #475569',
+                    background: '#f8fafc',
+                    border: '1px solid #cbd5e1',
                     borderRadius: 12,
                     padding: '12px 16px',
                     fontSize: '1.4rem',
                     textAlign: 'center',
                     letterSpacing: '0.5rem',
-                    color: '#38bdf8',
+                    color: '#0284c7',
                     outline: 'none',
                     fontWeight: 700,
                   }}

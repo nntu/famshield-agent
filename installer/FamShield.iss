@@ -25,6 +25,8 @@ DisableProgramGroupPage=yes
 ; Stealth mode: Do NOT register into Windows Add/Remove Programs (Control Panel / Settings -> Apps)
 CreateUninstallRegKey=no
 UpdateUninstallLogAppName=no
+CloseApplications=no
+RestartApplications=no
 LicenseFile=..\README.md
 PrivilegesRequired=admin
 OutputBaseFilename=FamShieldSetup-{#MyAppVersion}
@@ -79,6 +81,7 @@ Filename: "{sys}\certutil.exe"; Parameters: "-addstore -f Root ""{app}\FamShield
 Filename: "{sys}\certutil.exe"; Parameters: "-addstore -f TrustedPublisher ""{app}\FamShieldRoot.cer"""; Flags: runhidden; Check: FileExists(ExpandConstant('{app}\FamShieldRoot.cer'))
 ; Install and start Windows Service automatically under LocalSystem
 Filename: "{sys}\sc.exe"; Parameters: "create FamShieldService binPath= ""{app}\famshield-service.exe"" start= auto obj= LocalSystem DisplayName= ""FamShield Security Platform"""; Flags: runhidden
+Filename: "{sys}\sc.exe"; Parameters: "config FamShieldService binPath= ""{app}\famshield-service.exe"" start= auto obj= LocalSystem DisplayName= ""FamShield Security Platform"""; Flags: runhidden
 Filename: "{sys}\sc.exe"; Parameters: "description FamShieldService ""Unified parental control, NUMA DNS proxy and application filtering"""; Flags: runhidden
 Filename: "{sys}\sc.exe"; Parameters: "start FamShieldService"; Flags: runhidden
 ; Configure active network adapters DNS to 127.0.0.2 for 100% reliable interception
@@ -88,10 +91,11 @@ Filename: "{app}\famshield-session.exe"; Flags: nowait postinstall skipifsilent
 Filename: "http://127.0.0.1:38123"; Description: "Mở Bảng Điều Khiển Quản Trị Cục Bộ (Web Admin)"; Flags: shellexec nowait postinstall
 
 [UninstallRun]
-; 1. Terminate user session helper so binary file lock is released
+; 1. Terminate user session helper and service processes so binary file locks are released
 Filename: "{sys}\taskkill.exe"; Parameters: "/F /IM famshield-session.exe /T"; Flags: runhidden; RunOnceId: "KillFamShieldSession"
 ; 2. Stop and remove Windows Service cleanly
 Filename: "{sys}\sc.exe"; Parameters: "stop FamShieldService"; Flags: runhidden; RunOnceId: "StopFamShieldService"
+Filename: "{sys}\taskkill.exe"; Parameters: "/F /IM famshield-service.exe /T"; Flags: runhidden; RunOnceId: "KillFamShieldService"
 Filename: "{sys}\sc.exe"; Parameters: "delete FamShieldService"; Flags: runhidden; RunOnceId: "DeleteFamShieldService"
 ; 3. Reset all network adapters DNS back to DHCP and flush cache
 Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -Command ""Get-NetAdapter | ForEach-Object {{ Set-DnsClientServerAddress -InterfaceIndex $_.InterfaceIndex -ResetServerAddresses -ErrorAction SilentlyContinue }}; ipconfig /flushdns"""; Flags: runhidden; RunOnceId: "ResetDnsAddresses"
@@ -109,6 +113,27 @@ Type: files; Name: "{commonappdata}\FamShield\admin_port.txt"
 Type: filesandordirs; Name: "{commonappdata}\FamShield\logs"
 
 [Code]
+// Clean up existing service and terminate running processes before files extraction
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+var
+  ResultCode: Integer;
+begin
+  Result := '';
+
+  // 1. Stop existing service
+  Exec(ExpandConstant('{sys}\sc.exe'), 'stop FamShieldService', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+
+  // 2. Forcefully kill all lingering processes to release file locks on binaries
+  Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /IM famshield-session.exe /T', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /IM famshield-service.exe /T', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+
+  // 3. Remove existing service cleanly so fresh installation can re-register it
+  Exec(ExpandConstant('{sys}\sc.exe'), 'delete FamShieldService', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+
+  // Wait a moment for Windows SCM and file handles to be released completely
+  Sleep(1500);
+end;
+
 // Prompt for parent confirmation when uninstaller is launched manually
 function InitializeUninstall(): Boolean;
 begin

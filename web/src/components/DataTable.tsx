@@ -65,51 +65,36 @@ export function DataTable<TData>({
   const isVi = lang === 'vi';
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 14, width: '100%' }}>
+    <div className="flex flex-col gap-3.5 w-full">
       {/* Search and Table Toolbar */}
       {showSearch && (
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
-          <div style={{ position: 'relative', minWidth: 260 }}>
+        <div className="flex justify-between items-center flex-wrap gap-2.5">
+          <div className="relative min-w-[260px]">
             <Search
               size={15}
-              color="#94a3b8"
-              style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)' }}
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
             />
             <input
               type="text"
               value={globalFilter ?? ''}
               onChange={(e) => setGlobalFilter(e.target.value)}
               placeholder={searchPlaceholder}
-              style={{
-                width: '100%',
-                background: '#070b14',
-                border: '1px solid #1e293b',
-                color: '#fff',
-                padding: '8px 12px 8px 36px',
-                borderRadius: 8,
-                fontSize: '0.84rem',
-                outline: 'none',
-              }}
+              className="w-full bg-white border border-slate-200 text-slate-800 placeholder-slate-400 pl-9 pr-3 py-2 rounded-lg text-sm outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 transition-all shadow-xs"
             />
           </div>
 
-          <div style={{ fontSize: '0.82rem', color: '#94a3b8' }}>
+          <div className="text-xs font-medium text-slate-500">
             {isVi ? `Hiển thị ${table.getRowModel().rows.length} / ${data.length} dòng` : `Showing ${table.getRowModel().rows.length} of ${data.length} rows`}
           </div>
         </div>
       )}
 
       {/* Main Table Container */}
-      <div style={{
-        overflowX: 'auto',
-        borderRadius: 12,
-        border: '1px solid #1e293b',
-        background: '#0b1120',
-      }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.86rem' }}>
+      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-xs">
+        <table className="w-full border-collapse text-sm text-left">
           <thead>
             {table.getHeaderGroups().map((headerGroup) => (
-              <tr key={headerGroup.id} style={{ borderBottom: '1px solid #1e293b', background: 'rgba(15, 23, 42, 0.8)' }}>
+              <tr key={headerGroup.id} className="border-b border-slate-200 bg-slate-50/80">
                 {headerGroup.headers.map((header) => {
                   const canSort = header.column.getCanSort();
                   const isSorted = header.column.getIsSorted();
@@ -118,20 +103,14 @@ export function DataTable<TData>({
                     <th
                       key={header.id}
                       onClick={header.column.getToggleSortingHandler()}
-                      style={{
-                        textAlign: 'left',
-                        padding: '12px 16px',
-                        color: '#94a3b8',
-                        fontWeight: 600,
-                        cursor: canSort ? 'pointer' : 'default',
-                        userSelect: 'none',
-                        whiteSpace: 'nowrap',
-                      }}
+                      className={`text-left px-4 py-3 text-slate-600 font-semibold whitespace-nowrap select-none ${
+                        canSort ? 'cursor-pointer hover:bg-slate-100/70' : 'cursor-default'
+                      }`}
                     >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <div className="flex items-center gap-1.5">
                         {flexRender(header.column.columnDef.header, header.getContext())}
                         {canSort && (
-                          <span style={{ color: isSorted ? '#38bdf8' : '#475569' }}>
+                          <span className={isSorted ? 'text-sky-600' : 'text-slate-400'}>
                             {isSorted === 'asc' ? (
                               <ArrowUp size={14} />
                             ) : isSorted === 'desc' ? (
@@ -148,17 +127,12 @@ export function DataTable<TData>({
               </tr>
             ))}
           </thead>
-          <tbody>
+          <tbody className="divide-y divide-slate-100">
             {table.getRowModel().rows.length === 0 ? (
               <tr>
                 <td
                   colSpan={columns.length}
-                  style={{
-                    textAlign: 'center',
-                    padding: '36px 16px',
-                    color: '#64748b',
-                    fontSize: '0.9rem',
-                  }}
+                  className="text-center py-10 px-4 text-slate-500 text-sm"
                 >
                   {emptyText}
                 </td>
@@ -167,15 +141,10 @@ export function DataTable<TData>({
               table.getRowModel().rows.map((row) => (
                 <tr
                   key={row.id}
-                  style={{
-                    borderBottom: '1px solid #1e293b',
-                    transition: 'background 0.15s ease',
-                  }}
-                  onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(30, 41, 59, 0.4)')}
-                  onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                  className="hover:bg-slate-50/80 transition-colors"
                 >
                   {row.getVisibleCells().map((cell) => (
-                    <td key={cell.id} style={{ padding: '12px 16px', color: '#f1f5f9' }}>
+                    <td key={cell.id} className="px-4 py-3 text-slate-700">
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </td>
                   ))}
@@ -187,32 +156,14 @@ export function DataTable<TData>({
       </div>
 
       {/* Pagination Controls */}
-      <div style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        flexWrap: 'wrap',
-        gap: 12,
-        padding: '6px 4px',
-        fontSize: '0.82rem',
-        color: '#94a3b8',
-      }}>
+      <div className="flex justify-between items-center flex-wrap gap-3 px-1 py-1.5 text-xs text-slate-500">
         {/* Page size dropdown */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div className="flex items-center gap-2">
           <span>{isVi ? 'Số dòng mỗi trang:' : 'Rows per page:'}</span>
           <select
             value={table.getState().pagination.pageSize}
             onChange={(e) => table.setPageSize(Number(e.target.value))}
-            style={{
-              background: '#070b14',
-              border: '1px solid #1e293b',
-              color: '#f8fafc',
-              padding: '4px 8px',
-              borderRadius: 6,
-              fontSize: '0.82rem',
-              outline: 'none',
-              cursor: 'pointer',
-            }}
+            className="bg-white border border-slate-200 text-slate-700 px-2 py-1 rounded-md text-xs outline-none cursor-pointer focus:border-sky-500 shadow-xs"
           >
             {[10, 25, 50, 100].map((sz) => (
               <option key={sz} value={sz}>
@@ -223,8 +174,8 @@ export function DataTable<TData>({
         </div>
 
         {/* Page indicator & navigation buttons */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ marginRight: 6 }}>
+        <div className="flex items-center gap-1.5">
+          <span className="mr-1.5 font-medium">
             {isVi
               ? `Trang ${table.getState().pagination.pageIndex + 1} / ${Math.max(1, table.getPageCount())}`
               : `Page ${table.getState().pagination.pageIndex + 1} of ${Math.max(1, table.getPageCount())}`}
@@ -233,77 +184,34 @@ export function DataTable<TData>({
           <button
             onClick={() => table.setPageIndex(0)}
             disabled={!table.getCanPreviousPage()}
-            style={{
-              background: '#1e293b',
-              border: '1px solid #334155',
-              color: '#f8fafc',
-              padding: '5px',
-              borderRadius: 6,
-              display: 'flex',
-              alignItems: 'center',
-              cursor: table.getCanPreviousPage() ? 'pointer' : 'not-allowed',
-              opacity: table.getCanPreviousPage() ? 1 : 0.4,
-            }}
+            className="bg-white hover:bg-slate-50 disabled:hover:bg-white border border-slate-200 text-slate-700 p-1.5 rounded-md flex items-center cursor-pointer disabled:cursor-not-allowed disabled:opacity-40 transition-colors shadow-xs"
             title={isVi ? 'Trang đầu' : 'First page'}
           >
-            <ChevronsLeft size={16} />
+            <ChevronsLeft size={15} />
           </button>
-
           <button
             onClick={() => table.previousPage()}
             disabled={!table.getCanPreviousPage()}
-            style={{
-              background: '#1e293b',
-              border: '1px solid #334155',
-              color: '#f8fafc',
-              padding: '5px',
-              borderRadius: 6,
-              display: 'flex',
-              alignItems: 'center',
-              cursor: table.getCanPreviousPage() ? 'pointer' : 'not-allowed',
-              opacity: table.getCanPreviousPage() ? 1 : 0.4,
-            }}
+            className="bg-white hover:bg-slate-50 disabled:hover:bg-white border border-slate-200 text-slate-700 p-1.5 rounded-md flex items-center cursor-pointer disabled:cursor-not-allowed disabled:opacity-40 transition-colors shadow-xs"
             title={isVi ? 'Trang trước' : 'Previous page'}
           >
-            <ChevronLeft size={16} />
+            <ChevronLeft size={15} />
           </button>
-
           <button
             onClick={() => table.nextPage()}
             disabled={!table.getCanNextPage()}
-            style={{
-              background: '#1e293b',
-              border: '1px solid #334155',
-              color: '#f8fafc',
-              padding: '5px',
-              borderRadius: 6,
-              display: 'flex',
-              alignItems: 'center',
-              cursor: table.getCanNextPage() ? 'pointer' : 'not-allowed',
-              opacity: table.getCanNextPage() ? 1 : 0.4,
-            }}
+            className="bg-white hover:bg-slate-50 disabled:hover:bg-white border border-slate-200 text-slate-700 p-1.5 rounded-md flex items-center cursor-pointer disabled:cursor-not-allowed disabled:opacity-40 transition-colors shadow-xs"
             title={isVi ? 'Trang sau' : 'Next page'}
           >
-            <ChevronRight size={16} />
+            <ChevronRight size={15} />
           </button>
-
           <button
             onClick={() => table.setPageIndex(table.getPageCount() - 1)}
             disabled={!table.getCanNextPage()}
-            style={{
-              background: '#1e293b',
-              border: '1px solid #334155',
-              color: '#f8fafc',
-              padding: '5px',
-              borderRadius: 6,
-              display: 'flex',
-              alignItems: 'center',
-              cursor: table.getCanNextPage() ? 'pointer' : 'not-allowed',
-              opacity: table.getCanNextPage() ? 1 : 0.4,
-            }}
+            className="bg-white hover:bg-slate-50 disabled:hover:bg-white border border-slate-200 text-slate-700 p-1.5 rounded-md flex items-center cursor-pointer disabled:cursor-not-allowed disabled:opacity-40 transition-colors shadow-xs"
             title={isVi ? 'Trang cuối' : 'Last page'}
           >
-            <ChevronsRight size={16} />
+            <ChevronsRight size={15} />
           </button>
         </div>
       </div>

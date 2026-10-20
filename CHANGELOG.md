@@ -8,6 +8,21 @@ Tất cả các thay đổi quan trọng của dự án **FamShield Windows Agen
 
 ## [Unreleased]
 
+### Added
+- **Tích Hợp Tailwind CSS v4 Cho Phân Hệ Web Admin (`web`)**:
+  - Tích hợp `@tailwindcss/vite` và `tailwindcss` v4 vào cấu hình `vite.config.ts` và luồng biên dịch frontend Vite.
+  - Bổ sung cấu trúc style trung tâm `web/src/index.css` áp dụng `@import "tailwindcss";` cùng hệ thống CSS design tokens hiện đại.
+
+### Changed
+- **Chuyển Đổi Toàn Diện Giao Diện Sang Tone Sáng (Light Theme Modernization)**:
+  - Nâng cấp toàn bộ giao diện Web Admin sang tone màu sáng hiện đại, trang nhã và thân thiện với gia đình (nền `slate-50`, các khối card trắng nổi viền `slate-200`, màu chữ `slate-900`/`slate-600`, điểm nhấn màu `sky-600`).
+  - Chuẩn hóa các thành phần UI chủ chốt (`Navbar`, `DashboardTab`, `DataTable`, `PinModal`, `EvidenceTab`, `SetupWizard`, `App`) với layout sắc nét, phân cấp thông tin rõ ràng và hiệu ứng chuyển đổi mượt mà.
+
+
+---
+
+## [1.0.0] - 2026-10-20
+
 ### Security
 - **Cloud enrollment và remote command fail-closed**:
   - Loại bỏ hoàn toàn credential mô phỏng khi enrollment HTTP thất bại; thiết bị chỉ chuyển sang `OnlineManaged` sau phản hồi server hợp lệ.
@@ -16,6 +31,10 @@ Tất cả các thay đổi quan trọng của dự án **FamShield Windows Agen
   - Bắt buộc xác thực phiên quản trị cho endpoint ghi nhận vi phạm từ khóa.
 
 ### Fixed
+- **Khắc Phục Lỗi Cài Đặt Không Tắt Tiến Trình Cũ & Không Dừng/Xóa Dịch Vụ Cũ (`installer/FamShield.iss`, `build.ps1`, `update-famshield.ps1`)**:
+  - **Inno Setup Installer (`FamShield.iss`)**: Bổ sung hàm `PrepareToInstall` tự động dừng dịch vụ Windows (`sc stop FamShieldService`), cưỡng chế hạ các tiến trình cũ (`taskkill /F /IM famshield-service.exe /T` và `taskkill /F /IM famshield-session.exe /T`), và xóa dịch vụ cũ (`sc delete FamShieldService`) trước khi giải nén ghi đè các file thực thi. Thiết lập `CloseApplications=no` và `RestartApplications=no` ngăn chặn xung đột và lỗi khóa file (Access Denied / Sharing Violation). Cập nhật `[Run]` hỗ trợ tự động cấu hình lại `sc config` nếu service đang trong quá trình chuyển tiếp.
+  - **PowerShell Build & Install Script (`build.ps1`)**: Tích hợp lệnh cưỡng chế đóng toàn bộ tiến trình `famshield-service` và `famshield-session` qua `taskkill` và `Stop-Process`, dừng và xóa dịch vụ hệ thống trước khi sao chép nhị phân mới vào `C:\Program Files\FamShield`, ngăn chặn hoàn toàn lỗi khóa file `Copy-Item`. Cập nhật cả quy trình `Install-Agent` và `Uninstall-Agent`.
+  - **Script Cập Nhật Nhanh (`update-famshield.ps1`)**: Nâng cấp bước dừng tiến trình với `taskkill /F /IM` nhằm đảm bảo các tiến trình Session 0 và User Session đều được hạ dứt điểm.
 - **Khắc Phục Bộ Lọc Bàn Phím Không Nhận Diện Từ Khóa & Tối Ưu Hook Win32 (`famshield-core`, `famshield-session`, `famshield-service`)**:
   - **Bổ sung từ khóa `sex` và nội dung người lớn vào từ điển mặc định**: Khắc phục nguyên nhân gốc rễ trước đây từ điển chỉ có cụm từ ghép `"phim sex"` nên khi gõ riêng từ `"sex"` trên trình duyệt/tìm kiếm không được nhận diện. Đã bổ sung đầy đủ `"sex"`, `"xxx"`, `"porn"`, `"nsfw"`, `"nude"`, `"hentai"`, `"jav"`, `"thu dam"`, `"gai goi"`, `"loan luan"`, `"lo clip"`, `"show hang"`, cũng như các từ ngữ chửi bậy phổ biến (`"dit"`, `"djt"`, `"vl"`, `"cc"`, `"deo"`, `"buoi"`).
   - **Tối ưu hóa thời gian thực thi Hook Win32 (`low_level_keyboard_proc`)**: Loại bỏ toàn bộ các lời gọi Win32 nặng (`GetForegroundWindow`, `OpenProcess`, `GetGUIThreadInfo`) ra khỏi luồng hook callback, đưa việc kiểm tra ô mật khẩu về luồng worker nền phi đồng bộ. Giúp callback hoàn tất trong thời gian $< 1\mu\text{s}$, ngăn chặn hoàn toàn nguy cơ Windows tự động hủy hook (`LowLevelHooksTimeout`) khi máy tải nặng hoặc duyệt web.
@@ -270,13 +289,12 @@ Tất cả các thay đổi quan trọng của dự án **FamShield Windows Agen
   - Lỗi này từng khiến luồng nền Tokio bị hủy ngay khi Service khởi động, dẫn đến máy chủ `LocalAdminServer` không thể lắng nghe và người dùng không thể truy cập giao diện web từ khay hệ thống.
   - Sau khi sửa và biên dịch lại, máy chủ web và IPC Named Pipe đã hoạt động ổn định 100%.
 
----
-
-## [1.0.0] - 2026-10-20
-
 ### Changed
-- Đồng bộ phiên bản workspace Rust và bộ cài Windows lên `1.0.0`.
+- **Phát hành chính thức FamShield Agent 1.0.0 (Production Release)**.
+- Đồng bộ phiên bản toàn diện: Rust Workspace (`Cargo.toml`), Local Web Admin (`web/package.json`), và Windows Inno Setup (`FamShield.iss`) đều lên `1.0.0`.
 - Cập nhật hướng dẫn triển khai và quy trình đóng gói theo tên bộ cài `FamShieldSetup-1.0.0.exe`.
+
+---
 
 ## [0.1.0-rc.1] - 2026-10-19
 
