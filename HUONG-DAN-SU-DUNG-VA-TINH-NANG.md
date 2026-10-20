@@ -36,6 +36,7 @@
 9. [Hướng Dẫn Kết Nối Đám Mây & Ghép Nối Thiết Bị (Cloud Pairing)](#9-hướng-dẫn-kết-nối-đám-mây--ghép-nối-thiết-bị-cloud-pairing)
 10. [Hướng Dẫn Gỡ Cài Đặt Sạch Sẽ (Clean-Slate Teardown)](#10-hướng-dẫn-gỡ-cài-đặt-sạch-sẽ-clean-slate-teardown)
 11. [Xử Lý Sự Cố Thường Gặp (FAQ & Troubleshooting)](#11-xử-lý-sự-cố-thường-gặp-faq--troubleshooting)
+12. [Giấy phép](#12-giấy-phép)
 
 ---
 
@@ -440,3 +441,9 @@ Mở PowerShell với quyền Administrator tại thư mục repository:
 
 > 🤝 **Cần thêm trợ giúp hoặc đóng góp ý kiến?**  
 > Vui lòng tạo issue thảo luận tại: [GitHub Issues](https://github.com/nntu/famshield-agent/issues) hoặc tham khảo tài liệu kỹ thuật chi tiết tại thư mục [docs/](docs/README.md).
+
+---
+
+## 12. Giấy phép
+
+FamShield Agent được phát hành theo giấy phép [MIT](LICENSE). Trừ khi có thông báo giấy phép riêng, giấy phép này áp dụng cho mã nguồn và tài liệu trong repository. Thư viện và tài sản của bên thứ ba vẫn tuân theo giấy phép riêng; giấy phép MIT không cấp quyền sử dụng tên hoặc logo FamShield.

@@ -26,6 +26,10 @@ This directory is the source of truth for the FamShield rewrite. Implementers sh
 
 Machine-readable contracts live under [`contracts/`](../contracts/). The Markdown documents govern intent; schemas govern wire validation. A contract change requires updating both in the same pull request.
 
+## License
+
+The repository is released under the [MIT License](../LICENSE). Unless a separate license notice says otherwise, it applies to the source code and documentation in this repository. Third-party dependencies and assets retain their respective licenses; the MIT License does not grant rights to the FamShield name or logo.
+
 ## Fixed V1 decisions
 
 - The system supports Dual-Mode Operation: Local Standalone Mode (PIN/password protected on endpoint, zero cloud required) and Online Managed Mode (enrolled to Go control plane). Seamless transition between modes is supported.

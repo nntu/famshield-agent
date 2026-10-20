@@ -114,6 +114,10 @@ cargo test --workspace
 - [Hợp đồng OpenAPI](contracts/openapi.yaml)
 - [JSON Schema chính sách](contracts/policy.schema.json)
 
+## Giấy phép
+
+FamShield Agent được phát hành theo giấy phép [MIT](LICENSE). Trừ khi có thông báo giấy phép riêng, giấy phép này áp dụng cho mã nguồn và tài liệu trong repository. Các thư viện và tài sản của bên thứ ba vẫn tuân theo giấy phép riêng của chúng. Việc cấp phép không đồng nghĩa với việc cấp quyền sử dụng nhãn hiệu hoặc logo FamShield.
+
 ## Đóng góp
 
 Chào mừng các báo cáo lỗi, đề xuất cải tiến và đóng góp mã nguồn. Vui lòng đọc [CONTRIBUTING.md](CONTRIBUTING.md) trước khi mở Pull Request và tạo issue tại [GitHub Issues](https://github.com/nntu/famshield-agent/issues) nếu cần trao đổi.

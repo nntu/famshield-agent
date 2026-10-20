@@ -113,6 +113,10 @@ cargo test --workspace
 - [OpenAPI contract](contracts/openapi.yaml)
 - [Policy JSON Schema](contracts/policy.schema.json)
 
+## License
+
+FamShield Agent is released under the [MIT License](LICENSE). Unless a separate license notice says otherwise, this license applies to the source code and documentation in this repository. Third-party libraries and assets remain subject to their respective licenses. The license does not grant rights to the FamShield name or logo.
+
 ## Contributing
 
 Bug reports, improvement proposals, and code contributions are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request, and use [GitHub Issues](https://github.com/nntu/famshield-agent/issues) to start a discussion.

@@ -9,6 +9,7 @@ Tất cả các thay đổi quan trọng của dự án **FamShield Windows Agen
 ## [Unreleased]
 
 ### Added
+- Chuẩn hóa giấy phép MIT cho repository: bổ sung `LICENSE`, đồng bộ metadata Cargo/npm và ghi rõ phạm vi giấy phép trong README cùng tài liệu đóng góp.
 - **Tích Hợp Bộ Công Cụ Biome (`@biomejs/biome`) & Quản Lý Gói Độc Lập `pnpm` v12.x Cho Phân Hệ Web Admin (`web`)**:
   - Thiết lập Biome linter, formatter và import organizer siêu tốc cho toàn bộ mã nguồn TypeScript/React trong `web`, tích hợp các npm script `lint`, `lint:fix`, `format` và tệp cấu hình chuẩn `biome.json`.
   - Chuyển đổi và chuẩn hóa trình quản lý gói sang `pnpm` standalone (v12.x), sinh `pnpm-lock.yaml`, tối ưu hóa thời gian phân giải gói và lưu trữ hard link.

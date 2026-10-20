@@ -9,6 +9,8 @@
 
 Cảm ơn bạn đã quan tâm đóng góp cho **FamShield Windows Agent**! Dự án này là phần mềm an ninh máy trạm bảo vệ trẻ em, chạy với quyền đặc quyền cao nhất (`LocalSystem`) trên hệ điều hành Windows. Vì vậy, mọi dòng code đều phải tuân thủ nghiêm ngặt các tiêu chuẩn kỹ thuật dưới đây.
 
+Dự án được phát hành theo giấy phép [MIT](LICENSE). Các thư viện và tài sản bên thứ ba vẫn tuân theo giấy phép riêng của chúng.
+
 ### 1. Nguyên Tắc Cốt Lõi (Core Principles)
 
 - 🛡️ **An toàn bộ nhớ tuyệt đối**: Không để xảy ra BSOD (Màn hình xanh), Memory leak hay rớt mạng máy trạm.
@@ -78,6 +80,8 @@ cargo test --workspace
 ## 🇬🇧 Developer Contribution Guidelines (English)
 
 Thank you for contributing to **FamShield Windows Agent**! As endpoint security software running under `LocalSystem` on Windows, code quality, stability, and memory safety are paramount.
+
+The project is released under the [MIT License](LICENSE). Third-party libraries and assets remain subject to their respective licenses.
 
 ### 1. Core Engineering Principles
 
