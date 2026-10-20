@@ -396,8 +396,7 @@ pub async fn send_violation_via_ipc(
         };
         use tokio::net::windows::named_pipe::ClientOptions;
 
-        let mut client = ClientOptions::new().open(IPC_PIPE_NAME)?;
-        let msg = IpcMessage::KeywordViolation {
+        let message = IpcMessage::KeywordViolation {
             session_id,
             app_name,
             keyword_matched,
@@ -405,9 +404,40 @@ pub async fn send_violation_via_ipc(
             severity,
             snippet_masked,
         };
-        write_framed_message(&mut client, &msg).await?;
-        let _ = read_framed_message(&mut client).await?;
-        Ok(())
+        let mut last_error = None;
+        for attempt in 0..3_u64 {
+            let result = async {
+                let mut client = ClientOptions::new().open(IPC_PIPE_NAME)?;
+                write_framed_message(&mut client, &message).await?;
+                match read_framed_message(&mut client).await? {
+                    Some(IpcMessage::Response { success: true, .. }) => Ok(()),
+                    Some(IpcMessage::Response { message, .. }) => Err(std::io::Error::other(
+                        format!("keyword violation rejected by service: {message}"),
+                    )),
+                    Some(_) => Err(std::io::Error::new(
+                        std::io::ErrorKind::InvalidData,
+                        "unexpected IPC response for keyword violation",
+                    )),
+                    None => Err(std::io::Error::new(
+                        std::io::ErrorKind::UnexpectedEof,
+                        "service closed IPC before acknowledging keyword violation",
+                    )),
+                }
+            }
+            .await;
+
+            match result {
+                Ok(()) => return Ok(()),
+                Err(error) => last_error = Some(error),
+            }
+            if attempt < 2 {
+                tokio::time::sleep(std::time::Duration::from_millis(100 * (attempt + 1))).await;
+            }
+        }
+
+        Err(Box::new(last_error.unwrap_or_else(|| {
+            std::io::Error::other("keyword violation IPC failed without an error")
+        })))
     }
     #[cfg(not(windows))]
     {
@@ -436,6 +466,7 @@ pub fn start_keyboard_monitor_hook(monitor: Arc<KeyboardMonitor>) {
 
         let (tx, rx) = sync_channel::<RawKeyEvent>(512);
         let _ = KEY_EVENT_TX.set(tx);
+        let runtime_handle = tokio::runtime::Handle::current();
 
         // Spawn worker thread for asynchronous keystroke processing & matching
         let worker_monitor = monitor.clone();
@@ -462,7 +493,7 @@ pub fn start_keyboard_monitor_hook(monitor: Arc<KeyboardMonitor>) {
                         );
 
                         // Asynchronously send to Windows Service
-                        tokio::spawn(async move {
+                        runtime_handle.spawn(async move {
                             if let Err(e) = send_violation_via_ipc(
                                 session_id,
                                 violation.app_name,

@@ -115,7 +115,7 @@ impl IpcDispatcher {
                     session_id, app_name, keyword_matched, category, severity
                 );
                 let record = famshield_storage::KeywordViolationRecord {
-                    id: format!("kw_v_{}", Utc::now().timestamp_millis()),
+                    id: format!("kw_v_{}_{}", Utc::now().timestamp_micros(), session_id),
                     timestamp_utc: Utc::now(),
                     app_name,
                     keyword_matched,

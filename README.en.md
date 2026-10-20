@@ -58,8 +58,8 @@ The agent consists of 9 decoupled, modular crates:
   - Integrated **Async Network Connection Probe** (Tokio TCP probe measuring round-trip latency in ms) and **Instant Policy Synchronization** trigger.
 - Integrated **Audit-Only / Monitor Mode**: Instant toggle between Active Enforcement and Audit-Only monitoring. When active, blacklisted queries and violations are logged without blocking network traffic.
 - Integrated **Tamper-Evident Backup & Disaster Recovery (.famshield-bak)**: Export and restore complete system configurations and rulesets backed by SHA-256 integrity checksums, operating 100% offline.
-- Integrated **Comprehensive Activity & Screen Time Timeline**: Visually tracks total screen time today, applications launched, active time windows, granular durations, and full web browsing history in a unified chronological feed.
-- Integrated **Inappropriate Keystroke Keyword Monitoring**: Real-time detection of profanity, cyberbullying, self-harm, and adult keywords using an in-memory 128-char sliding buffer (`KeystrokeSlidingBuffer`), Aho-Corasick multi-pattern search, and Vietnamese/teencode normalization. Strictly follows **Privacy-by-Design** with zero keylogging to disk.
+  - Integrated **Comprehensive Activity & Screen Time Timeline**: Displays real SQLite records without synthetic seed activity; DNS logs distinguish `ALLOW`, `BLOCK`, `MONITOR`, and `ERROR`, and do not fabricate a source application without ETW/WFP correlation.
+  - Integrated **Inappropriate Keystroke Keyword Monitoring**: Real-time detection of profanity, cyberbullying, self-harm, and adult keywords using an in-memory 128-char sliding buffer (`KeystrokeSlidingBuffer`), Aho-Corasick multi-pattern search, and Vietnamese/teencode normalization. Violations use acknowledged IPC with retries, while raw keystroke sequences are never persisted to disk.
 - Seamless transition between **100% Offline StandaloneFree** and **Centralized OnlineManaged** modes.
 - Full bilingual support (Vietnamese & English), Master PIN protection, and secure `HttpOnly; SameSite=Strict` cookies.
 

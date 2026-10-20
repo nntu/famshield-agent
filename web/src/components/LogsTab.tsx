@@ -22,12 +22,14 @@ export const LogsTab: React.FC<LogsTabProps> = ({
 }) => {
   const t = translations[lang];
   const isVi = lang === 'vi';
-  const [filterType, setFilterType] = useState<'all' | 'blocked' | 'allowed'>('all');
+  const [filterType, setFilterType] = useState<'all' | 'blocked' | 'allowed' | 'monitored' | 'errors'>('all');
 
   const filteredLogs = useMemo(() => {
     return logs.filter((log) => {
       if (filterType === 'blocked' && log.action !== 'BLOCK') return false;
       if (filterType === 'allowed' && log.action !== 'ALLOW') return false;
+        if (filterType === 'monitored' && log.action !== 'MONITOR') return false;
+        if (filterType === 'errors' && log.action !== 'ERROR') return false;
       return true;
     });
   }, [logs, filterType]);
@@ -75,24 +77,27 @@ export const LogsTab: React.FC<LogsTabProps> = ({
         accessorKey: 'action',
         header: t.th_action,
         cell: ({ getValue }) => {
-          const action = getValue<'ALLOW' | 'BLOCK'>();
+            const action = getValue<'ALLOW' | 'BLOCK' | 'MONITOR' | 'ERROR'>();
           const isBlock = action === 'BLOCK';
+            const isMonitor = action === 'MONITOR';
+            const isError = action === 'ERROR';
+            const color = isBlock || isError ? '#f87171' : isMonitor ? '#fbbf24' : '#34d399';
           return (
             <span
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: 5,
-                background: isBlock ? 'rgba(248, 113, 113, 0.15)' : 'rgba(52, 211, 153, 0.15)',
-                color: isBlock ? '#f87171' : '#34d399',
+                  background: `${color}26`,
+                  color,
                 padding: '3px 10px',
                 borderRadius: 6,
                 fontWeight: 700,
                 fontSize: '0.78rem',
               }}
             >
-              {isBlock ? <ShieldAlert size={13} /> : <ShieldCheck size={13} />}
-              {isBlock ? t.tag_block : t.tag_allow}
+                {isBlock || isError ? <ShieldAlert size={13} /> : <ShieldCheck size={13} />}
+                {isBlock ? t.tag_block : isMonitor ? 'MONITOR' : isError ? 'ERROR' : t.tag_allow}
             </span>
           );
         },
@@ -185,6 +190,30 @@ export const LogsTab: React.FC<LogsTabProps> = ({
             >
               {t.filter_allowed}
             </button>
+              <button
+                onClick={() => setFilterType('monitored')}
+                style={{
+                  background: filterType === 'monitored' ? '#fbbf24' : 'transparent',
+                  color: filterType === 'monitored' ? '#070b14' : '#94a3b8',
+                  border: 'none', padding: '4px 10px', borderRadius: 6,
+                  fontSize: '0.8rem', fontWeight: filterType === 'monitored' ? 700 : 500,
+                  cursor: 'pointer',
+                }}
+              >
+                Monitor
+              </button>
+              <button
+                onClick={() => setFilterType('errors')}
+                style={{
+                  background: filterType === 'errors' ? '#f87171' : 'transparent',
+                  color: filterType === 'errors' ? '#070b14' : '#94a3b8',
+                  border: 'none', padding: '4px 10px', borderRadius: 6,
+                  fontSize: '0.8rem', fontWeight: filterType === 'errors' ? 700 : 500,
+                  cursor: 'pointer',
+                }}
+              >
+                Error
+              </button>
           </div>
 
           {/* Auto Refresh Toggle */}

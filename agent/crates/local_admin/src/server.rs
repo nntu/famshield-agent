@@ -1415,9 +1415,15 @@ async fn handle_toggle_keyboard_monitoring(
 
 async fn handle_record_keyword_violation(
     State(state): State<ServerState>,
+    headers: HeaderMap,
+    Query(query): Query<QueryParams>,
     Json(payload): Json<RecordViolationRequest>,
 ) -> Result<StatusCode, StatusCode> {
-    let id = format!("kw_v_{}", Utc::now().timestamp_millis());
+    if !check_auth(&state, &headers, query.token.as_deref()).await {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+
+    let id = format!("kw_v_{}", Utc::now().timestamp_micros());
     let record = KeywordViolationRecord {
         id,
         timestamp_utc: Utc::now(),

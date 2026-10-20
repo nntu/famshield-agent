@@ -12,16 +12,12 @@ async fn test_enrollment_validation() {
     };
     assert!(client.enroll_device(&bad_req).await.is_err());
 
-    // Valid 6-digit code
+    // A syntactically valid code must still fail closed if the server is unavailable.
     let valid_req = EnrollmentRequest {
         enrollment_code: "654321".into(),
         device_name: "Desktop-PC".into(),
         os_version: "Windows 11".into(),
     };
-    let res = client
-        .enroll_device(&valid_req)
-        .await
-        .expect("Enrollment should succeed");
-    assert_eq!(res.device_id, "dev-654321");
-    assert_eq!(res.tenant_id, "tenant-default");
+    let res = client.enroll_device(&valid_req).await;
+    assert!(res.is_err());
 }

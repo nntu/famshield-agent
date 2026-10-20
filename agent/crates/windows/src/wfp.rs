@@ -38,7 +38,7 @@ impl WfpSessionGuard {
         unsafe {
             let res = FwpmEngineOpen0(
                 None,
-                1, // RPC_C_AUTHN_WINNT
+                windows::Win32::System::Rpc::RPC_C_AUTHN_WINNT,
                 None,
                 Some(&session),
                 &mut handle,

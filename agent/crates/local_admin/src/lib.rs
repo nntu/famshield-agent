@@ -5,6 +5,9 @@ pub mod service;
 pub mod ui;
 
 pub use auth::{AuthError, MasterPinAuthenticator};
+pub use secret_protection::{
+    protect_secret as protect_machine_secret, unprotect_secret as unprotect_machine_secret,
+};
 pub use server::{
     EvidenceItemResponse, LocalAdminServer, LoginRequest, LoginResponse, ServerState,
     StatusResponse,

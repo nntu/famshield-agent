@@ -36,7 +36,9 @@ $ProjectRoot = $PSScriptRoot
 $TargetDir = Join-Path $ProjectRoot "target\release"
 $InstallDir = Join-Path $env:ProgramFiles "FamShield"
 $ServiceName = "FamShieldService"
-$NrptRulePath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\DnsClient\DnsPolicyConfig\{FamShield-DNS-Filter}"
+$LegacyNrptPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\DnsClient\DnsPolicyConfig\{FamShield-DNS-Filter}"
+$NrptRulePath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\DnsClient\DnsPolicyConfig\{E6B5D7A1-8843-4C49-B944-C5200E481230}"
+$NrptSystemPath = "HKLM:\SYSTEM\CurrentControlSet\Services\Dnscache\Parameters\DnsPolicyConfig\{E6B5D7A1-8843-4C49-B944-C5200E481230}"
 $CertsDir = Join-Path $ProjectRoot "installer\certs"
 $CertFile = Join-Path $CertsDir "FamShieldRoot.cer"
 $CertSubject = "CN=FamShield Security Authority"
@@ -170,6 +172,20 @@ function Sign-AllBinaries {
 }
 
 function Build-Agent {
+    # Build web frontend if package.json exists
+    $webDir = Join-Path $ProjectRoot "web"
+    if (Test-Path (Join-Path $webDir "package.json")) {
+        Write-Host "==> Building Local Admin Web Frontend (React 19 + Vite)..." -ForegroundColor Cyan
+        Push-Location $webDir
+        try {
+            npm run build
+        } catch {
+            Write-Warning "Could not build web frontend: $_"
+        } finally {
+            Pop-Location
+        }
+    }
+
     Write-Host "==> Building FamShield Release Binaries with Cargo..." -ForegroundColor Cyan
     Set-Location $ProjectRoot
     cargo build --release --bins
@@ -217,14 +233,27 @@ function Install-Agent {
         sc.exe config $ServiceName binPath= "`"$BinPath`"" | Out-Null
     }
 
-    # Configure NRPT routing for '.' namespace to 127.0.0.2
-    if (-not (Test-Path $NrptRulePath)) {
-        New-Item -Path $NrptRulePath -Force | Out-Null
+    # Clean up legacy corrupted NRPT rule if present
+    if (Test-Path $LegacyNrptPath) {
+        Remove-Item -Path $LegacyNrptPath -Recurse -Force -ErrorAction SilentlyContinue | Out-Null
     }
-    Set-ItemProperty -Path $NrptRulePath -Name "Name" -Value "."
-    Set-ItemProperty -Path $NrptRulePath -Name "GenericDNSServers" -Value "127.0.0.2"
-    Set-ItemProperty -Path $NrptRulePath -Name "ConfigOptions" -Value 0x8 -Type DWord
-    Set-ItemProperty -Path $NrptRulePath -Name "Version" -Value 1 -Type DWord
+
+    # Configure valid RFC/Win32-compliant NRPT routing for '.' namespace to 127.0.0.2
+    foreach ($path in @($NrptRulePath, $NrptSystemPath)) {
+        if (-not (Test-Path $path)) {
+            New-Item -Path $path -Force | Out-Null
+        }
+        Set-ItemProperty -Path $path -Name "Name" -Value @(".") -Type MultiString
+        Set-ItemProperty -Path $path -Name "GenericDNSServers" -Value "127.0.0.2" -Type String
+        Set-ItemProperty -Path $path -Name "ConfigOptions" -Value 0x8 -Type DWord
+        Set-ItemProperty -Path $path -Name "Version" -Value 2 -Type DWord
+    }
+
+    # Direct active network adapters DNS to 127.0.0.2
+    Get-NetAdapter | Where-Object { $_.Status -eq 'Up' -and $_.InterfaceAlias -notmatch 'vEthernet|WSL|Loopback' } | ForEach-Object {
+        Set-DnsClientServerAddress -InterfaceIndex $_.InterfaceIndex -ServerAddresses '127.0.0.2' -ErrorAction SilentlyContinue
+    }
+    ipconfig /flushdns | Out-Null
 
     Write-Host "Starting $ServiceName service..." -ForegroundColor Cyan
     Start-Service -Name $ServiceName -ErrorAction SilentlyContinue
@@ -287,11 +316,19 @@ function Uninstall-Agent {
         Write-Host "Service $ServiceName removed." -ForegroundColor Green
     }
 
-    # 2. Clean up NRPT registry rule
-    if (Test-Path $NrptRulePath) {
-        Remove-Item -Path $NrptRulePath -Recurse -Force | Out-Null
-        Write-Host "NRPT DnsPolicyConfig rule removed." -ForegroundColor Green
+    # 2. Clean up NRPT registry rules
+    foreach ($path in @($NrptRulePath, $NrptSystemPath, $LegacyNrptPath)) {
+        if (Test-Path $path) {
+            Remove-Item -Path $path -Recurse -Force -ErrorAction SilentlyContinue | Out-Null
+        }
     }
+
+    # 3. Reset network adapters DNS back to DHCP
+    Get-NetAdapter | ForEach-Object {
+        Set-DnsClientServerAddress -InterfaceIndex $_.InterfaceIndex -ResetServerAddresses -ErrorAction SilentlyContinue
+    }
+    ipconfig /flushdns | Out-Null
+    Write-Host "NRPT rules removed and adapter DNS reset to DHCP." -ForegroundColor Green
 
     Write-Host "FamShield uninstallation complete. System network settings restored." -ForegroundColor Green
 }

@@ -3,12 +3,12 @@ use crate::auth::AuthError;
 const DPAPI_PREFIX: &str = "dpapi-machine-v1:";
 const TEST_PREFIX: &str = "test-only-v1:";
 
-pub(crate) struct UnprotectedSecret {
+pub struct UnprotectedSecret {
     pub plaintext: String,
     pub needs_migration: bool,
 }
 
-pub(crate) fn protect_secret(plaintext: &str) -> Result<String, AuthError> {
+pub fn protect_secret(plaintext: &str) -> Result<String, AuthError> {
     #[cfg(windows)]
     {
         protect_with_dpapi(plaintext.as_bytes()).map(|ciphertext| {
@@ -27,7 +27,7 @@ pub(crate) fn protect_secret(plaintext: &str) -> Result<String, AuthError> {
     }
 }
 
-pub(crate) fn unprotect_secret(stored: &str) -> Result<UnprotectedSecret, AuthError> {
+pub fn unprotect_secret(stored: &str) -> Result<UnprotectedSecret, AuthError> {
     if let Some(encoded) = stored.strip_prefix(DPAPI_PREFIX) {
         #[cfg(windows)]
         {

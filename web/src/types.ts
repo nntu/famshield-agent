@@ -28,7 +28,7 @@ export interface LocalRuleRecord {
 export interface QueryLogRecord {
   domain: string;
   qtype: string;
-  action: 'ALLOW' | 'BLOCK';
+  action: 'ALLOW' | 'BLOCK' | 'MONITOR' | 'ERROR';
   reason: string;
   rule_id?: string | null;
   occurred_at: string;

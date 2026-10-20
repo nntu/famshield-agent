@@ -974,7 +974,7 @@ async fn test_keyword_monitoring_api_and_violation_flow() {
         .unwrap();
     assert_eq!(res.status(), StatusCode::OK);
 
-    // 4. POST /api/keywords/violation (Record a violation event from session hook)
+    // 4. POST /api/keywords/violation rejects unauthenticated injection.
     let res = server
         .router()
         .oneshot(
@@ -989,9 +989,27 @@ async fn test_keyword_monitoring_api_and_violation_flow() {
         )
         .await
         .unwrap();
+    assert_eq!(res.status(), StatusCode::UNAUTHORIZED);
+
+    // 5. An authenticated violation event is persisted.
+    let res = server
+        .router()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/keywords/violation")
+                    .header("X-FamShield-Token", &token)
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(
+                    r#"{"app_name":"game.exe","keyword":"vcl","category":"Chửi bậy / Thô tục","severity":"medium"}"#,
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
     assert_eq!(res.status(), StatusCode::CREATED);
 
-    // 5. GET /api/activity/summary should now include this keyword violation
+    // 6. GET /api/activity/summary should now include this keyword violation
     let res = server
         .router()
         .oneshot(
@@ -1014,7 +1032,7 @@ async fn test_keyword_monitoring_api_and_violation_flow() {
         .iter()
         .any(|item| item["item_type"] == "keyword"));
 
-    // 6. DELETE /api/keywords/:id
+    // 7. DELETE /api/keywords/:id
     let res = server
         .router()
         .oneshot(

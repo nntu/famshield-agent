@@ -1,6 +1,6 @@
 use std::sync::Arc;
 use tokio::sync::broadcast;
-use tracing::info;
+use tracing::{info, warn};
 
 use crate::dispatcher::IpcDispatcher;
 use famshield_dns::{
@@ -9,7 +9,8 @@ use famshield_dns::{
 };
 use famshield_storage::StorageEngine;
 use famshield_sync::{
-    CloudSyncClient, NatsDispatcher, TelemetryEvent, TelemetryPipeline, TelemetrySyncWorker,
+    load_command_signing_key, CloudSyncClient, NatsDispatcher, TelemetryEvent, TelemetryPipeline,
+    TelemetrySyncWorker,
 };
 use famshield_windows::{wfp::WfpSessionGuard, InstallerInterceptor, ProcessMonitor};
 
@@ -80,12 +81,22 @@ impl ServiceController {
             .flatten()
             .unwrap_or_else(|| "dev-local-001".to_string());
 
-        let nats_dispatcher = Arc::new(NatsDispatcher::new(
+        let mut nats_dispatcher = NatsDispatcher::new(
             device_id.clone(),
             storage.clone(),
             dns_blocklist.clone(),
             installer.clone(),
-        ));
+        );
+        match load_command_signing_key(&storage) {
+            Ok(Some(signing_key)) => {
+                nats_dispatcher = nats_dispatcher.with_signing_key(signing_key);
+            }
+            Ok(None) => {}
+            Err(error) => {
+                warn!("Unable to load remote command signing key: {}", error);
+            }
+        }
+        let nats_dispatcher = Arc::new(nats_dispatcher);
 
         let local_admin_svc = Arc::new(famshield_local_admin::LocalAdminService::new(
             storage.clone(),
@@ -177,13 +188,71 @@ impl ServiceController {
             }
         };
 
-        // 2. Start DNS proxy listener on 127.0.0.2:53
+        // Apply NRPT rule to route root namespace '.' to FamShield local DNS proxy (127.0.0.2:53)
+        if let Err(e) = famshield_windows::NrptManager::apply_nrpt_rule("127.0.0.2") {
+            tracing::warn!("Failed to apply NRPT DNS rule: {}", e);
+        }
+
+        // 2. Start DNS proxy listener on 127.0.0.2:53 with real-time query logging
+        let (dns_log_tx, mut dns_log_rx) =
+            tokio::sync::mpsc::unbounded_channel::<famshield_dns::DnsLogEntry>();
+
         let dns_proxy = DnsProxy::new(
             DEFAULT_BIND_ADDR,
             DEFAULT_UPSTREAM,
             self.dns_blocklist.clone(),
             self.dns_cache.clone(),
-        );
+        )
+        .with_log_sender(dns_log_tx);
+
+        let dns_storage = self.storage.clone();
+        let dns_telemetry = self.telemetry_pipeline.clone();
+        tokio::spawn(async move {
+            let mut batch = Vec::with_capacity(32);
+            let mut interval = tokio::time::interval(std::time::Duration::from_millis(500));
+            loop {
+                tokio::select! {
+                    Some(entry) = dns_log_rx.recv() => {
+                        let now = chrono::Utc::now();
+                        let record = famshield_storage::QueryLogRecord {
+                            domain: entry.domain.clone(),
+                            qtype: entry.qtype.clone(),
+                            action: entry.action.clone(),
+                            reason: entry.reason.clone(),
+                            rule_id: entry.rule_id.clone(),
+                            occurred_at: now,
+                        };
+                        batch.push(record);
+                        if batch.len() >= 32 {
+                            let _ = dns_storage.insert_query_logs_batch(&batch);
+                            batch.clear();
+                        }
+
+                        if entry.action == "BLOCK" {
+                            let alert_payload = serde_json::json!({
+                                "domain": entry.domain,
+                                "qtype": entry.qtype,
+                                "action": entry.action,
+                                "reason": entry.reason,
+                                "timestamp": now.to_rfc3339(),
+                            });
+                            let _ = dns_telemetry.queue_event(&TelemetryEvent::new(
+                                format!("dns-block-{}", now.timestamp_micros()),
+                                "dns_query",
+                                now,
+                                alert_payload,
+                            ));
+                        }
+                    }
+                    _ = interval.tick() => {
+                        if !batch.is_empty() {
+                            let _ = dns_storage.insert_query_logs_batch(&batch);
+                            batch.clear();
+                        }
+                    }
+                }
+            }
+        });
 
         // 3. Start Secure Named Pipe Server (Session 0 <-> User Session)
         let ipc_server = crate::ipc::NamedPipeServer::new(self.ipc_dispatcher.clone());
@@ -312,6 +381,7 @@ impl ServiceController {
             } => {}
             _ = shutdown_rx.recv() => {
                 info!("Shutdown signal received, gracefully terminating FamShield service");
+                let _ = famshield_windows::NrptManager::remove_nrpt_rule();
             }
         }
     }

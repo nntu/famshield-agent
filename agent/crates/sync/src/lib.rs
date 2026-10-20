@@ -10,7 +10,8 @@ pub use client::{
     WebFilterPolicyDto,
 };
 pub use enrollment::{
-    CloudEnrollmentClient, EnrollmentManager, EnrollmentRequest, EnrollmentResponse, OperatingMode,
+    load_command_signing_key, CloudEnrollmentClient, EnrollmentManager, EnrollmentRequest,
+    EnrollmentResponse, OperatingMode,
 };
 pub use error::SyncError;
 pub use nats_dispatcher::{compute_command_hmac, NatsDispatcher, RemoteCommand};

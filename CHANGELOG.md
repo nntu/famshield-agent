@@ -8,6 +8,33 @@ Tất cả các thay đổi quan trọng của dự án **FamShield Windows Agen
 
 ## [Unreleased]
 
+### Security
+- **Cloud enrollment và remote command fail-closed**:
+  - Loại bỏ hoàn toàn credential mô phỏng khi enrollment HTTP thất bại; thiết bị chỉ chuyển sang `OnlineManaged` sau phản hồi server hợp lệ.
+  - Mã hóa `command_signing_key` bằng DPAPI machine-scope, tự động migrate khóa plain-text cũ và dùng Device ID làm commit marker cuối cùng của enrollment.
+  - Từ chối mọi remote command khi chưa cấu hình signing key; service tự nạp khóa đã giải mã khi khởi động.
+  - Bắt buộc xác thực phiên quản trị cho endpoint ghi nhận vi phạm từ khóa.
+
+### Fixed
+- **Độ chính xác nhật ký truy cập web/DNS và từ khóa**:
+  - Ghi đúng trạng thái `MONITOR` cho domain khớp rule ở chế độ audit-only, ghi `ERROR` khi upstream DNS thất bại và loại bỏ log/phản hồi trùng khi serve-stale revalidation.
+  - Loại bỏ toàn bộ activity, web và keyword log giả được seed khi database trống; không còn gán giả mọi DNS query cho `chrome.exe`.
+  - Sửa worker từ khóa gọi `tokio::spawn` ngoài runtime thread; chuyển sang runtime handle và retry IPC có kiểm tra acknowledgement để tránh mất log.
+  - Bổ sung bộ lọc `MONITOR` và `ERROR` trên giao diện nhật ký DNS.
+- **Loại bỏ panic do poisoned mutex trong `InstallerInterceptor`** bằng cơ chế phục hồi lock và trả lỗi rõ ràng khi request biến mất.
+- **Sửa Lỗi Tắc Nghẽn Vòng Lặp & Tách Luồng Xử Lý DNS Độc Lập (`famshield-dns`)**:
+  - Tái thiết kế toàn diện vòng lặp nhận gói tin UDP: Thay vì xử lý tuần tự chặn đứng luồng chính khi một truy vấn upstream bị rớt gói hoặc chậm trễ, mỗi truy vấn DNS giờ được xử lý song song trong một task Tokio phi đồng bộ độc lập.
+  - Sử dụng socket UDP ngẫu nhiên tạm thời (ephemeral socket) kèm timeout 2500ms cho từng truy vấn upstream, loại bỏ hoàn toàn hiện tượng xung đột Transaction ID RFC 1035 và chống đứng proxy vĩnh viễn do mất kết nối.
+  - Phản hồi ngay lập tức gói tin `SERVFAIL` (RCODE=2) chuẩn RFC 1035 cho ứng dụng client khi truy vấn upstream thất bại hoặc timeout, ngăn chặn hiện tượng ứng dụng Windows bị treo hoặc chờ quá thời gian socket.
+- **Khắc Phục Thiếu Hụt Ghi Nhận Nhật Ký Truy Vấn DNS Vào Web Admin & Telemetry (`famshield-service`, `famshield-dns`)**:
+  - Kết nối kênh `tokio::sync::mpsc::unbounded_channel` giữa `DnsProxy` và `ServiceController`: Toàn bộ các truy vấn được giải quyết (cả ALLOW và BLOCK) được đẩy về luồng batch-write tự động định kỳ 500ms xuống bảng `query_logs` trong SQLite.
+  - Giúp phân hệ "Nhật Ký DNS" (`LogsTab.tsx`) và bộ đếm tổng/chặn trên Dashboard Web Admin hiển thị dữ liệu thời gian thực đầy đủ, chính xác.
+- **Sửa Lỗi Khởi Tạo Phiên WFP User-Mode (`FwpmEngineOpen0`) (`famshield-windows`)**:
+  - Sửa lỗi truyền hằng số `1` (bị Windows hiểu nhầm là `RPC_C_AUTHN_DCE_PRIVATE` dẫn đến lỗi `0x32` / `ERROR_NOT_SUPPORTED`) thành `windows::Win32::System::Rpc::RPC_C_AUTHN_WINNT` (`10`).
+  - Đảm bảo phiên lọc gói tin tầng ứng dụng WFP khởi chạy thành công 100%, chặn đứng lưu lượng UDP port 53 ngoài luồng và ép toàn bộ phân giải tên miền đi qua proxy `127.0.0.2:53`.
+- **Tự Động Kích Hoạt Quy Tắc NRPT Khi Dịch Vụ Khởi Động (`famshield-service`)**:
+  - Dịch vụ nền tự động kiểm tra và áp dụng quy tắc điều hướng DNS root namespace `.` về `127.0.0.2:53` qua `NrptManager::apply_nrpt_rule` khi khởi động và dọn dẹp sạch sẽ khi dừng dịch vụ.
+
 ### Added
 - **Chuẩn Hóa & Nâng Cấp Hệ Thống Bằng Các Thư Viện Chuyên Nghiệp (Crates Modernization)**:
   - **`tracing-appender = "0.2"` (`famshield-service`, `famshield-session`)**: Thay thế ghi log file thô sơ bằng luồng ghi log file xoay vòng hàng ngày (Daily Non-blocking Rotating File Appender), tự động bảo lưu log trong `%ProgramData%\FamShield\logs` với `WorkerGuard` đa luồng không gây trễ vòng lặp chính.

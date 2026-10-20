@@ -206,7 +206,7 @@ impl NatsDispatcher {
             )));
         }
 
-        // 2. If signing key is configured (Managed Cloud Mode), enforce cryptographic checks
+        // 2. Remote commands always fail closed when no signing key is configured.
         if let Some(ref key) = self.signing_key {
             let now = chrono::Utc::now().timestamp();
             if cmd.timestamp <= 0 {
@@ -235,6 +235,10 @@ impl NatsDispatcher {
                     "Invalid HMAC command signature".into(),
                 ));
             }
+        } else {
+            return Err(SyncError::Authentication(
+                "Remote command signing key is not configured".into(),
+            ));
         }
 
         Ok(())
@@ -362,6 +366,14 @@ impl NatsDispatcher {
 mod tests {
     use super::*;
 
+    const TEST_SIGNING_KEY: &str = "test-command-signing-key";
+
+    fn sign_command(mut command: RemoteCommand) -> RemoteCommand {
+        command.timestamp = chrono::Utc::now().timestamp();
+        command.signature = Some(compute_command_hmac(TEST_SIGNING_KEY, &command));
+        command
+    }
+
     #[test]
     fn test_nats_command_subjects() {
         let storage = StorageEngine::in_memory().unwrap();
@@ -382,11 +394,12 @@ mod tests {
         let storage = StorageEngine::in_memory().unwrap();
         let blocklist = Arc::new(BlocklistStore::new());
         let installer = Arc::new(InstallerInterceptor::new());
-        let dispatcher = NatsDispatcher::new("dev-123456", storage, blocklist.clone(), installer);
+        let dispatcher = NatsDispatcher::new("dev-123456", storage, blocklist.clone(), installer)
+            .with_signing_key(TEST_SIGNING_KEY);
 
         assert!(!blocklist.is_blocked("tiktok.com"));
 
-        let cmd = RemoteCommand {
+        let cmd = sign_command(RemoteCommand {
             command_id: "cmd-001".into(),
             device_id: "dev-123456".into(),
             command_type: "update_blacklist".into(),
@@ -395,7 +408,7 @@ mod tests {
                 "domains": ["tiktok.com", "facebook.com", "youtube.com"]
             }),
             signature: None,
-        };
+        });
 
         dispatcher.dispatch_command(&cmd).unwrap();
 
@@ -410,9 +423,10 @@ mod tests {
         let storage = StorageEngine::in_memory().unwrap();
         let blocklist = Arc::new(BlocklistStore::new());
         let installer = Arc::new(InstallerInterceptor::new());
-        let dispatcher = NatsDispatcher::new("dev-123456", storage.clone(), blocklist, installer);
+        let dispatcher = NatsDispatcher::new("dev-123456", storage.clone(), blocklist, installer)
+            .with_signing_key(TEST_SIGNING_KEY);
 
-        let cmd = RemoteCommand {
+        let cmd = sign_command(RemoteCommand {
             command_id: "cmd-002".into(),
             device_id: "dev-123456".into(),
             command_type: "reset_pin".into(),
@@ -421,7 +435,7 @@ mod tests {
                 "new_pin": "9876"
             }),
             signature: None,
-        };
+        });
 
         dispatcher.dispatch_command(&cmd).unwrap();
         assert!(MasterPinAuthenticator::verify_storage_pin(&storage, "9876").unwrap());
@@ -433,16 +447,17 @@ mod tests {
         let storage = StorageEngine::in_memory().unwrap();
         let blocklist = Arc::new(BlocklistStore::new());
         let installer = Arc::new(InstallerInterceptor::new());
-        let dispatcher = NatsDispatcher::new("dev-123456", storage, blocklist, installer);
+        let dispatcher = NatsDispatcher::new("dev-123456", storage, blocklist, installer)
+            .with_signing_key(TEST_SIGNING_KEY);
 
-        let cmd = RemoteCommand {
+        let cmd = sign_command(RemoteCommand {
             command_id: "cmd-003".into(),
             device_id: "dev-123456".into(),
             command_type: "lock_session".into(),
             timestamp: 0,
             payload: serde_json::json!({}),
             signature: None,
-        };
+        });
 
         let res = dispatcher.dispatch_command(&cmd);
         assert!(res.is_ok());
@@ -454,7 +469,8 @@ mod tests {
         let storage = StorageEngine::in_memory().unwrap();
         let blocklist = Arc::new(BlocklistStore::new());
         let installer = Arc::new(InstallerInterceptor::new());
-        let dispatcher = NatsDispatcher::new("dev-123456", storage, blocklist, installer.clone());
+        let dispatcher = NatsDispatcher::new("dev-123456", storage, blocklist, installer.clone())
+            .with_signing_key(TEST_SIGNING_KEY);
 
         installer.submit_request(InstallationRequest {
             request_id: "req-app-01".into(),
@@ -467,14 +483,14 @@ mod tests {
         assert!(!installer.is_hash_approved("hash-game-123"));
 
         // Approve command from server
-        let approve_cmd = RemoteCommand {
+        let approve_cmd = sign_command(RemoteCommand {
             command_id: "cmd-004".into(),
             device_id: "dev-123456".into(),
             command_type: "approve_install".into(),
             timestamp: 0,
             payload: serde_json::json!({ "request_id": "req-app-01" }),
             signature: None,
-        };
+        });
         dispatcher.dispatch_command(&approve_cmd).unwrap();
         assert!(installer.is_hash_approved("hash-game-123"));
     }
@@ -598,6 +614,25 @@ mod tests {
             SyncError::Authentication(msg) => assert!(msg.contains("Device ID mismatch")),
             other => panic!("Expected Authentication error, got: {:?}", other),
         }
+    }
+
+    #[test]
+    fn test_command_without_signing_key_is_rejected() {
+        let storage = StorageEngine::in_memory().unwrap();
+        let blocklist = Arc::new(BlocklistStore::new());
+        let installer = Arc::new(InstallerInterceptor::new());
+        let dispatcher = NatsDispatcher::new("dev-unconfigured", storage, blocklist, installer);
+        let command = RemoteCommand {
+            command_id: "cmd-no-key".into(),
+            device_id: "dev-unconfigured".into(),
+            command_type: "lock_session".into(),
+            timestamp: chrono::Utc::now().timestamp(),
+            payload: serde_json::json!({}),
+            signature: Some("untrusted".into()),
+        };
+
+        let error = dispatcher.dispatch_command(&command).unwrap_err();
+        assert!(matches!(error, SyncError::Authentication(_)));
     }
 
     #[test]

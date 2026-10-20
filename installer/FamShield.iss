@@ -51,11 +51,24 @@ Name: "{autodesktop}\FamShield"; Filename: "{app}\famshield-session.exe"; IconFi
 Name: "{commonappdata}\FamShield"; Permissions: users-modify
 
 [Registry]
-; Configure NRPT (Name Resolution Policy Table) to route namespace '.' to FamShield local DNS Proxy (127.0.0.2:53)
-Root: HKLM; Subkey: "SOFTWARE\Policies\Microsoft\Windows NT\DnsClient\DnsPolicyConfig\{{FamShield-DNS-Filter}"; ValueType: string; ValueName: "Name"; ValueData: "."; Flags: uninsdeletekey
-Root: HKLM; Subkey: "SOFTWARE\Policies\Microsoft\Windows NT\DnsClient\DnsPolicyConfig\{{FamShield-DNS-Filter}"; ValueType: string; ValueName: "GenericDNSServers"; ValueData: "127.0.0.2"; Flags: uninsdeletekey
-Root: HKLM; Subkey: "SOFTWARE\Policies\Microsoft\Windows NT\DnsClient\DnsPolicyConfig\{{FamShield-DNS-Filter}"; ValueType: dword; ValueName: "ConfigOptions"; ValueData: 8; Flags: uninsdeletekey
-Root: HKLM; Subkey: "SOFTWARE\Policies\Microsoft\Windows NT\DnsClient\DnsPolicyConfig\{{FamShield-DNS-Filter}"; ValueType: dword; ValueName: "Version"; ValueData: 1; Flags: uninsdeletekey
+; Clean up any legacy malformed NRPT keys
+Root: HKLM; Subkey: "SOFTWARE\Policies\Microsoft\Windows NT\DnsClient\DnsPolicyConfig\{{FamShield-DNS-Filter}"; Flags: deletekey uninsdeletekey
+Root: HKLM; Subkey: "SYSTEM\CurrentControlSet\Services\Dnscache\Parameters\DnsPolicyConfig\{{FamShield-DNS-Filter}"; Flags: deletekey uninsdeletekey
+
+; Configure valid RFC/Win32-compliant NRPT rule for namespace '.' to FamShield local DNS Proxy (127.0.0.2:53)
+Root: HKLM; Subkey: "SOFTWARE\Policies\Microsoft\Windows NT\DnsClient\DnsPolicyConfig\{{E6B5D7A1-8843-4C49-B944-C5200E481230}"; ValueType: multisz; ValueName: "Name"; ValueData: "."; Flags: uninsdeletekey
+Root: HKLM; Subkey: "SOFTWARE\Policies\Microsoft\Windows NT\DnsClient\DnsPolicyConfig\{{E6B5D7A1-8843-4C49-B944-C5200E481230}"; ValueType: string; ValueName: "GenericDNSServers"; ValueData: "127.0.0.2"; Flags: uninsdeletekey
+Root: HKLM; Subkey: "SOFTWARE\Policies\Microsoft\Windows NT\DnsClient\DnsPolicyConfig\{{E6B5D7A1-8843-4C49-B944-C5200E481230}"; ValueType: dword; ValueName: "ConfigOptions"; ValueData: 8; Flags: uninsdeletekey
+Root: HKLM; Subkey: "SOFTWARE\Policies\Microsoft\Windows NT\DnsClient\DnsPolicyConfig\{{E6B5D7A1-8843-4C49-B944-C5200E481230}"; ValueType: dword; ValueName: "Version"; ValueData: 2; Flags: uninsdeletekey
+
+Root: HKLM; Subkey: "SYSTEM\CurrentControlSet\Services\Dnscache\Parameters\DnsPolicyConfig\{{E6B5D7A1-8843-4C49-B944-C5200E481230}"; ValueType: multisz; ValueName: "Name"; ValueData: "."; Flags: uninsdeletekey
+Root: HKLM; Subkey: "SYSTEM\CurrentControlSet\Services\Dnscache\Parameters\DnsPolicyConfig\{{E6B5D7A1-8843-4C49-B944-C5200E481230}"; ValueType: string; ValueName: "GenericDNSServers"; ValueData: "127.0.0.2"; Flags: uninsdeletekey
+Root: HKLM; Subkey: "SYSTEM\CurrentControlSet\Services\Dnscache\Parameters\DnsPolicyConfig\{{E6B5D7A1-8843-4C49-B944-C5200E481230}"; ValueType: dword; ValueName: "ConfigOptions"; ValueData: 8; Flags: uninsdeletekey
+Root: HKLM; Subkey: "SYSTEM\CurrentControlSet\Services\Dnscache\Parameters\DnsPolicyConfig\{{E6B5D7A1-8843-4C49-B944-C5200E481230}"; ValueType: dword; ValueName: "Version"; ValueData: 2; Flags: uninsdeletekey
+
+; Suppress browser DNS-over-HTTPS (DoH) bypass
+Root: HKLM; Subkey: "SOFTWARE\Policies\Google\Chrome"; ValueType: string; ValueName: "DnsOverHttpsMode"; ValueData: "off"; Flags: uninsdeletevalue
+Root: HKLM; Subkey: "SOFTWARE\Policies\Microsoft\Edge"; ValueType: string; ValueName: "DnsOverHttpsMode"; ValueData: "off"; Flags: uninsdeletevalue
 
 [Run]
 ; Auto-trust development Code Signing certificate on client machine
@@ -65,12 +78,17 @@ Filename: "{sys}\certutil.exe"; Parameters: "-addstore -f TrustedPublisher ""{ap
 Filename: "{sys}\sc.exe"; Parameters: "create FamShieldService binPath= ""{app}\famshield-service.exe"" start= auto obj= LocalSystem DisplayName= ""FamShield Security Platform"""; Flags: runhidden
 Filename: "{sys}\sc.exe"; Parameters: "description FamShieldService ""Unified parental control, NUMA DNS proxy and application filtering"""; Flags: runhidden
 Filename: "{sys}\sc.exe"; Parameters: "start FamShieldService"; Flags: runhidden
+; Configure active network adapters DNS to 127.0.0.2 for 100% reliable interception
+Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -Command ""Get-NetAdapter | Where-Object {{ $_.Status -eq 'Up' -and $_.InterfaceAlias -notmatch 'vEthernet|WSL|Loopback' }} | ForEach-Object {{ Set-DnsClientServerAddress -InterfaceIndex $_.InterfaceIndex -ServerAddresses '127.0.0.2' -ErrorAction SilentlyContinue }}; ipconfig /flushdns"""; Flags: runhidden
 ; Auto-launch tray agent and open local admin setup wizard in default web browser
 Filename: "{app}\famshield-session.exe"; Flags: nowait postinstall skipifsilent
 Filename: "http://127.0.0.1:38123"; Description: "Mở Bảng Điều Khiển Quản Trị Cục Bộ (Web Admin)"; Flags: shellexec nowait postinstall
 
 [UninstallRun]
+; Reset network adapters DNS back to DHCP
+Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -Command ""Get-NetAdapter | ForEach-Object {{ Set-DnsClientServerAddress -InterfaceIndex $_.InterfaceIndex -ResetServerAddresses -ErrorAction SilentlyContinue }}; ipconfig /flushdns"""; Flags: runhidden
 ; Stop and remove Windows Service cleanly
 Filename: "{sys}\sc.exe"; Parameters: "stop FamShieldService"; Flags: runhidden; RunOnceId: "StopFamShieldService"
 Filename: "{sys}\sc.exe"; Parameters: "delete FamShieldService"; Flags: runhidden; RunOnceId: "DeleteFamShieldService"
+
 

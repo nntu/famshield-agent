@@ -705,7 +705,7 @@ impl LocalAdminService {
     /// Retrieve consolidated activity monitoring summary including total screen time, apps used with timestamps, and web domains visited.
     pub fn get_activity_summary(
         &self,
-        active_app: &str,
+        _active_app: &str,
     ) -> Result<ActivitySummaryResponse, LocalAdminError> {
         let now = Utc::now();
         let date_str = now.format("%Y-%m-%d").to_string();
@@ -743,51 +743,6 @@ impl LocalAdminService {
                     },
                 });
             }
-        } else {
-            // Seed realistic initial sessions when database has just been initialized
-            let (active_title, active_cat) = classify_app(active_app);
-            let active_start = now - chrono::Duration::minutes(45);
-            app_activities.push(AppActivityItem {
-                id: "seed-app-1".to_string(),
-                app_name: active_app.to_string(),
-                app_title: active_title.to_string(),
-                category: active_cat.to_string(),
-                start_time: active_start,
-                end_time: now,
-                duration_minutes: 45,
-                duration_formatted: "45 phút".to_string(),
-                status: "Active".to_string(),
-            });
-
-            let chrome_start = now - chrono::Duration::minutes(150);
-            let chrome_end = now - chrono::Duration::minutes(65);
-            app_activities.push(AppActivityItem {
-                id: "seed-app-2".to_string(),
-                app_name: "chrome.exe".to_string(),
-                app_title: "Google Chrome".to_string(),
-                category: "Trình duyệt (Browser)".to_string(),
-                start_time: chrome_start,
-                end_time: chrome_end,
-                duration_minutes: 85,
-                duration_formatted: "1h 25m".to_string(),
-                status: "Normal".to_string(),
-            });
-
-            let discord_start = now - chrono::Duration::minutes(210);
-            let discord_end = now - chrono::Duration::minutes(160);
-            app_activities.push(AppActivityItem {
-                id: "seed-app-3".to_string(),
-                app_name: "Discord.exe".to_string(),
-                app_title: "Discord".to_string(),
-                category: "Mạng xã hội (Social Media)".to_string(),
-                start_time: discord_start,
-                end_time: discord_end,
-                duration_minutes: 50,
-                duration_formatted: "50 phút".to_string(),
-                status: "Normal".to_string(),
-            });
-
-            total_duration_minutes = 45 + 85 + 50;
         }
 
         // 2. Web Activities
@@ -811,61 +766,9 @@ impl LocalAdminService {
                     action: log.action.clone(),
                     reason: log.reason.clone(),
                     occurred_at: log.occurred_at,
-                    source_app: if log.domain.contains("roblox") {
-                        active_app.to_string()
-                    } else {
-                        "chrome.exe".to_string()
-                    },
-                });
-            }
-        } else {
-            // Seed realistic website telemetry logs
-            let seed_sites = [
-                ("youtube.com", "ALLOW", "Phù hợp chính sách", 5),
-                ("google.com", "ALLOW", "Tra cứu thông tin", 12),
-                (
-                    "roblox.com",
-                    if self.is_monitor_mode() {
-                        "MONITOR"
-                    } else {
-                        "BLOCK"
-                    },
-                    "Danh sách đen phụ huynh",
-                    25,
-                ),
-                ("wikipedia.org", "ALLOW", "Học tập & Giáo dục", 38),
-                ("discord.com", "ALLOW", "Mạng xã hội", 55),
-                (
-                    "badsite-gambling.org",
-                    if self.is_monitor_mode() {
-                        "MONITOR"
-                    } else {
-                        "BLOCK"
-                    },
-                    "Nội dung người lớn/cờ bạc",
-                    70,
-                ),
-            ];
-
-            for (idx, (domain, action, reason, min_ago)) in seed_sites.iter().enumerate() {
-                let cat = classify_domain(domain);
-                if *action == "BLOCK" {
-                    blocked_count += 1;
-                } else if *action == "MONITOR" {
-                    monitored_count += 1;
-                }
-                web_activities.push(WebActivityItem {
-                    id: idx + 1,
-                    domain: domain.to_string(),
-                    category: cat.to_string(),
-                    action: action.to_string(),
-                    reason: reason.to_string(),
-                    occurred_at: now - chrono::Duration::minutes(*min_ago),
-                    source_app: if domain.contains("roblox") {
-                        active_app.to_string()
-                    } else {
-                        "chrome.exe".to_string()
-                    },
+                    // DNS does not expose the originating process. Keep attribution
+                    // honest until ETW/WFP correlation is implemented.
+                    source_app: "unknown".to_string(),
                 });
             }
         }
@@ -904,7 +807,7 @@ impl LocalAdminService {
 
         // 3b. Keyword Violations
         let raw_violations = self.storage.list_keyword_violations(50).unwrap_or_default();
-        let mut keyword_violations_list: Vec<KeywordViolationDto> = raw_violations
+        let keyword_violations_list: Vec<KeywordViolationDto> = raw_violations
             .into_iter()
             .map(|v| KeywordViolationDto {
                 id: v.id,
@@ -916,22 +819,6 @@ impl LocalAdminService {
                 snippet_masked: v.snippet_masked,
             })
             .collect();
-
-        // Seed realistic keyword violation if fresh database
-        if keyword_violations_list.is_empty()
-            && app_activities.iter().any(|a| a.id.starts_with("seed-"))
-        {
-            let seed_time = now - chrono::Duration::minutes(35);
-            keyword_violations_list.push(KeywordViolationDto {
-                id: "seed-kw-1".to_string(),
-                timestamp: seed_time,
-                app_name: active_app.to_string(),
-                keyword_matched: "vcl".to_string(),
-                category: "Chửi bậy / Thô tục".to_string(),
-                severity: "medium".to_string(),
-                snippet_masked: "*** [vcl] ***".to_string(),
-            });
-        }
 
         for kv in &keyword_violations_list {
             unified_timeline.push(UnifiedTimelineItem {

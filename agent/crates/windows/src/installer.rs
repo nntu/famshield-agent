@@ -60,7 +60,10 @@ impl InstallerInterceptor {
 
     /// Check if a binary hash has already been approved by server or parent
     pub fn is_hash_approved(&self, sha256_hash: &str) -> bool {
-        let guard = self.approved_hashes.lock().unwrap();
+        let guard = self.approved_hashes.lock().unwrap_or_else(|poisoned| {
+            warn!("Recovering poisoned approved installer hash lock");
+            poisoned.into_inner()
+        });
         guard.contains_key(sha256_hash)
     }
 
@@ -70,7 +73,10 @@ impl InstallerInterceptor {
             "Intercepted installer execution: PID {} ('{}', hash: {}). Suspending and awaiting server approval...",
             req.process_id, req.executable_path, req.file_hash_sha256
         );
-        let mut guard = self.pending.lock().unwrap();
+        let mut guard = self.pending.lock().unwrap_or_else(|poisoned| {
+            warn!("Recovering poisoned pending installer request lock");
+            poisoned.into_inner()
+        });
         guard.insert(req.request_id.clone(), req);
     }
 
@@ -79,8 +85,14 @@ impl InstallerInterceptor {
         &self,
         request_id_or_hash: &str,
     ) -> Result<Option<InstallationRequest>, WindowsError> {
-        let mut pending_guard = self.pending.lock().unwrap();
-        let mut approved_guard = self.approved_hashes.lock().unwrap();
+        let mut pending_guard = self.pending.lock().unwrap_or_else(|poisoned| {
+            warn!("Recovering poisoned pending installer request lock");
+            poisoned.into_inner()
+        });
+        let mut approved_guard = self.approved_hashes.lock().unwrap_or_else(|poisoned| {
+            warn!("Recovering poisoned approved installer hash lock");
+            poisoned.into_inner()
+        });
 
         // Check if matching by request_id
         if let Some(req) = pending_guard.remove(request_id_or_hash) {
@@ -102,7 +114,11 @@ impl InstallerInterceptor {
         }
 
         if let Some(k) = matched_key {
-            let req = pending_guard.remove(&k).unwrap();
+            let Some(req) = pending_guard.remove(&k) else {
+                return Err(WindowsError::Process(
+                    "Pending installation request disappeared during approval".into(),
+                ));
+            };
             approved_guard.insert(req.file_hash_sha256.clone(), 0);
             info!(
                 "Installation for hash '{}' approved! Resuming process PID {}",
@@ -125,7 +141,10 @@ impl InstallerInterceptor {
         &self,
         request_id_or_hash: &str,
     ) -> Result<Option<InstallationRequest>, WindowsError> {
-        let mut pending_guard = self.pending.lock().unwrap();
+        let mut pending_guard = self.pending.lock().unwrap_or_else(|poisoned| {
+            warn!("Recovering poisoned pending installer request lock");
+            poisoned.into_inner()
+        });
 
         if let Some(req) = pending_guard.remove(request_id_or_hash) {
             warn!(
@@ -144,7 +163,11 @@ impl InstallerInterceptor {
         }
 
         if let Some(k) = matched_key {
-            let req = pending_guard.remove(&k).unwrap();
+            let Some(req) = pending_guard.remove(&k) else {
+                return Err(WindowsError::Process(
+                    "Pending installation request disappeared during denial".into(),
+                ));
+            };
             warn!(
                 "Installation for hash '{}' denied! Terminating process PID {}",
                 request_id_or_hash, req.process_id
