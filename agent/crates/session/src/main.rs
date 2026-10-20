@@ -40,6 +40,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!("Starting FamShield Interactive Session Helper...");
 
     let args: Vec<String> = std::env::args().collect();
+    if args.iter().any(|a| a == "--uninstall" || a == "-u") {
+        info!("Launching authenticated Master PIN Uninstaller dialog...");
+        famshield_session::Uninstaller::prompt_and_uninstall();
+        return Ok(());
+    }
+
     if args.iter().any(|a| a == "--pin" || a == "-p") {
         info!("Launching standalone Master PIN dialog...");
         PinDialog::prompt_and_open_dashboard();
@@ -59,6 +65,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let keyboard_monitor = std::sync::Arc::new(famshield_session::KeyboardMonitor::default());
     famshield_session::keyboard_monitor::start_keyboard_monitor_hook(keyboard_monitor.clone());
     info!("Sensitive keyword monitor hook active in user session.");
+
+    // Sync keyword rules and monitoring status periodically with Windows Service
+    let km_for_sync = keyboard_monitor.clone();
+    tokio::spawn(async move {
+        // Initial sync on startup
+        famshield_session::keyboard_monitor::sync_keyword_rules_from_service(km_for_sync.clone())
+            .await;
+
+        let mut sync_interval = tokio::time::interval(tokio::time::Duration::from_secs(30));
+        loop {
+            sync_interval.tick().await;
+            famshield_session::keyboard_monitor::sync_keyword_rules_from_service(
+                km_for_sync.clone(),
+            )
+            .await;
+        }
+    });
 
     // 4. Periodic foreground and idle tracking loop (every 1 second)
     let km_for_tracker = keyboard_monitor.clone();

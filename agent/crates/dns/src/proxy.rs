@@ -123,6 +123,128 @@ impl DnsProxy {
         Ok(out.filled().to_vec())
     }
 
+    /// Constructs an authoritative A-record response for SafeSearch VIP rewrites.
+    pub fn build_a_record_response(
+        query_packet: &[u8],
+        ip: std::net::Ipv4Addr,
+    ) -> Result<Vec<u8>, DnsError> {
+        // 1. Attempt RFC-compliant response generation via hickory-proto
+        if let Ok(query_msg) = Message::from_bytes(query_packet) {
+            if let Some(query) = query_msg.queries.first() {
+                let mut response = Message::new(
+                    query_msg.metadata.id,
+                    MessageType::Response,
+                    query_msg.metadata.op_code,
+                );
+                response.metadata.recursion_desired = query_msg.metadata.recursion_desired;
+                response.metadata.authoritative = true;
+                response.metadata.recursion_available = true;
+                response.metadata.response_code = ResponseCode::NoError;
+                response.add_queries(query_msg.queries.clone());
+
+                let record = hickory_proto::rr::Record::from_rdata(
+                    query.name().clone(),
+                    300,
+                    hickory_proto::rr::RData::A(hickory_proto::rr::rdata::A(ip)),
+                );
+                response.add_answer(record);
+
+                if let Ok(wire) = response.to_bytes() {
+                    return Ok(wire);
+                }
+            }
+        }
+
+        // 2. Fast zero-dependency fallback
+        if query_packet.len() < 12 {
+            return Err(DnsError::EndOfBuffer);
+        }
+
+        let mut out = BytePacketBuffer::new();
+        // ID
+        out.write_u8(query_packet[0])?;
+        out.write_u8(query_packet[1])?;
+
+        // Flags: QR=1 (response), AA=1, RA=1, RCODE=0 (NoError)
+        out.write_u16(0x8180)?;
+
+        // QDCOUNT=1, ANCOUNT=1, NSCOUNT=0, ARCOUNT=0
+        out.write_u16(1)?;
+        out.write_u16(1)?;
+        out.write_u16(0)?;
+        out.write_u16(0)?;
+
+        // Copy question section
+        let mut in_buf = BytePacketBuffer::from_bytes(query_packet);
+        in_buf.seek(12)?;
+        let mut qname = String::new();
+        in_buf.read_qname(&mut qname)?;
+        let qtype = in_buf.read_u16()?;
+        let qclass = in_buf.read_u16()?;
+
+        out.write_qname(&qname)?;
+        out.write_u16(qtype)?;
+        out.write_u16(qclass)?;
+
+        // Answer Section:
+        out.write_u16(0xc00c)?; // Pointer to Question QNAME
+        out.write_u16(1)?; // TYPE: A
+        out.write_u16(1)?; // CLASS: IN
+        out.write_u32(300)?; // TTL: 300
+        out.write_u16(4)?; // RDLENGTH: 4
+        for octet in ip.octets() {
+            out.write_u8(octet)?;
+        }
+
+        Ok(out.filled().to_vec())
+    }
+
+    /// Constructs an authoritative empty NOERROR response (ANCOUNT=0), forcing IPv4 fallback for AAAA queries.
+    pub fn build_empty_noerror_response(query_packet: &[u8]) -> Result<Vec<u8>, DnsError> {
+        if let Ok(query_msg) = Message::from_bytes(query_packet) {
+            let mut response = Message::new(
+                query_msg.metadata.id,
+                MessageType::Response,
+                query_msg.metadata.op_code,
+            );
+            response.metadata.recursion_desired = query_msg.metadata.recursion_desired;
+            response.metadata.authoritative = true;
+            response.metadata.recursion_available = true;
+            response.metadata.response_code = ResponseCode::NoError;
+            response.add_queries(query_msg.queries.clone());
+
+            if let Ok(wire) = response.to_bytes() {
+                return Ok(wire);
+            }
+        }
+
+        if query_packet.len() < 12 {
+            return Err(DnsError::EndOfBuffer);
+        }
+
+        let mut out = BytePacketBuffer::new();
+        out.write_u8(query_packet[0])?;
+        out.write_u8(query_packet[1])?;
+        out.write_u16(0x8180)?; // QR=1, AA=1, RA=1, RCODE=0
+        out.write_u16(1)?; // QDCOUNT=1
+        out.write_u16(0)?; // ANCOUNT=0
+        out.write_u16(0)?;
+        out.write_u16(0)?;
+
+        let mut in_buf = BytePacketBuffer::from_bytes(query_packet);
+        in_buf.seek(12)?;
+        let mut qname = String::new();
+        in_buf.read_qname(&mut qname)?;
+        let qtype = in_buf.read_u16()?;
+        let qclass = in_buf.read_u16()?;
+
+        out.write_qname(&qname)?;
+        out.write_u16(qtype)?;
+        out.write_u16(qclass)?;
+
+        Ok(out.filled().to_vec())
+    }
+
     /// Constructs an RFC 1035 compliant SERVFAIL (Server Failure, RCODE=2) response.
     pub fn build_servfail_response(query_packet: &[u8]) -> Result<Vec<u8>, DnsError> {
         // 1. Hickory DNS Message builder
@@ -284,6 +406,51 @@ impl DnsProxy {
             }
         }
 
+        // 1.5. SafeSearch & YouTube Restricted Mode Enforcer
+        if let Some(cat) = crate::safesearch::match_safesearch_domain(&qname) {
+            let active = match cat {
+                crate::safesearch::SafeSearchCategory::YouTube => blocklist.is_youtube_restricted(),
+                _ => blocklist.is_safesearch_enabled(),
+            };
+
+            if active && !blocklist.is_monitor_mode() {
+                let reason = match cat {
+                    crate::safesearch::SafeSearchCategory::YouTube => "youtube_restricted",
+                    _ => "safesearch_enforced",
+                };
+
+                let resp_opt = match qtype {
+                    1 => {
+                        // A query -> Return SafeSearch VIP
+                        Self::build_a_record_response(&query_wire, cat.vip_ipv4()).ok()
+                    }
+                    _ => {
+                        // AAAA (28), HTTPS (65), etc. -> Return empty NOERROR to force IPv4 VIP fallback
+                        Self::build_empty_noerror_response(&query_wire).ok()
+                    }
+                };
+
+                if let Some(resp_wire) = resp_opt {
+                    debug!(
+                        "Enforcing SafeSearch VIP rewrite for '{}' -> {}",
+                        qname,
+                        cat.display_target()
+                    );
+                    let _ = socket.send_to(&resp_wire, client_addr).await;
+                    if let Some(tx) = &log_tx {
+                        let _ = tx.send(DnsLogEntry {
+                            domain: qname.clone(),
+                            qtype: qtype_str.to_string(),
+                            action: "REWRITE".to_string(),
+                            reason: reason.to_string(),
+                            rule_id: Some(cat.display_target().to_string()),
+                        });
+                    }
+                    return;
+                }
+            }
+        }
+
         // 2. Serve-Stale Cache check
         let cache_key = format!("{}:{}", qname, qtype);
         let now = Instant::now();
@@ -430,5 +597,45 @@ mod tests {
         assert_eq!(resp_msg.metadata.response_code, ResponseCode::ServFail);
         assert_eq!(resp_msg.queries.len(), 1);
         assert_eq!(resp_msg.queries[0].name().to_string(), "fail-domain.com.");
+    }
+
+    #[test]
+    fn test_build_a_record_response_hickory() {
+        use hickory_proto::rr::rdata;
+        let mut query_msg = Message::new(0x5678, MessageType::Query, OpCode::Query);
+        let name = Name::from_str("www.google.com.").unwrap();
+        let query = Query::query(name, RecordType::A);
+        query_msg.add_query(query);
+
+        let query_wire = query_msg.to_bytes().unwrap();
+        let vip = std::net::Ipv4Addr::new(216, 239, 38, 120);
+        let resp_wire = DnsProxy::build_a_record_response(&query_wire, vip).unwrap();
+
+        let resp_msg = Message::from_bytes(&resp_wire).unwrap();
+        assert_eq!(resp_msg.metadata.id, 0x5678);
+        assert_eq!(resp_msg.metadata.message_type, MessageType::Response);
+        assert_eq!(resp_msg.metadata.response_code, ResponseCode::NoError);
+        assert_eq!(resp_msg.answers.len(), 1);
+        if let hickory_proto::rr::RData::A(rdata::A(ip)) = &resp_msg.answers[0].data {
+            assert_eq!(*ip, vip);
+        } else {
+            panic!("Expected A record in answer");
+        }
+    }
+
+    #[test]
+    fn test_build_empty_noerror_response() {
+        let mut query_msg = Message::new(0x9999, MessageType::Query, OpCode::Query);
+        let name = Name::from_str("www.google.com.").unwrap();
+        let query = Query::query(name, RecordType::AAAA);
+        query_msg.add_query(query);
+
+        let query_wire = query_msg.to_bytes().unwrap();
+        let resp_wire = DnsProxy::build_empty_noerror_response(&query_wire).unwrap();
+
+        let resp_msg = Message::from_bytes(&resp_wire).unwrap();
+        assert_eq!(resp_msg.metadata.id, 0x9999);
+        assert_eq!(resp_msg.metadata.response_code, ResponseCode::NoError);
+        assert_eq!(resp_msg.answers.len(), 0);
     }
 }

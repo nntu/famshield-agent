@@ -147,6 +147,48 @@ impl IpcDispatcher {
                     message: format!("Keyword rules reloaded (enabled: {})", enabled),
                 }
             }
+            IpcMessage::GetKeywordRulesRequest => {
+                let enabled = self
+                    .storage
+                    .get_meta("keyboard_monitoring_enabled")
+                    .unwrap_or(None)
+                    .map(|s| s != "false")
+                    .unwrap_or(true);
+
+                let mut rules = famshield_core::keyword::default_keyword_rules();
+                // Apply disabled overrides from metadata
+                for r in &mut rules {
+                    let override_key = format!("kw_disabled_{}", r.id);
+                    if self
+                        .storage
+                        .get_meta(&override_key)
+                        .unwrap_or(None)
+                        .as_deref()
+                        == Some("1")
+                    {
+                        r.enabled = false;
+                    }
+                }
+                // Append custom keyword rules from SQLite
+                if let Ok(customs) = self.storage.list_custom_keywords() {
+                    for c in customs {
+                        rules.push(famshield_core::keyword::KeywordRule {
+                            id: c.id,
+                            pattern: c.pattern,
+                            category: famshield_core::keyword::KeywordCategory::Custom,
+                            severity: famshield_core::keyword::KeywordSeverity::Medium,
+                            enabled: c.enabled,
+                        });
+                    }
+                }
+
+                IpcMessage::GetKeywordRulesResponse { enabled, rules }
+            }
+            IpcMessage::GetKeywordRulesResponse { .. } => IpcMessage::Response {
+                request_id: "none".into(),
+                success: false,
+                message: "Unexpected response message received".into(),
+            },
             IpcMessage::Response { .. } => IpcMessage::Response {
                 request_id: "none".into(),
                 success: false,

@@ -212,6 +212,7 @@ impl LocalAdminServer {
                 get(handle_list_rules).post(handle_create_rule),
             )
             .route("/api/rules/bulk", post(handle_bulk_create_rules))
+            .route("/api/rules/sync-to-cloud", post(handle_sync_rules_to_cloud))
             .route("/api/rules/:rule_id", delete(handle_delete_rule))
             .route("/api/logs/dns", get(handle_list_logs))
             .route("/api/logs/dns/summary", get(handle_get_dns_summary))
@@ -258,6 +259,7 @@ impl LocalAdminServer {
                 "/api/system/session-helper/start",
                 post(handle_start_session_helper),
             )
+            .route("/api/system/uninstall", post(handle_system_uninstall))
             .with_state(self.state.clone())
     }
 
@@ -704,6 +706,145 @@ async fn handle_delete_rule(
         Err(e) => {
             warn!("Failed to delete rule '{}': {}", rule_id, e);
             Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+
+async fn handle_sync_rules_to_cloud(
+    State(state): State<ServerState>,
+    headers: HeaderMap,
+    Query(query): Query<QueryParams>,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    if !check_auth(&state, &headers, query.token.as_deref()).await {
+        return Err((
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({ "error": "Unauthorized" })),
+        ));
+    }
+
+    let server_url = state
+        .service
+        .storage()
+        .get_meta("server_url")
+        .ok()
+        .flatten()
+        .unwrap_or_default();
+
+    let tenant_id = state
+        .service
+        .storage()
+        .get_meta("enrolled_tenant_id")
+        .ok()
+        .flatten()
+        .unwrap_or_else(|| "tenant-default".to_string());
+
+    if server_url.trim().is_empty() {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({
+                "error": "Thiết bị chưa được cấu hình địa chỉ FamShield Server. Vui lòng cấu hình máy chủ trước khi đồng bộ."
+            })),
+        ));
+    }
+
+    // 1. Gather all local custom blocked domains
+    let rules = state.service.list_rules().map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({ "error": format!("Không thể đọc danh sách quy tắc cục bộ: {}", e) })),
+        )
+    })?;
+
+    let mut local_domains: Vec<String> = rules
+        .into_iter()
+        .filter(|r| r.rule_type == "domain" && r.enabled)
+        .map(|r| r.rule_id.trim().to_lowercase())
+        .filter(|d| !d.is_empty())
+        .collect();
+    local_domains.sort();
+    local_domains.dedup();
+
+    // 2. HTTP call to Cloud Server /v1/filter/policy
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(10))
+        .build()
+        .unwrap_or_else(|_| reqwest::Client::new());
+
+    let policy_url = format!(
+        "{}/v1/filter/policy?tenant_id={}",
+        server_url.trim_end_matches('/'),
+        tenant_id
+    );
+
+    // Fetch existing policy first
+    let mut policy_json: serde_json::Value = match client.get(&policy_url).send().await {
+        Ok(res) if res.status().is_success() => {
+            res.json().await.unwrap_or_else(|_| serde_json::json!({}))
+        }
+        _ => serde_json::json!({}),
+    };
+
+    // Merge custom_blocked_domains
+    let mut custom_blocked: Vec<String> = match policy_json
+        .get("custom_blocked_domains")
+        .and_then(|v| v.as_array())
+    {
+        Some(arr) => arr
+            .iter()
+            .filter_map(|v| v.as_str().map(|s| s.to_string()))
+            .collect(),
+        None => Vec::new(),
+    };
+
+    for d in &local_domains {
+        if !custom_blocked.contains(d) {
+            custom_blocked.push(d.clone());
+        }
+    }
+    custom_blocked.sort();
+    custom_blocked.dedup();
+
+    policy_json["tenant_id"] = serde_json::json!(tenant_id);
+    policy_json["custom_blocked_domains"] = serde_json::json!(custom_blocked);
+
+    // POST updated policy to Cloud Server
+    match client.post(&policy_url).json(&policy_json).send().await {
+        Ok(res) if res.status().is_success() => {
+            info!(
+                "Successfully synchronized {} local blocked domains to FamShield Cloud Server (tenant: {})",
+                local_domains.len(),
+                tenant_id
+            );
+            Ok(Json(serde_json::json!({
+                "success": true,
+                "synced_domains_count": local_domains.len(),
+                "total_cloud_custom_blocked": custom_blocked.len(),
+                "tenant_id": tenant_id,
+                "message": format!("Đã đồng bộ thành công {} tên miền tự chặn lên Cloud Server", local_domains.len())
+            })))
+        }
+        Ok(res) => {
+            let status = res.status();
+            let err_text = res.text().await.unwrap_or_default();
+            warn!(
+                "Server rejected policy update: status {} - {}",
+                status, err_text
+            );
+            Err((
+                StatusCode::BAD_GATEWAY,
+                Json(serde_json::json!({
+                    "error": format!("Máy chủ từ chối cập nhật chính sách (HTTP {}): {}", status, err_text)
+                })),
+            ))
+        }
+        Err(e) => {
+            warn!("Failed to connect to Cloud Server at {}: {}", policy_url, e);
+            Err((
+                StatusCode::BAD_GATEWAY,
+                Json(serde_json::json!({
+                    "error": format!("Không thể kết nối đến máy chủ {}: {}", server_url, e)
+                })),
+            ))
         }
     }
 }
@@ -1487,5 +1628,108 @@ async fn handle_start_session_helper(
             "running": famshield_windows::SessionManager::is_session_helper_running(),
             "message": format!("Không thể khởi chạy Trợ lý phiên: {}", e)
         }))),
+    }
+}
+
+#[derive(serde::Deserialize)]
+pub struct UninstallPayload {
+    pub master_pin: String,
+}
+
+async fn handle_system_uninstall(
+    State(state): State<ServerState>,
+    headers: HeaderMap,
+    Json(payload): Json<UninstallPayload>,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    if !check_auth(&state, &headers, None).await {
+        return Err((
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({
+                "success": false,
+                "message": "Phiên làm việc không hợp lệ hoặc đã hết hạn."
+            })),
+        ));
+    }
+
+    match state.service.authenticate_storage(&payload.master_pin) {
+        Ok(true) => {
+            tracing::warn!(
+                "⚠️ Master PIN verified for uninstallation. Initiating full clean teardown..."
+            );
+
+            // Spawn background teardown thread
+            tokio::spawn(async move {
+                tokio::time::sleep(tokio::time::Duration::from_millis(600)).await;
+
+                // 1. Terminate user session helper
+                let _ = std::process::Command::new("taskkill")
+                    .args(["/F", "/IM", "famshield-session.exe", "/T"])
+                    .output();
+
+                // 2. Reset network adapters DNS to DHCP and flush cache
+                let _ = std::process::Command::new("powershell")
+                    .args([
+                        "-NoProfile",
+                        "-ExecutionPolicy",
+                        "Bypass",
+                        "-Command",
+                        "Get-NetAdapter | ForEach-Object { Set-DnsClientServerAddress -InterfaceIndex $_.InterfaceIndex -ResetServerAddresses -ErrorAction SilentlyContinue }; ipconfig /flushdns",
+                    ])
+                    .output();
+
+                // 3. Remove NRPT rules
+                let _ = famshield_windows::NrptManager::remove_nrpt_rule();
+
+                // 4. Remove Chrome and Edge DoH suppression policies
+                let _ = std::process::Command::new("powershell")
+                    .args([
+                        "-NoProfile",
+                        "-ExecutionPolicy",
+                        "Bypass",
+                        "-Command",
+                        "Remove-ItemProperty -Path 'HKLM:\\SOFTWARE\\Policies\\Google\\Chrome' -Name 'DnsOverHttpsMode' -ErrorAction SilentlyContinue; Remove-ItemProperty -Path 'HKLM:\\SOFTWARE\\Policies\\Microsoft\\Edge' -Name 'DnsOverHttpsMode' -ErrorAction SilentlyContinue",
+                    ])
+                    .output();
+
+                // 5. If unins000.exe exists, execute it silently
+                if let Ok(exe_path) = std::env::current_exe() {
+                    if let Some(dir) = exe_path.parent() {
+                        let unins = dir.join("unins000.exe");
+                        if unins.exists() {
+                            let _ = std::process::Command::new(&unins)
+                                .args(["/VERYSILENT", "/SUPPRESSMSGBOXES"])
+                                .spawn();
+                        }
+                    }
+                }
+
+                // 6. Stop and delete service
+                let _ = std::process::Command::new("sc")
+                    .args(["stop", "FamShieldService"])
+                    .output();
+                let _ = std::process::Command::new("sc")
+                    .args(["delete", "FamShieldService"])
+                    .output();
+            });
+
+            Ok(Json(serde_json::json!({
+                "success": true,
+                "message": "Xác thực thành công. Đang tiến hành khôi phục cấu hình mạng DNS về ban đầu và gỡ cài đặt FamShield..."
+            })))
+        }
+        Ok(false) => Err((
+            StatusCode::FORBIDDEN,
+            Json(serde_json::json!({
+                "success": false,
+                "message": "Mật khẩu Master PIN không chính xác! Không thể gỡ bỏ ứng dụng."
+            })),
+        )),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({
+                "success": false,
+                "message": format!("Lỗi xác thực: {}", e)
+            })),
+        )),
     }
 }

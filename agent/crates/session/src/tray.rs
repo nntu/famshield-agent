@@ -163,6 +163,7 @@ impl SystemTray {
         let _ = status_submenu.append_items(&[&sub_dns, &sub_wfp, &sub_port]);
 
         let sep3 = PredefinedMenuItem::separator();
+        let uninstall_item = MenuItem::new("🗑️ Gỡ Cài Đặt (Yêu Cầu PIN)", true, None);
         let exit_item = MenuItem::new("❌ Ẩn Khay Hệ Thống", true, None);
 
         let _ = tray_menu.append_items(&[
@@ -173,6 +174,7 @@ impl SystemTray {
             &request_time,
             &sep2,
             &status_submenu,
+            &uninstall_item,
             &sep3,
             &exit_item,
         ]);
@@ -180,6 +182,7 @@ impl SystemTray {
         let open_admin_id = open_admin.id().clone();
         let admin_pin_id = admin_pin.id().clone();
         let request_time_id = request_time.id().clone();
+        let uninstall_item_id = uninstall_item.id().clone();
         let exit_item_id = exit_item.id().clone();
 
         // 3. Set up event handlers for Menu
@@ -201,6 +204,8 @@ impl SystemTray {
                 }
             } else if event.id == admin_pin_id {
                 PinDialog::prompt_and_open_dashboard();
+            } else if event.id == uninstall_item_id {
+                crate::Uninstaller::prompt_and_uninstall();
             } else if event.id == request_time_id {
                 let h = TRAY_HWND.load(Ordering::Relaxed);
                 if h != 0 {

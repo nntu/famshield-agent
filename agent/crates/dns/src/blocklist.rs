@@ -8,6 +8,8 @@ pub struct BlocklistStore {
     // Exact domain or parent suffix set (e.g., "tiktok.com")
     domains: Arc<ArcSwap<HashSet<String>>>,
     monitor_mode: Arc<AtomicBool>,
+    safesearch_enabled: Arc<AtomicBool>,
+    youtube_restricted: Arc<AtomicBool>,
 }
 
 impl Default for BlocklistStore {
@@ -21,7 +23,29 @@ impl BlocklistStore {
         Self {
             domains: Arc::new(ArcSwap::from_pointee(HashSet::new())),
             monitor_mode: Arc::new(AtomicBool::new(false)),
+            safesearch_enabled: Arc::new(AtomicBool::new(true)),
+            youtube_restricted: Arc::new(AtomicBool::new(true)),
         }
+    }
+
+    /// Enable or disable SafeSearch enforcement (Google, Bing, DuckDuckGo).
+    pub fn set_safesearch_enabled(&self, enabled: bool) {
+        self.safesearch_enabled.store(enabled, Ordering::SeqCst);
+    }
+
+    /// Check if SafeSearch is currently active.
+    pub fn is_safesearch_enabled(&self) -> bool {
+        self.safesearch_enabled.load(Ordering::SeqCst)
+    }
+
+    /// Enable or disable YouTube Restricted Mode.
+    pub fn set_youtube_restricted(&self, enabled: bool) {
+        self.youtube_restricted.store(enabled, Ordering::SeqCst);
+    }
+
+    /// Check if YouTube Restricted Mode is currently active.
+    pub fn is_youtube_restricted(&self) -> bool {
+        self.youtube_restricted.load(Ordering::SeqCst)
     }
 
     /// Enable or disable Monitor-only Mode (Audit mode: log only, zero blocking).

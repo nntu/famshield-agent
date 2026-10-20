@@ -22,6 +22,9 @@ DefaultDirName={autopf}\{#MyAppName}
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 DisableProgramGroupPage=yes
+; Stealth mode: Do NOT register into Windows Add/Remove Programs (Control Panel / Settings -> Apps)
+CreateUninstallRegKey=no
+UpdateUninstallLogAppName=no
 LicenseFile=..\README.md
 PrivilegesRequired=admin
 OutputBaseFilename=FamShieldSetup-{#MyAppVersion}
@@ -85,10 +88,42 @@ Filename: "{app}\famshield-session.exe"; Flags: nowait postinstall skipifsilent
 Filename: "http://127.0.0.1:38123"; Description: "Mở Bảng Điều Khiển Quản Trị Cục Bộ (Web Admin)"; Flags: shellexec nowait postinstall
 
 [UninstallRun]
-; Reset network adapters DNS back to DHCP
-Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -Command ""Get-NetAdapter | ForEach-Object {{ Set-DnsClientServerAddress -InterfaceIndex $_.InterfaceIndex -ResetServerAddresses -ErrorAction SilentlyContinue }}; ipconfig /flushdns"""; Flags: runhidden
-; Stop and remove Windows Service cleanly
+; 1. Terminate user session helper so binary file lock is released
+Filename: "{sys}\taskkill.exe"; Parameters: "/F /IM famshield-session.exe /T"; Flags: runhidden; RunOnceId: "KillFamShieldSession"
+; 2. Stop and remove Windows Service cleanly
 Filename: "{sys}\sc.exe"; Parameters: "stop FamShieldService"; Flags: runhidden; RunOnceId: "StopFamShieldService"
 Filename: "{sys}\sc.exe"; Parameters: "delete FamShieldService"; Flags: runhidden; RunOnceId: "DeleteFamShieldService"
+; 3. Reset all network adapters DNS back to DHCP and flush cache
+Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -Command ""Get-NetAdapter | ForEach-Object {{ Set-DnsClientServerAddress -InterfaceIndex $_.InterfaceIndex -ResetServerAddresses -ErrorAction SilentlyContinue }}; ipconfig /flushdns"""; Flags: runhidden; RunOnceId: "ResetDnsAddresses"
+; 4. Remove Code Signing certificate from stores
+Filename: "{sys}\certutil.exe"; Parameters: "-delstore Root ""FamShield Root CA"""; Flags: runhidden; RunOnceId: "DelCertRoot"
+Filename: "{sys}\certutil.exe"; Parameters: "-delstore TrustedPublisher ""FamShield Root CA"""; Flags: runhidden; RunOnceId: "DelCertPublisher"
+
+[UninstallDelete]
+Type: filesandordirs; Name: "{app}\web"
+Type: files; Name: "{app}\famshield-service.exe"
+Type: files; Name: "{app}\famshield-session.exe"
+Type: files; Name: "{app}\*.ico"
+Type: files; Name: "{app}\*.cer"
+Type: files; Name: "{commonappdata}\FamShield\admin_port.txt"
+Type: filesandordirs; Name: "{commonappdata}\FamShield\logs"
+
+[Code]
+// Prompt for parent confirmation when uninstaller is launched manually
+function InitializeUninstall(): Boolean;
+begin
+  Result := True;
+  if not WizardSilent then
+  begin
+    if MsgBox('CẢNH BÁO BẢO MẬT PHỤ HUYNH:' + #13#10#13#10 +
+              'Bạn có chắc chắn muốn gỡ bỏ FamShield?' + #13#10 +
+              'Toàn bộ cấu hình bảo vệ sẽ bị dừng và cài đặt DNS mạng sẽ được khôi phục về ban đầu.',
+              mbConfirmation, MB_YESNO or MB_DEFBUTTON2) <> IDYES then
+    begin
+      Result := False;
+      Exit;
+    end;
+  end;
+end;
 
 

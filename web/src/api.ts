@@ -134,6 +134,13 @@ export const api = {
     });
   },
 
+  async syncRulesToCloud(): Promise<{ success: boolean; synced_domains_count: number; message: string }> {
+    return apiRequest<{ success: boolean; synced_domains_count: number; message: string }>(
+      '/api/rules/sync-to-cloud',
+      { method: 'POST' }
+    );
+  },
+
   async getDnsSummary(limit: number = 200): Promise<DomainQuerySummary[]> {
     return apiRequest<DomainQuerySummary[]>(`/api/logs/dns/summary?limit=${limit}`);
   },
@@ -288,6 +295,14 @@ export const api = {
   async restartSessionHelper(): Promise<{ success: boolean; launched: boolean; running: boolean; message: string }> {
     return apiRequest<{ success: boolean; launched: boolean; running: boolean; message: string }>('/api/system/session-helper/start', {
       method: 'POST',
+    });
+  },
+
+  async uninstallSystem(masterPin: string): Promise<{ success: boolean; message: string }> {
+    return apiRequest<{ success: boolean; message: string }>('/api/system/uninstall', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ master_pin: masterPin }),
     });
   },
 };

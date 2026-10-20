@@ -235,4 +235,43 @@ impl CloudSyncClient {
 
         Ok(policy)
     }
+
+    /// Update web filter policy on cloud server: `POST /v1/filter/policy?tenant_id=...`
+    pub async fn update_web_filter_policy(
+        &self,
+        tenant_id: &str,
+        policy: &WebFilterPolicyDto,
+    ) -> Result<WebFilterPolicyDto, SyncError> {
+        let url = format!("{}/v1/filter/policy?tenant_id={}", self.base_url, tenant_id);
+        debug!("Pushing updated web filter policy to {}", url);
+
+        let res = self
+            .client
+            .post(&url)
+            .json(policy)
+            .send()
+            .await
+            .map_err(|e| SyncError::Network(format!("Failed to update policy: {}", e)))?;
+
+        if !res.status().is_success() {
+            let status = res.status();
+            let err_body = res.text().await.unwrap_or_default();
+            return Err(SyncError::Network(format!(
+                "Failed to update policy (status {}): {}",
+                status, err_body
+            )));
+        }
+
+        let resp: serde_json::Value = res.json().await.map_err(|e| {
+            SyncError::Network(format!("Invalid policy update response JSON: {}", e))
+        })?;
+
+        if let Some(pol_val) = resp.get("policy") {
+            if let Ok(pol) = serde_json::from_value::<WebFilterPolicyDto>(pol_val.clone()) {
+                return Ok(pol);
+            }
+        }
+
+        Ok(policy.clone())
+    }
 }

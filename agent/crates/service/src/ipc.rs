@@ -49,6 +49,13 @@ pub enum IpcMessage {
     },
     /// Command from service to reload keyword rules or toggle status.
     ReloadKeywordRules { enabled: bool },
+    /// Request active keyword rules and monitoring status from Service.
+    GetKeywordRulesRequest,
+    /// Service responds with active keyword rules and enabled flag.
+    GetKeywordRulesResponse {
+        enabled: bool,
+        rules: Vec<famshield_core::keyword::KeywordRule>,
+    },
     /// Service response / acknowledgement.
     Response {
         request_id: String,

@@ -125,3 +125,29 @@ async fn test_telemetry_sync_worker_standalone_mode_noop() {
     // Outbox event is safely preserved for offline operation
     assert_eq!(pipeline.pending_count().expect("Count"), 1);
 }
+
+#[tokio::test]
+async fn test_web_filter_policy_update_dto_serialization() {
+    let pol = WebFilterPolicyDto {
+        tenant_id: "tenant-fam-99".to_string(),
+        version: 5,
+        block_adult: true,
+        block_gambling: true,
+        block_violence: false,
+        block_social: false,
+        block_gaming: true,
+        safesearch_enabled: true,
+        youtube_restricted: true,
+        custom_blocked_domains: vec!["tiktok.com".to_string(), "roblox.com".to_string()],
+        custom_allowed_domains: vec!["wikipedia.org".to_string()],
+    };
+
+    let serialized = serde_json::to_string(&pol).expect("Serialize policy DTO");
+    assert!(serialized.contains("tenant-fam-99"));
+    assert!(serialized.contains("tiktok.com"));
+
+    let client = CloudSyncClient::new("http://127.0.0.1:54321");
+    // Attempting to update to an unreachable server should return SyncError::Network
+    let res = client.update_web_filter_policy("tenant-fam-99", &pol).await;
+    assert!(res.is_err());
+}

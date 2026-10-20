@@ -14,6 +14,7 @@ import {
   X,
   AlertCircle,
   Check,
+  Cloud,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { Language, LocalRuleRecord } from '../types';
@@ -90,6 +91,34 @@ export const RulesTab: React.FC<RulesTabProps> = ({
       onShowToast(e.message || (isVi ? 'Lỗi thêm quy tắc' : 'Failed to add rule'), 'error');
     } finally {
       setIsAddingDomain(false);
+    }
+  };
+
+  const [isSyncingCloud, setIsSyncingCloud] = useState(false);
+
+  const handleSyncToCloud = async () => {
+    try {
+      setIsSyncingCloud(true);
+      onShowToast(
+        isVi ? 'Đang đồng bộ quy tắc lên Cloud Server...' : 'Syncing rules to Cloud Server...',
+        'info'
+      );
+      const res = await api.syncRulesToCloud();
+      if (res.success) {
+        onShowToast(
+          isVi ? res.message : `Successfully synced ${res.synced_domains_count} domains to Cloud`,
+          'success'
+        );
+      } else {
+        onShowToast(isVi ? 'Đồng bộ thất bại' : 'Sync failed', 'error');
+      }
+    } catch (e: any) {
+      onShowToast(
+        e.message || (isVi ? 'Lỗi kết nối máy chủ' : 'Network error during sync'),
+        'error'
+      );
+    } finally {
+      setIsSyncingCloud(false);
     }
   };
 
@@ -667,14 +696,37 @@ export const RulesTab: React.FC<RulesTabProps> = ({
           padding: 24,
         }}
       >
-        <div style={{ marginBottom: 20 }}>
-          <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#f8fafc', display: 'flex', alignItems: 'center', gap: 10 }}>
-            <Globe size={20} color="#38bdf8" />
-            {t.title_domain_block}
-          </h2>
-          <p style={{ fontSize: '0.85rem', color: '#94a3b8', marginTop: 4 }}>
-            {t.desc_domain_block}
-          </p>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
+          <div>
+            <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#f8fafc', display: 'flex', alignItems: 'center', gap: 10 }}>
+              <Globe size={20} color="#38bdf8" />
+              {t.title_domain_block}
+            </h2>
+            <p style={{ fontSize: '0.85rem', color: '#94a3b8', marginTop: 4 }}>
+              {t.desc_domain_block}
+            </p>
+          </div>
+          <button
+            onClick={handleSyncToCloud}
+            disabled={isSyncingCloud}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              background: '#0284c7',
+              color: '#fff',
+              border: 'none',
+              padding: '8px 16px',
+              borderRadius: 8,
+              fontWeight: 600,
+              fontSize: '0.85rem',
+              cursor: isSyncingCloud ? 'not-allowed' : 'pointer',
+              opacity: isSyncingCloud ? 0.7 : 1,
+            }}
+          >
+            <Cloud size={16} />
+            {isSyncingCloud ? (isVi ? 'Đang đồng bộ...' : 'Syncing...') : (isVi ? 'Đồng bộ lên Cloud' : 'Sync to Cloud')}
+          </button>
         </div>
 
         {/* Add Form */}

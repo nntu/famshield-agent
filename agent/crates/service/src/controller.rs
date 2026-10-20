@@ -52,6 +52,7 @@ pub struct ServiceController {
     local_admin_server: Arc<famshield_local_admin::LocalAdminServer>,
     telemetry_pipeline: Arc<TelemetryPipeline>,
     sync_worker: Arc<TelemetrySyncWorker>,
+    is_updating: Arc<std::sync::atomic::AtomicBool>,
 }
 
 impl ServiceController {
@@ -122,6 +123,8 @@ impl ServiceController {
             Some(dns_blocklist.clone()),
         ));
 
+        let is_updating = Arc::new(std::sync::atomic::AtomicBool::new(false));
+
         Self {
             storage,
             ipc_dispatcher,
@@ -132,6 +135,7 @@ impl ServiceController {
             local_admin_server,
             telemetry_pipeline,
             sync_worker,
+            is_updating,
         }
     }
 
@@ -141,6 +145,10 @@ impl ServiceController {
 
     pub fn ipc_dispatcher(&self) -> Arc<IpcDispatcher> {
         self.ipc_dispatcher.clone()
+    }
+
+    pub fn is_updating(&self) -> Arc<std::sync::atomic::AtomicBool> {
+        self.is_updating.clone()
     }
 
     pub fn dns_blocklist(&self) -> Arc<BlocklistStore> {
@@ -280,7 +288,15 @@ impl ServiceController {
             sync_worker.run(sync_shutdown_rx).await;
         });
 
-        // 6. Periodic Process Monitoring Task (every 5 seconds)
+        // 6. Start Anti-Tampering & Self-Healing Watchdog (Session 0 auto-respawn + NRPT drift lock)
+        let watchdog = crate::watchdog::SystemWatchdog::new(self.is_updating.clone())
+            .with_telemetry(self.telemetry_pipeline.clone());
+        let watchdog_shutdown_rx = shutdown_rx.resubscribe();
+        tokio::spawn(async move {
+            watchdog.run(watchdog_shutdown_rx).await;
+        });
+
+        // 7. Periodic Process Monitoring Task (every 5 seconds)
         let proc_monitor = self.process_monitor.clone();
         let nats = self.nats_dispatcher.clone();
         let storage = self.storage.clone();
@@ -288,8 +304,6 @@ impl ServiceController {
         let telemetry_pipeline = self.telemetry_pipeline.clone();
         let mut proc_interval = tokio::time::interval(std::time::Duration::from_secs(5));
         let mut err_interval = tokio::time::interval(std::time::Duration::from_secs(15));
-        let mut session_watchdog_interval =
-            tokio::time::interval(std::time::Duration::from_secs(10));
 
         tokio::select! {
             _ = dns_proxy.run_udp_listener() => {
@@ -298,42 +312,6 @@ impl ServiceController {
             _ = async {
                 loop {
                     tokio::select! {
-                        _ = session_watchdog_interval.tick() => {
-                            // Watchdog: Ensure User Session Helper (famshield-session.exe) is running
-                            if !famshield_windows::SessionManager::is_session_helper_running() {
-                                if let Some(session_id) = famshield_windows::SessionManager::get_active_console_session_id() {
-                                    tracing::warn!(
-                                        "⚠️ Watchdog Alert: famshield-session.exe is NOT running in active user session {}! Attempting auto-spawn...",
-                                        session_id
-                                    );
-
-                                    // Queue security alert for visibility in telemetry and dashboard
-                                    let alert_payload = serde_json::json!({
-                                        "alert_type": "session_helper_missing",
-                                        "severity": "medium",
-                                        "session_id": session_id,
-                                        "message": "User session helper (famshield-session.exe) is not running. System tray and keystroke monitoring are interrupted.",
-                                        "timestamp": chrono::Utc::now().to_rfc3339(),
-                                    });
-                                    let _ = telemetry_pipeline.queue_event(&TelemetryEvent::new(
-                                        format!("alert-sess-{}", chrono::Utc::now().timestamp_micros()),
-                                        "security_alert",
-                                        chrono::Utc::now(),
-                                        alert_payload,
-                                    ));
-
-                                    match famshield_windows::SessionManager::ensure_session_helper() {
-                                        Ok(true) => {
-                                            tracing::info!("✅ Watchdog: Successfully auto-spawned famshield-session.exe into session {}", session_id);
-                                        }
-                                        Ok(false) => {}
-                                        Err(e) => {
-                                            tracing::warn!("❌ Watchdog: Failed to auto-spawn famshield-session.exe: {}", e);
-                                        }
-                                    }
-                                }
-                            }
-                        }
                         _ = proc_interval.tick() => {
                             if let Ok(events) = proc_monitor.detect_changes() {
                                 if !events.is_empty() {
@@ -341,6 +319,35 @@ impl ServiceController {
                                     for ev in &events {
                                         if ev.event_type == "process_started" {
                                             admin_server_proc.set_active_app(&ev.process_name).await;
+
+                                            // Screen Time Quota Evaluation: Check daily application limit
+                                            if let Ok(rules) = storage.list_local_rules() {
+                                                let proc_lower = ev.process_name.to_lowercase();
+                                                let proc_base = proc_lower.trim_end_matches(".exe");
+                                                for r in rules {
+                                                    if r.rule_type == "application" && r.enabled {
+                                                        let rule_lower = r.rule_id.to_lowercase();
+                                                        let rule_base = rule_lower.trim_end_matches(".exe");
+                                                        if proc_lower == rule_lower || proc_base == rule_base {
+                                                            if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&r.payload) {
+                                                                let max_minutes = parsed.get("max_minutes_per_day").and_then(|v| v.as_u64()).unwrap_or(0);
+                                                                if max_minutes > 0 {
+                                                                    if let Ok(usage_ms) = storage.get_app_usage_today_ms(&ev.process_name) {
+                                                                        let used_minutes = (usage_ms / 60_000) as u64;
+                                                                        if used_minutes >= max_minutes {
+                                                                            tracing::warn!(
+                                                                                "⛔ Application '{}' exceeded daily quota (used {} / limit {} mins)! Locking workstation...",
+                                                                                ev.process_name, used_minutes, max_minutes
+                                                                            );
+                                                                            let _ = famshield_windows::SessionManager::lock_workstation();
+                                                                        }
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
                                         }
                                         let _ = telemetry_pipeline.queue_event(&TelemetryEvent::new(
                                             format!("proc-{}", chrono::Utc::now().timestamp_micros()),

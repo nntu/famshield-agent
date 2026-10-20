@@ -1047,3 +1047,67 @@ async fn test_keyword_monitoring_api_and_violation_flow() {
         .unwrap();
     assert_eq!(res.status(), StatusCode::NO_CONTENT);
 }
+
+#[tokio::test]
+async fn test_sync_rules_to_cloud_endpoint() {
+    use axum::body::Body;
+    use axum::http::{Request, StatusCode};
+    use famshield_local_admin::LocalAdminServer;
+    use std::sync::Arc;
+    use tower::ServiceExt;
+
+    let storage = StorageEngine::in_memory().unwrap();
+    let service = Arc::new(LocalAdminService::new(storage.clone()));
+    let server = LocalAdminServer::new(service, None);
+    let token = server.create_session_token().await;
+
+    // 1. Without server_url configured, should return 400 Bad Request
+    let res = server
+        .router()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/rules/sync-to-cloud")
+                .header("X-FamShield-Token", &token)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(res.status(), StatusCode::BAD_REQUEST);
+
+    // 2. Set server_url and add a local domain rule
+    storage
+        .set_meta("server_url", "http://127.0.0.1:54321")
+        .unwrap();
+    storage
+        .set_meta("enrolled_tenant_id", "test-tenant")
+        .unwrap();
+    storage
+        .upsert_local_rule(&famshield_storage::LocalRuleRecord {
+            rule_id: "tiktok.com".to_string(),
+            rule_type: "domain".to_string(),
+            payload: r#"{"action":"BLOCK"}"#.to_string(),
+            enabled: true,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+        })
+        .unwrap();
+
+    // With unreachable server, returns 502 Bad Gateway
+    let res = server
+        .router()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/rules/sync-to-cloud")
+                .header("X-FamShield-Token", &token)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(res.status(), StatusCode::BAD_GATEWAY);
+}

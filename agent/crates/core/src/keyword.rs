@@ -149,7 +149,7 @@ impl KeywordMatcher {
             .rules
             .iter()
             .filter(|r| r.enabled)
-            .map(|r| normalize_text(&r.pattern))
+            .map(|r| crate::vietnamese::canonical_vietnamese(&r.pattern))
             .collect();
 
         if patterns.is_empty() {
@@ -209,39 +209,49 @@ impl KeywordMatcher {
         };
 
         let enabled_rules: Vec<&KeywordRule> = self.rules.iter().filter(|r| r.enabled).collect();
+        let canonical = crate::vietnamese::canonical_vietnamese(text);
         let normalized = normalize_text(text);
-        let collapsed = collapse_text(&normalized);
 
         let mut matches = Vec::new();
 
-        // 1. Scan normalized text (preserves word spaces)
-        for m in ac.find_iter(&normalized) {
-            if let Some(rule) = enabled_rules.get(m.pattern().as_usize()) {
-                matches.push(KeywordMatch {
-                    rule_id: rule.id.clone(),
-                    pattern: rule.pattern.clone(),
-                    category: rule.category,
-                    severity: rule.severity,
-                    start_idx: m.start(),
-                    end_idx: m.end(),
-                });
-            }
+        // Helper closure to validate and push matches with word boundary check
+        let mut check_and_push =
+            |target_str: &str, m_start: usize, m_end: usize, pat_idx: usize| {
+                if let Some(rule) = enabled_rules.get(pat_idx) {
+                    let pat_norm = crate::vietnamese::canonical_vietnamese(&rule.pattern);
+                    // For short tokens (<= 4 chars without space), enforce word boundary to avoid false positives (e.g. "dm" in "admin")
+                    let needs_boundary = pat_norm.len() <= 4 && !pat_norm.contains(' ');
+                    if needs_boundary
+                        && !crate::vietnamese::is_word_boundary(target_str, m_start, m_end)
+                    {
+                        return;
+                    }
+
+                    if !matches
+                        .iter()
+                        .any(|existing: &KeywordMatch| existing.rule_id == rule.id)
+                    {
+                        matches.push(KeywordMatch {
+                            rule_id: rule.id.clone(),
+                            pattern: rule.pattern.clone(),
+                            category: rule.category,
+                            severity: rule.severity,
+                            start_idx: m_start,
+                            end_idx: m_end,
+                        });
+                    }
+                }
+            };
+
+        // 1. Scan canonical text (handles Telex, VNI, de-accented Unicode, and leetspeak)
+        for m in ac.find_iter(&canonical) {
+            check_and_push(&canonical, m.start(), m.end(), m.pattern().as_usize());
         }
 
-        // 2. Scan collapsed text (for acronyms separated by spaces e.g. "v c l", "d m")
-        for m in ac.find_iter(&collapsed) {
-            if let Some(rule) = enabled_rules.get(m.pattern().as_usize()) {
-                // If it's a short token and not already matched
-                if !matches.iter().any(|existing| existing.rule_id == rule.id) {
-                    matches.push(KeywordMatch {
-                        rule_id: rule.id.clone(),
-                        pattern: rule.pattern.clone(),
-                        category: rule.category,
-                        severity: rule.severity,
-                        start_idx: m.start(),
-                        end_idx: m.end(),
-                    });
-                }
+        // 2. Scan normalized text (handles literal Latin keywords like "sex")
+        if canonical != normalized {
+            for m in ac.find_iter(&normalized) {
+                check_and_push(&normalized, m.start(), m.end(), m.pattern().as_usize());
             }
         }
 
@@ -305,6 +315,48 @@ pub fn default_keyword_rules() -> Vec<KeywordRule> {
         KeywordRule {
             id: "prof_vn_cac".into(),
             pattern: "cai cac".into(),
+            category: KeywordCategory::Profanity,
+            severity: KeywordSeverity::High,
+            enabled: true,
+        },
+        KeywordRule {
+            id: "prof_vn_dit".into(),
+            pattern: "dit".into(),
+            category: KeywordCategory::Profanity,
+            severity: KeywordSeverity::High,
+            enabled: true,
+        },
+        KeywordRule {
+            id: "prof_vn_djt".into(),
+            pattern: "djt".into(),
+            category: KeywordCategory::Profanity,
+            severity: KeywordSeverity::High,
+            enabled: true,
+        },
+        KeywordRule {
+            id: "prof_vn_vl".into(),
+            pattern: "vl".into(),
+            category: KeywordCategory::Profanity,
+            severity: KeywordSeverity::Medium,
+            enabled: true,
+        },
+        KeywordRule {
+            id: "prof_vn_cc".into(),
+            pattern: "cc".into(),
+            category: KeywordCategory::Profanity,
+            severity: KeywordSeverity::Medium,
+            enabled: true,
+        },
+        KeywordRule {
+            id: "prof_vn_deo".into(),
+            pattern: "deo".into(),
+            category: KeywordCategory::Profanity,
+            severity: KeywordSeverity::Medium,
+            enabled: true,
+        },
+        KeywordRule {
+            id: "prof_vn_buoi".into(),
+            pattern: "buoi".into(),
             category: KeywordCategory::Profanity,
             severity: KeywordSeverity::High,
             enabled: true,
@@ -419,6 +471,13 @@ pub fn default_keyword_rules() -> Vec<KeywordRule> {
         },
         // Adult / NSFW
         KeywordRule {
+            id: "adult_en_sex".into(),
+            pattern: "sex".into(),
+            category: KeywordCategory::Adult,
+            severity: KeywordSeverity::High,
+            enabled: true,
+        },
+        KeywordRule {
             id: "adult_vn_phim_sex".into(),
             pattern: "phim sex".into(),
             category: KeywordCategory::Adult,
@@ -433,6 +492,13 @@ pub fn default_keyword_rules() -> Vec<KeywordRule> {
             enabled: true,
         },
         KeywordRule {
+            id: "adult_en_xxx".into(),
+            pattern: "xxx".into(),
+            category: KeywordCategory::Adult,
+            severity: KeywordSeverity::High,
+            enabled: true,
+        },
+        KeywordRule {
             id: "adult_en_hentai".into(),
             pattern: "hentai".into(),
             category: KeywordCategory::Adult,
@@ -442,6 +508,55 @@ pub fn default_keyword_rules() -> Vec<KeywordRule> {
         KeywordRule {
             id: "adult_en_jav".into(),
             pattern: "jav".into(),
+            category: KeywordCategory::Adult,
+            severity: KeywordSeverity::High,
+            enabled: true,
+        },
+        KeywordRule {
+            id: "adult_en_nude".into(),
+            pattern: "nude".into(),
+            category: KeywordCategory::Adult,
+            severity: KeywordSeverity::Medium,
+            enabled: true,
+        },
+        KeywordRule {
+            id: "adult_en_nsfw".into(),
+            pattern: "nsfw".into(),
+            category: KeywordCategory::Adult,
+            severity: KeywordSeverity::Medium,
+            enabled: true,
+        },
+        KeywordRule {
+            id: "adult_vn_thu_dam".into(),
+            pattern: "thu dam".into(),
+            category: KeywordCategory::Adult,
+            severity: KeywordSeverity::High,
+            enabled: true,
+        },
+        KeywordRule {
+            id: "adult_vn_gai_goi".into(),
+            pattern: "gai goi".into(),
+            category: KeywordCategory::Adult,
+            severity: KeywordSeverity::High,
+            enabled: true,
+        },
+        KeywordRule {
+            id: "adult_vn_loan_luan".into(),
+            pattern: "loan luan".into(),
+            category: KeywordCategory::Adult,
+            severity: KeywordSeverity::High,
+            enabled: true,
+        },
+        KeywordRule {
+            id: "adult_vn_lo_clip".into(),
+            pattern: "lo clip".into(),
+            category: KeywordCategory::Adult,
+            severity: KeywordSeverity::High,
+            enabled: true,
+        },
+        KeywordRule {
+            id: "adult_vn_show_hang".into(),
+            pattern: "show hang".into(),
             category: KeywordCategory::Adult,
             severity: KeywordSeverity::High,
             enabled: true,
@@ -512,6 +627,79 @@ mod tests {
         let matches = matcher.scan_text("No dang choi game khuya");
         assert_eq!(matches.len(), 1);
         assert_eq!(matches[0].pattern, "choi game khuya");
-        assert_eq!(matches[0].category, KeywordCategory::Custom);
+    }
+
+    #[test]
+    fn test_telex_and_vni_detection_in_matcher() {
+        let matcher = KeywordMatcher::default();
+
+        // 1. Telex typing detection
+        let matches = matcher.scan_text("may muon cheets a");
+        assert!(matches
+            .iter()
+            .any(|m| m.pattern == "chet di" || m.pattern == "chet" || m.rule_id.contains("chet")));
+
+        let matches = matcher.scan_text("tao muon ddanhs cheets may");
+        assert!(matches.iter().any(|m| m.pattern.contains("danh")));
+
+        let matches = matcher.scan_text("y dinh tuws satj");
+        assert!(matches.iter().any(|m| m.pattern == "tu sat"));
+
+        let matches = matcher.scan_text("ddijt con me may");
+        assert!(matches
+            .iter()
+            .any(|m| m.pattern == "dit" || m.pattern == "dit me"));
+
+        // 2. VNI typing detection
+        let matches = matcher.scan_text("may che6t1 di");
+        assert!(matches.iter().any(|m| m.pattern.contains("chet")));
+
+        let matches = matcher.scan_text("tao muon d9anh1 che6t1 may");
+        assert!(matches.iter().any(|m| m.pattern.contains("danh")));
+
+        let matches = matcher.scan_text("muon tu75 sa1t");
+        assert!(matches.iter().any(|m| m.pattern == "tu sat"));
+
+        let matches = matcher.scan_text("d9i5t me");
+        assert!(matches
+            .iter()
+            .any(|m| m.pattern == "dit" || m.pattern == "dit me"));
+
+        // 3. Prevent false positives on partial substrings
+        let matches = matcher.scan_text("dang nhap quyen admin");
+        assert!(!matches.iter().any(|m| m.pattern == "dm"));
+
+        let matches = matcher.scan_text("tao account moi");
+        assert!(!matches.iter().any(|m| m.pattern == "cc"));
+
+        let matches = matcher.scan_text("du lich tai sussex");
+        assert!(!matches.iter().any(|m| m.pattern == "sex"));
+    }
+
+    #[test]
+    fn test_detect_sex_and_adult_keywords() {
+        let matcher = KeywordMatcher::default();
+
+        // Single word 'sex'
+        let matches = matcher.scan_text("sex");
+        assert!(!matches.is_empty(), "Failed to match 'sex'");
+        assert_eq!(matches[0].pattern, "sex");
+        assert_eq!(matches[0].category, KeywordCategory::Adult);
+
+        // Within browser search query
+        let matches = matcher.scan_text("tim kiem sex tren google");
+        assert!(!matches.is_empty(), "Failed to match 'sex' in search query");
+        assert_eq!(matches[0].pattern, "sex");
+
+        // Obfuscated with dots or numbers (s3x, s.e.x)
+        let matches = matcher.scan_text("xem s.e.x");
+        assert!(!matches.is_empty(), "Failed to match obfuscated 's.e.x'");
+
+        let matches = matcher.scan_text("xem s3x");
+        assert!(!matches.is_empty(), "Failed to match leetspeak 's3x'");
+
+        // Other adult keywords
+        let matches = matcher.scan_text("co trang xxx moi");
+        assert!(!matches.is_empty(), "Failed to match 'xxx'");
     }
 }

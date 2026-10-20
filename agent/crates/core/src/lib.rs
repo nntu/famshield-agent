@@ -5,6 +5,7 @@ pub mod evaluator;
 pub mod keyword;
 pub mod policy;
 pub mod traits;
+pub mod vietnamese;
 
 pub use decision::{Action, Decision, ReasonCode};
 pub use domain::{
@@ -19,3 +20,4 @@ pub use keyword::{
 };
 pub use policy::Policy;
 pub use traits::{Clock, MockClock, SystemClock};
+pub use vietnamese::{canonical_vietnamese, decode_telex, decode_vni, is_word_boundary};

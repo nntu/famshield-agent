@@ -237,8 +237,9 @@ pub const LOCAL_DASHBOARD_HTML: &str = r#"<!DOCTYPE html>
         <!-- 2. RULES & LIMITS TAB -->
         <section id="tab-rules" class="tab-content">
             <div class="card" style="margin-bottom: 24px;">
-                <div class="section-header">
+                <div class="section-header" style="display:flex; justify-content:space-between; align-items:center;">
                     <div class="section-title" data-i18n="title_domain_block">🌐 Chặn Tên Miền (Domain Blocklist)</div>
+                    <button class="btn-primary" style="background:#0284c7; padding:6px 12px; font-size:13px;" onclick="syncRulesToCloud()" data-i18n="btn_sync_cloud">☁️ Đồng bộ lên Cloud</button>
                 </div>
                 <p class="card-sub" style="margin-bottom: 16px;" data-i18n="desc_domain_block">
                     Tên miền bị chặn sẽ được trả về 0.0.0.0 ngay tại cổng DNS loopback 127.0.0.2:53 trong 0ms. Tự động áp dụng cho mọi tên miền phụ (*.domain.com).
@@ -511,6 +512,7 @@ pub const LOCAL_DASHBOARD_HTML: &str = r#"<!DOCTYPE html>
                 title_domain_block: "🌐 Chặn Tên Miền (Domain Blocklist)",
                 desc_domain_block: "Tên miền bị chặn sẽ được trả về 0.0.0.0 ngay tại cổng DNS loopback 127.0.0.2:53 trong 0ms. Tự động áp dụng cho mọi tên miền phụ (*.domain.com).",
                 btn_add_domain: "➕ Thêm Tên Miền Chặn",
+                btn_sync_cloud: "☁️ Đồng bộ lên Cloud",
                 th_rule_target: "Tên miền / Mục tiêu",
                 th_rule_type: "Loại",
                 th_date_added: "Ngày thêm",
@@ -574,6 +576,7 @@ pub const LOCAL_DASHBOARD_HTML: &str = r#"<!DOCTYPE html>
                 title_domain_block: "🌐 Domain Blocklist",
                 desc_domain_block: "Blocked domains resolve to 0.0.0.0 on loopback 127.0.0.2:53 in 0ms. Automatically applies to all subdomains (*.domain.com).",
                 btn_add_domain: "➕ Block Domain",
+                btn_sync_cloud: "☁️ Sync to Cloud",
                 th_rule_target: "Target / Domain",
                 th_rule_type: "Type",
                 th_date_added: "Date Added",
@@ -930,6 +933,21 @@ pub const LOCAL_DASHBOARD_HTML: &str = r#"<!DOCTYPE html>
                 }
             } catch (e) {
                 showToast(currentLang === 'vi' ? 'Lỗi thêm quy tắc' : 'Failed to create rule', 'error');
+            }
+        }
+
+        async function syncRulesToCloud() {
+            try {
+                showToast(currentLang === 'vi' ? 'Đang đồng bộ quy tắc lên Cloud Server...' : 'Syncing rules to Cloud Server...', 'info');
+                const res = await api('/api/rules/sync-to-cloud', { method: 'POST' });
+                const data = await res.json();
+                if (res.ok && data.success) {
+                    showToast(currentLang === 'vi' ? data.message : `Successfully synced ${data.synced_domains_count} domains to Cloud`, 'success');
+                } else {
+                    showToast(data.error || (currentLang === 'vi' ? 'Đồng bộ thất bại' : 'Sync failed'), 'error');
+                }
+            } catch (e) {
+                showToast(currentLang === 'vi' ? 'Lỗi kết nối máy chủ' : 'Network error during sync', 'error');
             }
         }
 

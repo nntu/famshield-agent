@@ -1,5 +1,6 @@
 use famshield_core::keyword::{KeywordCategory, KeywordMatch, KeywordMatcher, KeywordSeverity};
 use std::collections::VecDeque;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
@@ -92,7 +93,7 @@ impl KeystrokeSlidingBuffer {
 pub struct KeyboardMonitor {
     buffer: Arc<Mutex<KeystrokeSlidingBuffer>>,
     matcher: Arc<Mutex<KeywordMatcher>>,
-    enabled: bool,
+    enabled: AtomicBool,
 }
 
 impl Default for KeyboardMonitor {
@@ -106,12 +107,12 @@ impl KeyboardMonitor {
         Self {
             buffer: Arc::new(Mutex::new(KeystrokeSlidingBuffer::default())),
             matcher: Arc::new(Mutex::new(matcher)),
-            enabled: true,
+            enabled: AtomicBool::new(true),
         }
     }
 
-    pub fn set_enabled(&mut self, enabled: bool) {
-        self.enabled = enabled;
+    pub fn set_enabled(&self, enabled: bool) {
+        self.enabled.store(enabled, Ordering::Relaxed);
         if !enabled {
             if let Ok(mut buf) = self.buffer.lock() {
                 buf.clear();
@@ -120,7 +121,7 @@ impl KeyboardMonitor {
     }
 
     pub fn is_enabled(&self) -> bool {
-        self.enabled
+        self.enabled.load(Ordering::Relaxed)
     }
 
     pub fn set_active_app(&self, app_name: &str) {
@@ -140,7 +141,7 @@ impl KeyboardMonitor {
     /// 1. Flushes the buffer so the same keystroke sequence is not reported repeatedly.
     /// 2. Returns a `KeywordViolationAlert` with masked snippet.
     pub fn process_char(&self, ch: char) -> Option<KeywordViolationAlert> {
-        if !self.enabled {
+        if !self.is_enabled() {
             return None;
         }
 
@@ -180,11 +181,18 @@ impl KeyboardMonitor {
 
     /// Processes a Backspace key.
     pub fn process_backspace(&self) {
-        if !self.enabled {
+        if !self.is_enabled() {
             return;
         }
         if let Ok(mut buf) = self.buffer.lock() {
             buf.handle_backspace();
+        }
+    }
+
+    /// Clears the internal keystroke buffer (e.g. on Enter, Tab, Escape, or context break).
+    pub fn clear_buffer(&self) {
+        if let Ok(mut buf) = self.buffer.lock() {
+            buf.clear();
         }
     }
 
@@ -227,13 +235,11 @@ unsafe extern "system" fn low_level_keyboard_proc(
 
     if n_code >= 0 && (wparam.0 as u32 == WM_KEYDOWN || wparam.0 as u32 == WM_SYSKEYDOWN) {
         let kbd_struct = *(lparam.0 as *const KBDLLHOOKSTRUCT);
-        if !is_focused_password_field() {
-            if let Some(tx) = KEY_EVENT_TX.get() {
-                let _ = tx.try_send(RawKeyEvent {
-                    vk_code: kbd_struct.vkCode,
-                    scan_code: kbd_struct.scanCode,
-                });
-            }
+        if let Some(tx) = KEY_EVENT_TX.get() {
+            let _ = tx.try_send(RawKeyEvent {
+                vk_code: kbd_struct.vkCode,
+                scan_code: kbd_struct.scanCode,
+            });
         }
     }
 
@@ -453,6 +459,42 @@ pub async fn send_violation_via_ipc(
     }
 }
 
+/// Synchronizes active keyword rules and enabled state from Windows Service via IPC.
+pub async fn sync_keyword_rules_from_service(monitor: Arc<KeyboardMonitor>) {
+    #[cfg(windows)]
+    {
+        use famshield_service::ipc::{
+            read_framed_message, write_framed_message, IpcMessage, IPC_PIPE_NAME,
+        };
+        use tokio::net::windows::named_pipe::ClientOptions;
+
+        let Ok(mut client) = ClientOptions::new().open(IPC_PIPE_NAME) else {
+            return;
+        };
+        if write_framed_message(&mut client, &IpcMessage::GetKeywordRulesRequest)
+            .await
+            .is_err()
+        {
+            return;
+        }
+        if let Ok(Some(IpcMessage::GetKeywordRulesResponse { enabled, rules })) =
+            read_framed_message(&mut client).await
+        {
+            monitor.set_enabled(enabled);
+            let new_matcher = famshield_core::keyword::KeywordMatcher::new(rules);
+            monitor.update_matcher(new_matcher);
+            tracing::info!(
+                "Synchronized keyword rules from service (enabled: {})",
+                enabled
+            );
+        }
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = monitor;
+    }
+}
+
 /// Starts the Win32 low-level keyboard hook and spawns worker thread.
 pub fn start_keyboard_monitor_hook(monitor: Arc<KeyboardMonitor>) {
     #[cfg(windows)]
@@ -473,9 +515,15 @@ pub fn start_keyboard_monitor_hook(monitor: Arc<KeyboardMonitor>) {
         std::thread::spawn(move || {
             let session_id = get_current_session_id();
             while let Ok(event) = rx.recv() {
+                if is_focused_password_field() {
+                    continue;
+                }
                 if event.vk_code == 0x08 {
                     // VK_BACK
                     worker_monitor.process_backspace();
+                } else if event.vk_code == 0x0D || event.vk_code == 0x1B || event.vk_code == 0x09 {
+                    // VK_RETURN (Enter), VK_ESCAPE, VK_TAB - clear context buffer on boundary
+                    worker_monitor.clear_buffer();
                 } else if let Some(ch) = vk_to_char(event.vk_code, event.scan_code) {
                     if let Some(violation) = worker_monitor.process_char(ch) {
                         tracing::warn!(
@@ -606,8 +654,25 @@ mod tests {
     }
 
     #[test]
+    fn test_keyboard_monitor_detects_sex_in_browser() {
+        let monitor = KeyboardMonitor::default();
+        monitor.set_active_app("chrome.exe");
+
+        // Type 's', 'e', 'x'
+        assert!(monitor.process_char('s').is_none());
+        assert!(monitor.process_char('e').is_none());
+        let violation = monitor.process_char('x');
+
+        assert!(violation.is_some());
+        let v = violation.unwrap();
+        assert_eq!(v.pattern, "sex");
+        assert_eq!(v.category, KeywordCategory::Adult);
+        assert_eq!(v.app_name, "chrome.exe");
+    }
+
+    #[test]
     fn test_keyboard_monitor_disabled_does_nothing() {
-        let mut monitor = KeyboardMonitor::default();
+        let monitor = KeyboardMonitor::default();
         monitor.set_enabled(false);
 
         for ch in "vcl".chars() {
@@ -627,6 +692,35 @@ mod tests {
         assert_eq!(vk_to_char(0x41, 0x1E), Some('a'));
         assert_eq!(vk_to_char(0x30, 0x0B), Some('0'));
         assert_eq!(vk_to_char(0x20, 0x39), Some(' '));
+    }
+
+    #[test]
+    fn test_keyboard_monitor_detects_telex_and_vni_typing() {
+        let monitor = KeyboardMonitor::default();
+        monitor.set_active_app("browser.exe");
+
+        // 1. Telex typing for single word: 'd', 'd', 'i', 'j', 't' (địt)
+        for ch in "ddij".chars() {
+            assert!(monitor.process_char(ch).is_none());
+        }
+        let alert = monitor.process_char('t');
+        assert!(alert.is_some(), "Telex 'ddijt' should be detected");
+        assert_eq!(alert.unwrap().pattern, "dit");
+
+        // 2. VNI typing for single word: 'd', '9', 'i', '5', 't' (địt)
+        for ch in "d9i5".chars() {
+            assert!(monitor.process_char(ch).is_none());
+        }
+        let alert = monitor.process_char('t');
+        assert!(alert.is_some(), "VNI 'd9i5t' should be detected");
+        assert_eq!(alert.unwrap().pattern, "dit");
+
+        // 3. Clear buffer on context break
+        monitor.process_char('h');
+        monitor.process_char('e');
+        monitor.clear_buffer();
+        // Subsequent keystrokes should not concatenate with previous 'he'
+        assert_eq!(monitor.buffer.lock().unwrap().current_text(), "");
     }
 
     #[test]

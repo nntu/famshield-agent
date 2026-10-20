@@ -249,6 +249,15 @@ impl TelemetrySyncWorker {
                 // Merge category seeds into active domain list
                 let mut block_domains: Vec<String> = pol.custom_blocked_domains;
 
+                // Merge local custom rules from endpoint storage to preserve parent rules
+                if let Ok(local_rules) = self.storage.list_local_rules() {
+                    for r in local_rules {
+                        if r.rule_type == "domain" && r.enabled {
+                            block_domains.push(r.rule_id);
+                        }
+                    }
+                }
+
                 if pol.block_adult {
                     block_domains.extend(ADULT_DOMAINS.iter().map(|d| d.to_string()));
                 }
@@ -278,9 +287,13 @@ impl TelemetrySyncWorker {
                 // Update runtime DNS proxy blocklist in memory
                 if let Some(blocklist) = &self.dns_blocklist {
                     blocklist.replace_blocklist(block_domains.clone());
+                    blocklist.set_safesearch_enabled(pol.safesearch_enabled);
+                    blocklist.set_youtube_restricted(pol.youtube_restricted);
                     info!(
-                        "Dynamic DNS blocklist refreshed with {} domains",
-                        block_domains.len()
+                        "Dynamic DNS blocklist refreshed with {} domains (safesearch={}, youtube_restricted={})",
+                        block_domains.len(),
+                        pol.safesearch_enabled,
+                        pol.youtube_restricted
                     );
                 }
 

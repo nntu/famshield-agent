@@ -720,6 +720,18 @@ impl StorageEngine {
         Ok(total.unwrap_or(0))
     }
 
+    /// Calculate application screen time (in milliseconds) recorded for the current day UTC.
+    pub fn get_app_usage_today_ms(&self, app_name: &str) -> Result<i64, StorageError> {
+        let conn = self.conn.lock().unwrap();
+        let today_prefix = Utc::now().format("%Y-%m-%d").to_string();
+        let total: Option<i64> = conn.query_row(
+            "SELECT SUM(duration_ms) FROM usage_segments WHERE rule_id = ?1 AND start_utc LIKE ?2",
+            params![app_name, format!("{}%", today_prefix)],
+            |row| row.get(0),
+        )?;
+        Ok(total.unwrap_or(0))
+    }
+
     // Keyword Monitoring & Violations
     pub fn record_keyword_violation(
         &self,
