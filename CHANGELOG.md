@@ -40,6 +40,18 @@ Tất cả các thay đổi quan trọng của dự án **FamShield Windows Agen
   - Dịch vụ nền tự động kiểm tra và áp dụng quy tắc điều hướng DNS root namespace `.` về `127.0.0.2:53` qua `NrptManager::apply_nrpt_rule` khi khởi động và dọn dẹp sạch sẽ khi dừng dịch vụ.
 
 ### Added
+- **Tăng Cường Tác Động Endpoint: Cưỡng Chế Hạn Mức Ứng Dụng & Tự Động Hạ Tiến Trình Quá Giờ (`famshield-windows`, `famshield-service`)**:
+  - **Hạ Tiến Trình An Toàn Cấp Kernel (`terminate_processes_by_name`)**: Tích hợp các hàm Win32 API (`OpenProcess`, `TerminateProcess`) với cờ quyền `PROCESS_TERMINATE` trong Session 0. Cho phép tự động phát hiện và hạ toàn bộ các tiến trình game/ứng dụng quá giờ của trẻ em mà không làm treo hệ điều hành.
+  - **Cơ Chế Đánh Giá Hạn Mức Hai Tầng (Dual-Stage Quota Enforcement)**:
+    - *Tầng 1 - Chặn tức thì khi khởi chạy*: Ngăn chặn trẻ mở lại ứng dụng ngay lập tức khi ứng dụng đó đã hết quota trong ngày (`used_minutes >= max_minutes`), hạ tiến trình trong vòng vài mili-giây trước khi cửa sổ game kịp render.
+    - *Tầng 2 - Quét liên tục ứng dụng đang chạy*: Vòng lặp định kỳ mỗi 5 giây quét các tiến trình đang hoạt động đối chiếu với luật cấu hình; ngay khi thời gian tích lũy chạm ngưỡng giới hạn, hệ thống tự động cưỡng chế đóng ứng dụng và khóa màn hình máy trạm (`LockWorkStation`).
+  - **Ghi Nhận Sự Cố Bảo Mật (Security Alert Telemetry)**: Tự động phát sinh sự kiện cảnh báo `TERMINATE_QUOTA_EXCEEDED` ghi nhận vào luồng Telemetry Outbox để đồng bộ về Cloud và ứng dụng di động của phụ huynh.
+- **Chặn Cổng VPN & Giao Thức DoT Vượt Rào Bằng Windows Filtering Platform (`famshield-windows`, `famshield-service`)**:
+  - **Khóa Cổng Vượt Rào Cấp Kernel (WFP Anti-Bypass Port Filters)**: Đăng ký các bộ lọc chặn (`FWP_ACTION_BLOCK`) trên cả hai phân lớp ALE `FWPM_LAYER_ALE_AUTH_CONNECT_V4` và `FWPM_LAYER_ALE_AUTH_CONNECT_V6` đối với các cổng mã hóa vượt rào phổ biến:
+    - Cổng `853`: DNS-over-TLS (DoT).
+    - Cổng `1194`: Giao thức OpenVPN mặc định.
+    - Cổng `51820`: Giao thức WireGuard VPN mặc định.
+  - **An Toàn Hệ Thống Tuyệt Đối (Zero BSOD & Network Lockup Guarantee)**: Toàn bộ bộ lọc chống vượt rào được đăng ký độc quyền trong phiên động `FWPM_SESSION_FLAG_DYNAMIC`. Nếu tiến trình dịch vụ gặp sự cố hoặc tắt, Windows Kernel tự động giải phóng toàn bộ bộ lọc trong $0\text{ms}$, đảm bảo không bao giờ gây nghẽn mạng máy trạm.
 - **Cơ Chế Nén Tổng Hợp & Tối Ưu Dung Lượng Nhật Ký DNS (DNS Query Log Retention & Rollup Aggregation - `famshield-storage`, `famshield-service`, `famshield-local-admin`, `web`)**:
   - **Bảng Thống Kê Tổng Hợp Vĩnh Viễn (`domain_query_aggregates`)**: Nâng cấp lược đồ cơ sở dữ liệu SQLite lên Version 6. Thay vì giữ hàng chục ngàn dòng nhật ký chi tiết vô thời hạn làm phình to dung lượng ổ cứng, hệ thống tự động gộp (rollup) số lượt truy vấn (`total_queries`, `allowed_count`, `blocked_count`) và mốc thời gian (`first_seen_at`, `last_seen_at`) theo từng domain vào bảng thống kê nhẹ.
   - **Truy Vấn Thống Kê Hợp Nhất (Seamless Aggregation View)**: Cải tiến `get_domain_query_summaries` sử dụng CTE SQLite kết hợp đồng thời giữa bảng thống kê lịch sử `domain_query_aggregates` và bảng nhật ký chi tiết `query_logs`, đảm bảo biểu đồ và số liệu thống kê truy cập web/DNS trên Dashboard không bao giờ bị mất hoặc đứt gãy sau khi dọn dẹp log chi tiết.

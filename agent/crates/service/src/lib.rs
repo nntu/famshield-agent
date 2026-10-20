@@ -4,8 +4,8 @@ pub mod ipc;
 pub mod watchdog;
 
 pub use controller::{
-    get_active_admin_port, save_active_admin_port, ServiceController, DEFAULT_ADMIN_PORT,
-    FALLBACK_ADMIN_PORTS,
+    check_and_enforce_app_quota, get_active_admin_port, save_active_admin_port, ServiceController,
+    DEFAULT_ADMIN_PORT, FALLBACK_ADMIN_PORTS,
 };
 pub use dispatcher::IpcDispatcher;
 pub use ipc::{

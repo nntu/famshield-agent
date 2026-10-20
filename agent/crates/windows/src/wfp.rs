@@ -289,6 +289,108 @@ impl WfpSessionGuard {
         Ok(filter_id)
     }
 
+    #[cfg(windows)]
+    fn add_block_port_v4(&self, port: u16, name: &str) -> Result<u64, WindowsError> {
+        let mut port_val = FWP_CONDITION_VALUE0::default();
+        port_val.r#type = FWP_UINT16;
+        port_val.Anonymous.uint16 = port;
+
+        let mut conditions = [FWPM_FILTER_CONDITION0 {
+            fieldKey: FWPM_CONDITION_IP_REMOTE_PORT,
+            matchType: FWP_MATCH_EQUAL,
+            conditionValue: port_val,
+        }];
+
+        let mut wide_name: Vec<u16> = name.encode_utf16().chain(std::iter::once(0)).collect();
+        let mut filter = FWPM_FILTER0::default();
+        filter.displayData.name = windows::core::PWSTR(wide_name.as_mut_ptr());
+        filter.layerKey = FWPM_LAYER_ALE_AUTH_CONNECT_V4;
+        filter.subLayerKey = FWPM_SUBLAYER_UNIVERSAL;
+        filter.weight.r#type = FWP_UINT8;
+        filter.weight.Anonymous.uint8 = 10;
+        filter.action.r#type = FWP_ACTION_BLOCK;
+        filter.numFilterConditions = conditions.len() as u32;
+        filter.filterCondition = conditions.as_mut_ptr();
+
+        let mut filter_id = 0u64;
+        let res =
+            unsafe { FwpmFilterAdd0(self.engine_handle, &filter, None, Some(&mut filter_id)) };
+        if res != 0 {
+            return Err(WindowsError::Wfp(format!(
+                "FwpmFilterAdd0 (block v4 port {}) failed with code: {:#x}",
+                port, res
+            )));
+        }
+        Ok(filter_id)
+    }
+
+    #[cfg(windows)]
+    fn add_block_port_v6(&self, port: u16, name: &str) -> Result<u64, WindowsError> {
+        let mut port_val = FWP_CONDITION_VALUE0::default();
+        port_val.r#type = FWP_UINT16;
+        port_val.Anonymous.uint16 = port;
+
+        let mut conditions = [FWPM_FILTER_CONDITION0 {
+            fieldKey: FWPM_CONDITION_IP_REMOTE_PORT,
+            matchType: FWP_MATCH_EQUAL,
+            conditionValue: port_val,
+        }];
+
+        let mut wide_name: Vec<u16> = name.encode_utf16().chain(std::iter::once(0)).collect();
+        let mut filter = FWPM_FILTER0::default();
+        filter.displayData.name = windows::core::PWSTR(wide_name.as_mut_ptr());
+        filter.layerKey = FWPM_LAYER_ALE_AUTH_CONNECT_V6;
+        filter.subLayerKey = FWPM_SUBLAYER_UNIVERSAL;
+        filter.weight.r#type = FWP_UINT8;
+        filter.weight.Anonymous.uint8 = 10;
+        filter.action.r#type = FWP_ACTION_BLOCK;
+        filter.numFilterConditions = conditions.len() as u32;
+        filter.filterCondition = conditions.as_mut_ptr();
+
+        let mut filter_id = 0u64;
+        let res =
+            unsafe { FwpmFilterAdd0(self.engine_handle, &filter, None, Some(&mut filter_id)) };
+        if res != 0 {
+            return Err(WindowsError::Wfp(format!(
+                "FwpmFilterAdd0 (block v6 port {}) failed with code: {:#x}",
+                port, res
+            )));
+        }
+        Ok(filter_id)
+    }
+
+    /// Block common VPN and encrypted DNS bypass ports (DoT 853, OpenVPN 1194, WireGuard 51820)
+    /// on both IPv4 and IPv6 using the active dynamic WFP session.
+    #[cfg(windows)]
+    pub fn block_bypass_vpn_ports(&mut self) -> Result<Vec<u64>, WindowsError> {
+        let added = vec![
+            // 1. Port 853: DNS-over-TLS (DoT)
+            self.add_block_port_v4(853, "FamShield-Block-DoT-Port853-IPv4")?,
+            self.add_block_port_v6(853, "FamShield-Block-DoT-Port853-IPv6")?,
+            // 2. Port 1194: OpenVPN
+            self.add_block_port_v4(1194, "FamShield-Block-OpenVPN-Port1194-IPv4")?,
+            self.add_block_port_v6(1194, "FamShield-Block-OpenVPN-Port1194-IPv6")?,
+            // 3. Port 51820: WireGuard
+            self.add_block_port_v4(51820, "FamShield-Block-WireGuard-Port51820-IPv4")?,
+            self.add_block_port_v6(51820, "FamShield-Block-WireGuard-Port51820-IPv6")?,
+        ];
+
+        self.filter_ids.extend(&added);
+        info!(
+            "Successfully installed {} WFP anti-bypass port filters (DoT 853, OpenVPN 1194, WireGuard 51820)",
+            added.len()
+        );
+        Ok(added)
+    }
+
+    #[cfg(not(windows))]
+    pub fn block_bypass_vpn_ports(&mut self) -> Result<Vec<u64>, WindowsError> {
+        let mock_ids = vec![201, 202, 203, 204, 205, 206];
+        self.filter_ids.extend(&mock_ids);
+        info!("Mock registered 6 WFP anti-bypass port filters");
+        Ok(mock_ids)
+    }
+
     /// Remove a specific filter by its ID.
     #[cfg(windows)]
     pub fn remove_filter(&mut self, filter_id: u64) -> Result<(), WindowsError> {
@@ -362,6 +464,7 @@ mod tests {
 
                 // Attempting filter addition - requires admin rights on Windows
                 let _ = guard.block_external_dns(&[]);
+                let _ = guard.block_bypass_vpn_ports();
                 let _ = guard.remove_all_filters();
             }
             Err(e) => {

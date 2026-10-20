@@ -1,11 +1,11 @@
 {
     "schema_version": 2,
-    "commit": "952d8f8cd736e6b927bd46946e7bdb2f0d96943f",
-    "indexed_at": "2026-10-20T09:45:01Z",
+    "commit": "09519aac7db0dee87bdbb3e7b5ba7b0715605cb0",
+    "indexed_at": "2026-10-20T13:19:43Z",
     "project": "D-projects-famshield-famshield-agent",
-    "nodes": 2426,
-    "edges": 8048,
-    "original_size": 7667712,
-    "compressed_size": 1496705,
-    "compression_level": 9
+    "nodes": 2540,
+    "edges": 8872,
+    "original_size": 11730944,
+    "compressed_size": 2135479,
+    "compression_level": 3
 }

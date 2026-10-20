@@ -95,3 +95,61 @@ fn test_ipc_pipe_sddl_security_format() {
     assert!(IPC_PIPE_SDDL.contains("BA")); // Builtin Administrators
     assert!(IPC_PIPE_SDDL.contains("AU")); // Authenticated Users
 }
+
+#[tokio::test]
+async fn test_check_and_enforce_app_quota() {
+    use famshield_service::check_and_enforce_app_quota;
+    use famshield_storage::{LocalRuleRecord, UsageSegmentRecord};
+    use famshield_sync::TelemetryPipeline;
+    use std::sync::Arc;
+
+    let storage = StorageEngine::in_memory().unwrap();
+    let telemetry = Arc::new(TelemetryPipeline::new("test-device", storage.clone()));
+
+    // Case 1: No rules configured -> false
+    assert!(!check_and_enforce_app_quota(
+        "game.exe", &storage, &telemetry
+    ));
+
+    // Configure a rule: game.exe max 30 mins/day
+    storage
+        .upsert_local_rule(&LocalRuleRecord {
+            rule_id: "game.exe".into(),
+            rule_type: "application".into(),
+            payload: r#"{"max_minutes_per_day":30}"#.into(),
+            enabled: true,
+            created_at: chrono::Utc::now(),
+            updated_at: chrono::Utc::now(),
+        })
+        .unwrap();
+
+    // Case 2: Usage under quota (10 mins) -> false
+    storage
+        .record_usage_segment(&UsageSegmentRecord {
+            segment_id: "seg-1".into(),
+            child_id: "child-1".into(),
+            rule_id: "game.exe".into(),
+            start_utc: chrono::Utc::now(),
+            duration_ms: 10 * 60 * 1000,
+            state: "active".into(),
+        })
+        .unwrap();
+    assert!(!check_and_enforce_app_quota(
+        "game.exe", &storage, &telemetry
+    ));
+
+    // Case 3: Usage exceeds quota (additional 25 mins, total 35 mins) -> true (enforced)
+    storage
+        .record_usage_segment(&UsageSegmentRecord {
+            segment_id: "seg-2".into(),
+            child_id: "child-1".into(),
+            rule_id: "game.exe".into(),
+            start_utc: chrono::Utc::now(),
+            duration_ms: 25 * 60 * 1000,
+            state: "active".into(),
+        })
+        .unwrap();
+    assert!(check_and_enforce_app_quota(
+        "game.exe", &storage, &telemetry
+    ));
+}

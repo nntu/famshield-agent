@@ -9,6 +9,8 @@ use windows::Win32::Foundation::CloseHandle;
 use windows::Win32::System::Diagnostics::ToolHelp::{
     CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W, TH32CS_SNAPPROCESS,
 };
+#[cfg(windows)]
+use windows::Win32::System::Threading::{OpenProcess, TerminateProcess, PROCESS_TERMINATE};
 
 /// Snapshot of a running process on Windows
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -107,6 +109,53 @@ impl ProcessMonitor {
                 },
             ])
         }
+    }
+
+    /// Forcefully terminates a process by PID.
+    pub fn terminate_process(pid: u32) -> Result<(), WindowsError> {
+        #[cfg(windows)]
+        {
+            unsafe {
+                let handle = OpenProcess(PROCESS_TERMINATE, false, pid).map_err(|e| {
+                    WindowsError::Process(format!("OpenProcess failed for PID {}: {}", pid, e))
+                })?;
+                let term_res = TerminateProcess(handle, 1);
+                let _ = CloseHandle(handle);
+                if term_res.is_ok() {
+                    tracing::info!("Successfully terminated process PID {}", pid);
+                    Ok(())
+                } else {
+                    Err(WindowsError::Process(format!(
+                        "TerminateProcess failed for PID {}",
+                        pid
+                    )))
+                }
+            }
+        }
+        #[cfg(not(windows))]
+        {
+            tracing::info!("Mock terminate_process for PID {}", pid);
+            Ok(())
+        }
+    }
+
+    /// Terminates all running processes matching the given executable name (case-insensitive).
+    /// Returns the count of successfully terminated processes.
+    pub fn terminate_processes_by_name(name: &str) -> Result<usize, WindowsError> {
+        let procs = Self::enumerate_processes()?;
+        let target = name.to_lowercase();
+        let target_base = target.trim_end_matches(".exe");
+        let mut count = 0;
+        for p in procs {
+            let p_name = p.name.to_lowercase();
+            let p_base = p_name.trim_end_matches(".exe");
+            if p_name == target || p_base == target_base {
+                if let Ok(()) = Self::terminate_process(p.pid) {
+                    count += 1;
+                }
+            }
+        }
+        Ok(count)
     }
 
     /// Performs one detection cycle and returns delta events (started / terminated)
@@ -240,5 +289,16 @@ mod tests {
             (events3[1].pid, events3[1].event_type.as_str()),
             (30, "process_started")
         );
+    }
+
+    #[test]
+    fn test_terminate_process_graceful() {
+        // Attempting to terminate an invalid PID should gracefully return Err or Ok on mock without panic
+        let _ = ProcessMonitor::terminate_process(9999999);
+
+        // Terminating a non-existent name should return 0 count without panic
+        let count =
+            ProcessMonitor::terminate_processes_by_name("non_existent_fake_app_12345.exe").unwrap();
+        assert_eq!(count, 0);
     }
 }

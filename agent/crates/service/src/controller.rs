@@ -215,6 +215,9 @@ impl ServiceController {
                 if let Err(e) = g.block_external_dns(&upstream_ips) {
                     tracing::warn!("Failed to install WFP Port 53 block filters: {}", e);
                 }
+                if let Err(e) = g.block_bypass_vpn_ports() {
+                    tracing::warn!("Failed to install WFP anti-bypass VPN port filters: {}", e);
+                }
                 Some(g)
             }
             Err(e) => {
@@ -391,35 +394,11 @@ impl ServiceController {
                                     for ev in &events {
                                         if ev.event_type == "process_started" {
                                             admin_server_proc.set_active_app(&ev.process_name).await;
-
-                                            // Screen Time Quota Evaluation: Check daily application limit
-                                            if let Ok(rules) = storage.list_local_rules() {
-                                                let proc_lower = ev.process_name.to_lowercase();
-                                                let proc_base = proc_lower.trim_end_matches(".exe");
-                                                for r in rules {
-                                                    if r.rule_type == "application" && r.enabled {
-                                                        let rule_lower = r.rule_id.to_lowercase();
-                                                        let rule_base = rule_lower.trim_end_matches(".exe");
-                                                        if proc_lower == rule_lower || proc_base == rule_base {
-                                                            if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&r.payload) {
-                                                                let max_minutes = parsed.get("max_minutes_per_day").and_then(|v| v.as_u64()).unwrap_or(0);
-                                                                if max_minutes > 0 {
-                                                                    if let Ok(usage_ms) = storage.get_app_usage_today_ms(&ev.process_name) {
-                                                                        let used_minutes = (usage_ms / 60_000) as u64;
-                                                                        if used_minutes >= max_minutes {
-                                                                            tracing::warn!(
-                                                                                "⛔ Application '{}' exceeded daily quota (used {} / limit {} mins)! Locking workstation...",
-                                                                                ev.process_name, used_minutes, max_minutes
-                                                                            );
-                                                                            let _ = famshield_windows::SessionManager::lock_workstation();
-                                                                        }
-                                                                    }
-                                                                }
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                            }
+                                            check_and_enforce_app_quota(
+                                                &ev.process_name,
+                                                &storage,
+                                                &telemetry_pipeline,
+                                            );
                                         }
                                         let _ = telemetry_pipeline.queue_event(&TelemetryEvent::new(
                                             format!("proc-{}", chrono::Utc::now().timestamp_micros()),
@@ -430,6 +409,21 @@ impl ServiceController {
                                     }
                                     if let Ok(batch_json) = nats.format_process_events_batch(&events) {
                                         info!("Queued process telemetry batch for NATS JetStream: {} bytes", batch_json.len());
+                                    }
+                                }
+                            }
+
+                            // Continuously enforce daily quota on running applications
+                            if let Ok(rules) = storage.list_local_rules() {
+                                if rules.iter().any(|r| r.rule_type == "application" && r.enabled) {
+                                    if let Ok(procs) = famshield_windows::ProcessMonitor::enumerate_processes() {
+                                        for p in procs {
+                                            check_and_enforce_app_quota(
+                                                &p.name,
+                                                &storage,
+                                                &telemetry_pipeline,
+                                            );
+                                        }
                                     }
                                 }
                             }
@@ -464,4 +458,76 @@ impl ServiceController {
             }
         }
     }
+}
+
+/// Evaluates and enforces daily screen time limits for a given application.
+/// If the application has exceeded its allotted quota, all its running instances are terminated
+/// and a security alert is recorded in the telemetry pipeline.
+/// Returns true if quota was exceeded and enforcement occurred.
+pub fn check_and_enforce_app_quota(
+    proc_name: &str,
+    storage: &famshield_storage::StorageEngine,
+    telemetry_pipeline: &Arc<TelemetryPipeline>,
+) -> bool {
+    let mut enforced = false;
+    if let Ok(rules) = storage.list_local_rules() {
+        let proc_lower = proc_name.to_lowercase();
+        let proc_base = proc_lower.trim_end_matches(".exe");
+        for r in rules {
+            if r.rule_type == "application" && r.enabled {
+                let rule_lower = r.rule_id.to_lowercase();
+                let rule_base = rule_lower.trim_end_matches(".exe");
+                if proc_lower == rule_lower || proc_base == rule_base {
+                    if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&r.payload) {
+                        let max_minutes = parsed
+                            .get("max_minutes_per_day")
+                            .and_then(|v| v.as_u64())
+                            .unwrap_or(0);
+                        if max_minutes > 0 {
+                            if let Ok(usage_ms) = storage.get_app_usage_today_ms(proc_name) {
+                                let used_minutes = (usage_ms / 60_000) as u64;
+                                if used_minutes >= max_minutes {
+                                    tracing::warn!(
+                                        "⛔ Application '{}' exceeded daily quota (used {} / limit {} mins)! Terminating process...",
+                                        proc_name,
+                                        used_minutes,
+                                        max_minutes
+                                    );
+                                    let killed = famshield_windows::ProcessMonitor::terminate_processes_by_name(
+                                        proc_name,
+                                    )
+                                    .unwrap_or(0);
+                                    tracing::info!(
+                                        "Enforcement: Terminated {} instances of '{}'",
+                                        killed,
+                                        proc_name
+                                    );
+
+                                    let now = chrono::Utc::now();
+                                    let alert_payload = serde_json::json!({
+                                        "process_name": proc_name,
+                                        "used_minutes": used_minutes,
+                                        "max_minutes": max_minutes,
+                                        "action": "TERMINATE_QUOTA_EXCEEDED",
+                                        "killed_count": killed,
+                                        "timestamp": now.to_rfc3339(),
+                                    });
+                                    let _ = telemetry_pipeline.queue_event(&TelemetryEvent::new(
+                                        format!("quota-term-{}", now.timestamp_micros()),
+                                        "security_alert",
+                                        now,
+                                        alert_payload,
+                                    ));
+
+                                    let _ = famshield_windows::SessionManager::lock_workstation();
+                                    enforced = true;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    enforced
 }
