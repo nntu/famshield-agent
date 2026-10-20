@@ -114,6 +114,51 @@ impl NrptManager {
         Ok(())
     }
 
+    /// Detects original system DNS servers configured by DHCP or static assignment on network adapters.
+    /// Excludes internal loopback addresses (127.0.0.1, 127.0.0.2).
+    pub fn get_system_dns_servers() -> Vec<String> {
+        let mut servers = Vec::new();
+
+        #[cfg(windows)]
+        {
+            // Query TCP/IP interfaces parameters for native DHCP and static DNS addresses
+            let ps_cmd = "Get-ItemProperty 'HKLM:\\SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters\\Interfaces\\*' | ForEach-Object { $_.DhcpNameServer; $_.NameServer } | Where-Object { $_ -and $_ -notmatch '127\\.0\\.0' } | ForEach-Object { $_ -split '[,\\s]+' } | Select-Object -Unique";
+            if let Ok(output) = std::process::Command::new("powershell")
+                .args([
+                    "-NoProfile",
+                    "-NonInteractive",
+                    "-ExecutionPolicy",
+                    "Bypass",
+                    "-Command",
+                    ps_cmd,
+                ])
+                .output()
+            {
+                if output.status.success() {
+                    let out_str = String::from_utf8_lossy(&output.stdout);
+                    for line in out_str.lines() {
+                        let trimmed = line.trim();
+                        if let Ok(ip) = trimmed.parse::<std::net::Ipv4Addr>() {
+                            if !ip.is_loopback() && !ip.is_unspecified() {
+                                let ip_str = ip.to_string();
+                                if !servers.contains(&ip_str) {
+                                    servers.push(ip_str);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // If none found or non-windows, provide router gateway default
+        if servers.is_empty() {
+            servers.push("192.168.1.1".to_string());
+        }
+
+        servers
+    }
+
     /// Removes NRPT rules, clears DoH suppression, and resets network adapters back to DHCP.
     pub fn remove_nrpt_rule() -> Result<(), WindowsError> {
         #[cfg(windows)]

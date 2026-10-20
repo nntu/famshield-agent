@@ -18,6 +18,8 @@ This directory is the source of truth for the FamShield rewrite. Implementers sh
 12. [`12-AUTO-UPDATE-AND-VERSIONING.md`](12-AUTO-UPDATE-AND-VERSIONING.md) defines Semantic Versioning, staged atomic auto-update, canary rollout, and automated watchdog rollback.
 13. [`13-DEPLOYMENT-GUIDE.md`](13-DEPLOYMENT-GUIDE.md) provides comprehensive deployment methods, Docker infrastructure, operational runbooks, and clean uninstallation procedures.
 14. [`14-GAP-ANALYSIS-AND-ROADMAP.md`](14-GAP-ANALYSIS-AND-ROADMAP.md) provides comprehensive gap analysis between Server and Agent ecosystems, technical matrix, and action-oriented completion roadmap.
+15. [`15-PARENT-2FA-TOTP-PLAN.md`](15-PARENT-2FA-TOTP-PLAN.md) defines offline two-factor authentication (2FA / TOTP RFC 6238) for parent login via Google/Microsoft Authenticator and emergency backup codes.
+16. [`16-NUMA-DNS-CACHE-AND-MULTI-UPSTREAM-PLAN.md`](16-NUMA-DNS-CACHE-AND-MULTI-UPSTREAM-PLAN.md) specifies NUMA-aware sharded DNS caching (lock striping, LRU, dynamic TTL wire rewrite, optimistic background prefetch) and multi-upstream DNS routing engine with parallel racing.
 
 
 Machine-readable contracts live under [`contracts/`](../contracts/). The Markdown documents govern intent; schemas govern wire validation. A contract change requires updating both in the same pull request.

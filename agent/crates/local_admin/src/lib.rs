@@ -2,6 +2,7 @@ pub mod auth;
 mod secret_protection;
 pub mod server;
 pub mod service;
+pub mod totp;
 pub mod ui;
 
 pub use auth::{AuthError, MasterPinAuthenticator};

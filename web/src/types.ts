@@ -222,3 +222,42 @@ export interface ActivitySummaryResponse {
   keyword_violations: KeywordViolation[];
   unified_timeline: UnifiedTimelineItem[];
 }
+
+export interface DnsConfigResponse {
+  detected_system_dns: string[];
+  current_upstream: string;
+  cache_entries: number;
+  cache_hits: number;
+  cache_misses: number;
+}
+
+export interface SetDnsConfigResponse {
+  success: boolean;
+  current_upstream: string;
+  message: string;
+}
+
+export interface LoginResponse {
+  success: boolean;
+  token?: string;
+  expires_at?: string;
+  requires_totp?: boolean;
+  temp_auth_token?: string;
+  message?: string;
+  error?: string;
+}
+
+export interface TotpStatusResponse {
+  enabled: boolean;
+  created_at: string | null;
+  last_verified_at: string | null;
+  unused_backup_codes: number;
+}
+
+export interface TotpSetupResponse {
+  success: boolean;
+  secret: string;
+  url: string;
+  qr_base64: string;
+  backup_codes: string[];
+}

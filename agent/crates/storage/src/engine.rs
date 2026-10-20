@@ -290,14 +290,34 @@ impl StorageEngine {
     ) -> Result<Vec<DomainQuerySummary>, StorageError> {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare(
-            "SELECT domain,
-                    COUNT(*) as total_queries,
-                    SUM(CASE WHEN action = 'ALLOW' THEN 1 ELSE 0 END) as allowed_count,
-                    SUM(CASE WHEN action = 'BLOCK' THEN 1 ELSE 0 END) as blocked_count,
-                    SUM(CASE WHEN action = 'MONITOR' THEN 1 ELSE 0 END) as monitored_count,
-                    SUM(CASE WHEN action = 'ERROR' THEN 1 ELSE 0 END) as error_count,
-                    MAX(occurred_at) as last_seen_at
-             FROM query_logs
+            "WITH combined AS (
+                 SELECT domain,
+                        total_queries,
+                        allowed_count,
+                        blocked_count,
+                        monitored_count,
+                        error_count,
+                        last_seen_at
+                 FROM domain_query_aggregates
+                 UNION ALL
+                 SELECT domain,
+                        COUNT(*) as total_queries,
+                        SUM(CASE WHEN action = 'ALLOW' THEN 1 ELSE 0 END) as allowed_count,
+                        SUM(CASE WHEN action = 'BLOCK' THEN 1 ELSE 0 END) as blocked_count,
+                        SUM(CASE WHEN action = 'MONITOR' THEN 1 ELSE 0 END) as monitored_count,
+                        SUM(CASE WHEN action = 'ERROR' THEN 1 ELSE 0 END) as error_count,
+                        MAX(occurred_at) as last_seen_at
+                 FROM query_logs
+                 GROUP BY domain
+             )
+             SELECT domain,
+                    SUM(total_queries) as total_queries,
+                    SUM(allowed_count) as allowed_count,
+                    SUM(blocked_count) as blocked_count,
+                    SUM(monitored_count) as monitored_count,
+                    SUM(error_count) as error_count,
+                    MAX(last_seen_at) as last_seen_at
+             FROM combined
              GROUP BY domain
              ORDER BY total_queries DESC, last_seen_at DESC
              LIMIT ?1",
@@ -323,6 +343,70 @@ impl StorageEngine {
             summaries.push(r?);
         }
         Ok(summaries)
+    }
+
+    /// Roll up raw query logs older than `older_than` into persistent domain_query_aggregates,
+    /// then delete the raw rows to reclaim SQLite storage space while preserving full domain statistics.
+    pub fn rollup_and_prune_query_logs(
+        &self,
+        older_than: DateTime<Utc>,
+    ) -> Result<usize, StorageError> {
+        let mut conn = self.conn.lock().unwrap();
+        let cutoff_str = older_than.to_rfc3339();
+
+        let tx = conn.transaction()?;
+
+        // 1. Rollup raw query logs into domain_query_aggregates
+        tx.execute(
+            "INSERT INTO domain_query_aggregates (
+                 domain, total_queries, allowed_count, blocked_count, monitored_count, error_count, first_seen_at, last_seen_at
+             )
+             SELECT domain,
+                    COUNT(*) as total_queries,
+                    SUM(CASE WHEN action = 'ALLOW' THEN 1 ELSE 0 END),
+                    SUM(CASE WHEN action = 'BLOCK' THEN 1 ELSE 0 END),
+                    SUM(CASE WHEN action = 'MONITOR' THEN 1 ELSE 0 END),
+                    SUM(CASE WHEN action = 'ERROR' THEN 1 ELSE 0 END),
+                    MIN(occurred_at),
+                    MAX(occurred_at)
+             FROM query_logs
+             WHERE occurred_at < ?1
+             GROUP BY domain
+             ON CONFLICT(domain) DO UPDATE SET
+                 total_queries = total_queries + excluded.total_queries,
+                 allowed_count = allowed_count + excluded.allowed_count,
+                 blocked_count = blocked_count + excluded.blocked_count,
+                 monitored_count = monitored_count + excluded.monitored_count,
+                 error_count = error_count + excluded.error_count,
+                 first_seen_at = MIN(first_seen_at, excluded.first_seen_at),
+                 last_seen_at = MAX(last_seen_at, excluded.last_seen_at)",
+            params![cutoff_str],
+        )?;
+
+        // 2. Delete purged raw logs
+        let deleted = tx.execute(
+            "DELETE FROM query_logs WHERE occurred_at < ?1",
+            params![cutoff_str],
+        )?;
+
+        tx.commit()?;
+        Ok(deleted)
+    }
+
+    /// Get count of raw detailed logs and count of aggregated domains.
+    pub fn get_query_logs_storage_stats(&self) -> Result<(usize, usize), StorageError> {
+        let conn = self.conn.lock().unwrap();
+        let raw_count: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM query_logs",
+            [],
+            |row| row.get(0),
+        )?;
+        let agg_count: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM domain_query_aggregates",
+            [],
+            |row| row.get(0),
+        )?;
+        Ok((raw_count.max(0) as usize, agg_count.max(0) as usize))
     }
 
     pub fn list_query_logs_for_domain(
@@ -854,4 +938,107 @@ impl StorageEngine {
         )?;
         Ok(affected > 0)
     }
+
+    // Parent 2FA TOTP & Backup Codes
+    pub fn get_parent_totp_config(&self) -> Result<Option<ParentTotpConfigRecord>, StorageError> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT enabled, encrypted_secret, created_at, last_verified_at FROM parent_2fa_config WHERE id = 1",
+        )?;
+        let mut rows = stmt.query([])?;
+        if let Some(row) = rows.next()? {
+            let enabled: i32 = row.get(0)?;
+            let encrypted_secret: String = row.get(1)?;
+            let created_at_str: String = row.get(2)?;
+            let last_verified_str: Option<String> = row.get(3)?;
+
+            let created_at = DateTime::parse_from_rfc3339(&created_at_str)
+                .unwrap_or_else(|_| Utc::now().into())
+                .with_timezone(&Utc);
+
+            let last_verified_at = last_verified_str.and_then(|s| {
+                DateTime::parse_from_rfc3339(&s)
+                    .ok()
+                    .map(|dt| dt.with_timezone(&Utc))
+            });
+
+            Ok(Some(ParentTotpConfigRecord {
+                enabled: enabled == 1,
+                encrypted_secret,
+                created_at,
+                last_verified_at,
+            }))
+        } else {
+            Ok(None)
+        }
+    }
+
+    pub fn set_parent_totp_config(
+        &self,
+        config: &ParentTotpConfigRecord,
+    ) -> Result<(), StorageError> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "INSERT OR REPLACE INTO parent_2fa_config (id, enabled, encrypted_secret, created_at, last_verified_at)
+             VALUES (1, ?1, ?2, ?3, ?4)",
+            params![
+                if config.enabled { 1 } else { 0 },
+                config.encrypted_secret,
+                config.created_at.to_rfc3339(),
+                config.last_verified_at.map(|dt| dt.to_rfc3339()),
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn disable_parent_totp(&self) -> Result<(), StorageError> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute("DELETE FROM parent_2fa_config WHERE id = 1", [])?;
+        conn.execute("DELETE FROM parent_backup_codes", [])?;
+        Ok(())
+    }
+
+    pub fn save_parent_backup_codes(&self, code_hashes: &[String]) -> Result<(), StorageError> {
+        let mut conn = self.conn.lock().unwrap();
+        let tx = conn.transaction()?;
+        tx.execute("DELETE FROM parent_backup_codes", [])?;
+        {
+            let mut stmt = tx.prepare(
+                "INSERT INTO parent_backup_codes (code_hash, used, used_at) VALUES (?1, 0, NULL)",
+            )?;
+            for hash in code_hashes {
+                stmt.execute(params![hash])?;
+            }
+        }
+        tx.commit()?;
+        Ok(())
+    }
+
+    pub fn verify_and_consume_backup_code(&self, code_hash: &str) -> Result<bool, StorageError> {
+        let conn = self.conn.lock().unwrap();
+        let now_str = Utc::now().to_rfc3339();
+        let affected = conn.execute(
+            "UPDATE parent_backup_codes SET used = 1, used_at = ?1 WHERE code_hash = ?2 AND used = 0",
+            params![now_str, code_hash],
+        )?;
+        Ok(affected > 0)
+    }
+
+    pub fn count_unused_backup_codes(&self) -> Result<usize, StorageError> {
+        let conn = self.conn.lock().unwrap();
+        let count: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM parent_backup_codes WHERE used = 0",
+            [],
+            |row| row.get(0),
+        )?;
+        Ok(count.max(0) as usize)
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ParentTotpConfigRecord {
+    pub enabled: bool,
+    pub encrypted_secret: String,
+    pub created_at: DateTime<Utc>,
+    pub last_verified_at: Option<DateTime<Utc>>,
 }

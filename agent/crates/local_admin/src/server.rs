@@ -24,11 +24,17 @@ use famshield_storage::{
     DomainQuerySummary, KeywordViolationRecord, LocalRuleRecord, QueryLogRecord, UsageSegmentRecord,
 };
 
+pub type TempAuthTokensMap = Arc<Mutex<HashMap<String, (DateTime<Utc>, String)>>>;
+pub type PendingTotpSetupState = Arc<Mutex<Option<(String, Vec<String>, DateTime<Utc>)>>>;
+
 #[derive(Clone)]
 pub struct ServerState {
     pub service: Arc<LocalAdminService>,
     pub dns_blocklist: Option<Arc<BlocklistStore>>,
+    pub dns_cache: Option<Arc<famshield_dns::DnsCache>>,
     pub sessions: Arc<Mutex<HashMap<String, DateTime<Utc>>>>,
+    pub temp_auth_tokens: TempAuthTokensMap,
+    pub pending_totp_setup: PendingTotpSetupState,
     pub active_app: Arc<Mutex<String>>,
 }
 
@@ -45,7 +51,30 @@ pub struct LoginResponse {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub expires_at: Option<DateTime<Utc>>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub requires_totp: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub temp_auth_token: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub message: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
+}
+
+#[derive(Deserialize)]
+pub struct TotpLoginRequest {
+    pub temp_auth_token: String,
+    pub code: String,
+}
+
+#[derive(Deserialize)]
+pub struct ConfirmTotpRequest {
+    pub code: String,
+}
+
+#[derive(Deserialize)]
+pub struct DisableTotpRequest {
+    pub pin: String,
+    pub code: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -156,10 +185,18 @@ impl LocalAdminServer {
             state: ServerState {
                 service,
                 dns_blocklist,
+                dns_cache: None,
                 sessions: Arc::new(Mutex::new(HashMap::new())),
+                temp_auth_tokens: Arc::new(Mutex::new(HashMap::new())),
+                pending_totp_setup: Arc::new(Mutex::new(None)),
                 active_app: Arc::new(Mutex::new("Roblox.exe".to_string())),
             },
         }
+    }
+
+    pub fn with_dns_cache(mut self, dns_cache: Arc<famshield_dns::DnsCache>) -> Self {
+        self.state.dns_cache = Some(dns_cache);
+        self
     }
 
     /// Pre-generate and register an active session token (e.g. for tray PIN dialog direct launch)
@@ -203,8 +240,13 @@ impl LocalAdminServer {
             .route("/", get(handle_index))
             .route("/assets/*path", get(handle_assets))
             .route("/api/auth/login", post(handle_login))
+            .route("/api/auth/login/totp", post(handle_login_totp))
             .route("/api/auth/logout", post(handle_logout))
             .route("/api/auth/verify", get(handle_verify))
+            .route("/api/auth/totp/status", get(handle_get_totp_status))
+            .route("/api/auth/totp/setup", post(handle_setup_totp))
+            .route("/api/auth/totp/confirm", post(handle_confirm_totp))
+            .route("/api/auth/totp/disable", post(handle_disable_totp))
             .route("/api/status", get(handle_status))
             .route("/api/activity/summary", get(handle_get_activity_summary))
             .route(
@@ -231,6 +273,14 @@ impl LocalAdminServer {
                 post(handle_test_server_connection),
             )
             .route("/api/settings/server/sync", post(handle_sync_server))
+            .route(
+                "/api/settings/dns-retention",
+                get(handle_get_dns_retention).post(handle_set_dns_retention),
+            )
+            .route(
+                "/api/settings/dns-retention/prune-now",
+                post(handle_prune_dns_retention_now),
+            )
             .route(
                 "/api/settings/protection-mode",
                 get(handle_get_protection_mode).post(handle_set_protection_mode),
@@ -260,6 +310,11 @@ impl LocalAdminServer {
                 post(handle_start_session_helper),
             )
             .route("/api/system/uninstall", post(handle_system_uninstall))
+            .route(
+                "/api/dns/config",
+                get(handle_get_dns_config).post(handle_set_dns_config),
+            )
+            .route("/api/dns/cache/flush", post(handle_flush_dns_cache))
             .with_state(self.state.clone())
     }
 
@@ -397,6 +452,9 @@ fn sync_dns_blocklist(state: &ServerState) {
             blocklist.replace_blocklist(active_domains);
         }
     }
+    if let Some(cache) = &state.dns_cache {
+        cache.flush();
+    }
 }
 
 fn find_dist_dir() -> Option<std::path::PathBuf> {
@@ -476,6 +534,42 @@ async fn handle_login(
 ) -> impl IntoResponse {
     match state.service.authenticate_storage(&req.pin) {
         Ok(valid) if valid => {
+            // Check if Parent 2FA TOTP is enabled
+            let totp_cfg = state
+                .service
+                .storage()
+                .get_parent_totp_config()
+                .ok()
+                .flatten();
+            if let Some(cfg) = totp_cfg {
+                if cfg.enabled {
+                    let temp_token = format!("tmp-totp-{}", generate_token());
+                    let temp_expiry = Utc::now() + Duration::minutes(5);
+                    state
+                        .temp_auth_tokens
+                        .lock()
+                        .await
+                        .insert(temp_token.clone(), (temp_expiry, "parent".to_string()));
+
+                    return (
+                        StatusCode::OK,
+                        Json(LoginResponse {
+                            success: true,
+                            token: None,
+                            expires_at: None,
+                            requires_totp: Some(true),
+                            temp_auth_token: Some(temp_token),
+                            message: Some(
+                                "Vui lòng nhập mã OTP 6 số từ ứng dụng Authenticator hoặc mã dự phòng"
+                                    .to_string(),
+                            ),
+                            error: None,
+                        }),
+                    )
+                        .into_response();
+                }
+            }
+
             let token = generate_token();
             let expires_at = Utc::now() + Duration::hours(1);
             state
@@ -493,6 +587,9 @@ async fn handle_login(
                 success: true,
                 token: Some(token),
                 expires_at: Some(expires_at),
+                requires_totp: Some(false),
+                temp_auth_token: None,
+                message: None,
                 error: None,
             });
 
@@ -504,6 +601,9 @@ async fn handle_login(
                 success: false,
                 token: None,
                 expires_at: None,
+                requires_totp: None,
+                temp_auth_token: None,
+                message: None,
                 error: Some("Mã Master PIN không chính xác (Invalid Master PIN)".to_string()),
             }),
         )
@@ -516,12 +616,425 @@ async fn handle_login(
                     success: false,
                     token: None,
                     expires_at: None,
+                    requires_totp: None,
+                    temp_auth_token: None,
+                    message: None,
                     error: Some(format!("Lỗi xác thực: {}", e)),
                 }),
             )
                 .into_response()
         }
     }
+}
+
+async fn handle_login_totp(
+    State(state): State<ServerState>,
+    Json(req): Json<TotpLoginRequest>,
+) -> impl IntoResponse {
+    let now = Utc::now();
+    // 1. Verify temp_auth_token
+    let is_valid_temp = {
+        let mut tokens = state.temp_auth_tokens.lock().await;
+        tokens.retain(|_, (exp, _)| *exp > now);
+        if let Some((exp, _)) = tokens.get(&req.temp_auth_token) {
+            *exp > now
+        } else {
+            false
+        }
+    };
+
+    if !is_valid_temp {
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(LoginResponse {
+                success: false,
+                token: None,
+                expires_at: None,
+                requires_totp: Some(true),
+                temp_auth_token: None,
+                message: None,
+                error: Some(
+                    "Phiên đăng nhập tạm thời đã hết hạn hoặc không hợp lệ. Vui lòng đăng nhập lại."
+                        .to_string(),
+                ),
+            }),
+        )
+            .into_response();
+    }
+
+    // 2. Fetch 2FA config
+    let totp_cfg = match state.service.storage().get_parent_totp_config() {
+        Ok(Some(cfg)) if cfg.enabled => cfg,
+        _ => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(LoginResponse {
+                    success: false,
+                    token: None,
+                    expires_at: None,
+                    requires_totp: None,
+                    temp_auth_token: None,
+                    message: None,
+                    error: Some("Xác thực 2FA chưa được cấu hình hoặc đã bị tắt".to_string()),
+                }),
+            )
+                .into_response();
+        }
+    };
+
+    let trimmed_code = req.code.trim();
+    let mut verified = false;
+
+    // Check if 6-digit TOTP code
+    if trimmed_code.len() == 6 && trimmed_code.chars().all(|c| c.is_ascii_digit()) {
+        if let Ok(unprotected) =
+            crate::secret_protection::unprotect_secret(&totp_cfg.encrypted_secret)
+        {
+            let computer_name =
+                std::env::var("COMPUTERNAME").unwrap_or_else(|_| "Desktop".to_string());
+            let account_name = format!("Parent ({})", computer_name);
+            if let Ok(ok) = crate::totp::TotpManager::verify_code(
+                &unprotected.plaintext,
+                &account_name,
+                trimmed_code,
+            ) {
+                if ok {
+                    verified = true;
+                    let mut updated_cfg = totp_cfg.clone();
+                    updated_cfg.last_verified_at = Some(now);
+                    let _ = state.service.storage().set_parent_totp_config(&updated_cfg);
+                }
+            }
+        }
+    }
+
+    // If not verified via 6-digit code, check emergency backup code
+    if !verified {
+        let code_hash = crate::totp::TotpManager::hash_backup_code(trimmed_code);
+        if let Ok(consumed) = state
+            .service
+            .storage()
+            .verify_and_consume_backup_code(&code_hash)
+        {
+            if consumed {
+                verified = true;
+                tracing::info!("Parent logged in using a single-use emergency backup code");
+            }
+        }
+    }
+
+    if !verified {
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(LoginResponse {
+                success: false,
+                token: None,
+                expires_at: None,
+                requires_totp: Some(true),
+                temp_auth_token: Some(req.temp_auth_token),
+                message: None,
+                error: Some("Mã OTP 6 số hoặc mã dự phòng không chính xác".to_string()),
+            }),
+        )
+            .into_response();
+    }
+
+    // 3. Consume temp_auth_token and issue formal session token
+    state
+        .temp_auth_tokens
+        .lock()
+        .await
+        .remove(&req.temp_auth_token);
+
+    let token = generate_token();
+    let expires_at = now + Duration::hours(1);
+    state
+        .sessions
+        .lock()
+        .await
+        .insert(token.clone(), expires_at);
+
+    let cookie_val = format!(
+        "famshield_session={}; HttpOnly; SameSite=Strict; Path=/; Max-Age=3600",
+        token
+    );
+
+    let body = Json(LoginResponse {
+        success: true,
+        token: Some(token),
+        expires_at: Some(expires_at),
+        requires_totp: Some(false),
+        temp_auth_token: None,
+        message: Some("Xác thực 2 lớp thành công".to_string()),
+        error: None,
+    });
+
+    (StatusCode::OK, [(header::SET_COOKIE, cookie_val)], body).into_response()
+}
+
+async fn handle_get_totp_status(
+    State(state): State<ServerState>,
+    headers: HeaderMap,
+    Query(query): Query<QueryParams>,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    if !check_auth(&state, &headers, query.token.as_deref()).await {
+        return Err((
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({ "error": "Unauthorized" })),
+        ));
+    }
+
+    let cfg = state
+        .service
+        .storage()
+        .get_parent_totp_config()
+        .unwrap_or(None);
+    let unused_backup_codes = state
+        .service
+        .storage()
+        .count_unused_backup_codes()
+        .unwrap_or(0);
+
+    let (enabled, created_at, last_verified_at) = match cfg {
+        Some(c) => (
+            c.enabled,
+            Some(c.created_at.to_rfc3339()),
+            c.last_verified_at.map(|dt| dt.to_rfc3339()),
+        ),
+        None => (false, None, None),
+    };
+
+    Ok(Json(serde_json::json!({
+        "enabled": enabled,
+        "created_at": created_at,
+        "last_verified_at": last_verified_at,
+        "unused_backup_codes": unused_backup_codes,
+    })))
+}
+
+async fn handle_setup_totp(
+    State(state): State<ServerState>,
+    headers: HeaderMap,
+    Query(query): Query<QueryParams>,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    if !check_auth(&state, &headers, query.token.as_deref()).await {
+        return Err((
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({ "error": "Unauthorized" })),
+        ));
+    }
+
+    let computer_name = std::env::var("COMPUTERNAME").unwrap_or_else(|_| "Desktop".to_string());
+    let account_name = format!("Parent ({})", computer_name);
+
+    let (secret, url, qr_base64, backup_codes) =
+        match crate::totp::TotpManager::generate_setup(&account_name) {
+            Ok(res) => res,
+            Err(e) => {
+                return Err((
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(serde_json::json!({ "error": format!("Lỗi khởi tạo TOTP: {}", e) })),
+                ));
+            }
+        };
+
+    let expiry = Utc::now() + Duration::minutes(10);
+    *state.pending_totp_setup.lock().await = Some((secret.clone(), backup_codes.clone(), expiry));
+
+    Ok(Json(serde_json::json!({
+        "success": true,
+        "secret": secret,
+        "url": url,
+        "qr_base64": qr_base64,
+        "backup_codes": backup_codes,
+    })))
+}
+
+async fn handle_confirm_totp(
+    State(state): State<ServerState>,
+    headers: HeaderMap,
+    Query(query): Query<QueryParams>,
+    Json(req): Json<ConfirmTotpRequest>,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    if !check_auth(&state, &headers, query.token.as_deref()).await {
+        return Err((
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({ "error": "Unauthorized" })),
+        ));
+    }
+
+    let pending = state.pending_totp_setup.lock().await.take();
+    let (secret, backup_codes, expiry) = match pending {
+        Some(p) if p.2 > Utc::now() => p,
+        _ => {
+            return Err((
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({
+                    "error": "Yêu cầu thiết lập TOTP đã hết hạn hoặc chưa được tạo. Vui lòng bấm tạo lại mã QR."
+                })),
+            ));
+        }
+    };
+
+    let computer_name = std::env::var("COMPUTERNAME").unwrap_or_else(|_| "Desktop".to_string());
+    let account_name = format!("Parent ({})", computer_name);
+
+    match crate::totp::TotpManager::verify_code(&secret, &account_name, &req.code) {
+        Ok(true) => {
+            let encrypted = match crate::secret_protection::protect_secret(&secret) {
+                Ok(enc) => enc,
+                Err(e) => {
+                    return Err((
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        Json(
+                            serde_json::json!({ "error": format!("Lỗi bảo vệ khóa bằng DPAPI: {}", e) }),
+                        ),
+                    ));
+                }
+            };
+
+            let now = Utc::now();
+            let config = famshield_storage::ParentTotpConfigRecord {
+                enabled: true,
+                encrypted_secret: encrypted,
+                created_at: now,
+                last_verified_at: Some(now),
+            };
+
+            if let Err(e) = state.service.storage().set_parent_totp_config(&config) {
+                return Err((
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(serde_json::json!({ "error": format!("Lỗi lưu cấu hình 2FA: {}", e) })),
+                ));
+            }
+
+            let code_hashes: Vec<String> = backup_codes
+                .iter()
+                .map(|code| crate::totp::TotpManager::hash_backup_code(code))
+                .collect();
+            if let Err(e) = state
+                .service
+                .storage()
+                .save_parent_backup_codes(&code_hashes)
+            {
+                return Err((
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(serde_json::json!({ "error": format!("Lỗi lưu mã dự phòng: {}", e) })),
+                ));
+            }
+
+            Ok(Json(serde_json::json!({
+                "success": true,
+                "message": "Đã kích hoạt xác thực 2 lớp (2FA TOTP) thành công"
+            })))
+        }
+        Ok(false) => {
+            *state.pending_totp_setup.lock().await = Some((secret, backup_codes, expiry));
+            Err((
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({
+                    "error": "Mã xác nhận 6 số không chính xác. Vui lòng kiểm tra lại đồng hồ của điện thoại và máy tính."
+                })),
+            ))
+        }
+        Err(e) => {
+            *state.pending_totp_setup.lock().await = Some((secret, backup_codes, expiry));
+            Err((
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({ "error": format!("Lỗi xác thực mã TOTP: {}", e) })),
+            ))
+        }
+    }
+}
+
+async fn handle_disable_totp(
+    State(state): State<ServerState>,
+    headers: HeaderMap,
+    Query(query): Query<QueryParams>,
+    Json(req): Json<DisableTotpRequest>,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    if !check_auth(&state, &headers, query.token.as_deref()).await {
+        return Err((
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({ "error": "Unauthorized" })),
+        ));
+    }
+
+    // Authenticate Master PIN first
+    match state.service.authenticate_storage(&req.pin) {
+        Ok(true) => {}
+        Ok(false) => {
+            return Err((
+                StatusCode::UNAUTHORIZED,
+                Json(serde_json::json!({ "error": "Master PIN không chính xác" })),
+            ));
+        }
+        Err(e) => {
+            return Err((
+                StatusCode::TOO_MANY_REQUESTS,
+                Json(serde_json::json!({ "error": format!("Lỗi xác thực PIN: {}", e) })),
+            ));
+        }
+    }
+
+    // If 2FA is active and code was supplied, verify it
+    if let Ok(Some(cfg)) = state.service.storage().get_parent_totp_config() {
+        if cfg.enabled {
+            if let Some(code) = req.code.as_deref() {
+                let trimmed = code.trim();
+                let mut code_valid = false;
+                if trimmed.len() == 6 && trimmed.chars().all(|c| c.is_ascii_digit()) {
+                    if let Ok(unprotected) =
+                        crate::secret_protection::unprotect_secret(&cfg.encrypted_secret)
+                    {
+                        let computer_name =
+                            std::env::var("COMPUTERNAME").unwrap_or_else(|_| "Desktop".to_string());
+                        let account_name = format!("Parent ({})", computer_name);
+                        if let Ok(true) = crate::totp::TotpManager::verify_code(
+                            &unprotected.plaintext,
+                            &account_name,
+                            trimmed,
+                        ) {
+                            code_valid = true;
+                        }
+                    }
+                }
+                if !code_valid {
+                    let code_hash = crate::totp::TotpManager::hash_backup_code(trimmed);
+                    if let Ok(consumed) = state
+                        .service
+                        .storage()
+                        .verify_and_consume_backup_code(&code_hash)
+                    {
+                        if consumed {
+                            code_valid = true;
+                        }
+                    }
+                }
+
+                if !code_valid {
+                    return Err((
+                        StatusCode::BAD_REQUEST,
+                        Json(
+                            serde_json::json!({ "error": "Mã OTP hoặc mã dự phòng không chính xác" }),
+                        ),
+                    ));
+                }
+            }
+        }
+    }
+
+    if let Err(e) = state.service.storage().disable_parent_totp() {
+        return Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({ "error": format!("Lỗi tắt 2FA: {}", e) })),
+        ));
+    }
+
+    Ok(Json(serde_json::json!({
+        "success": true,
+        "message": "Đã tắt tính năng xác thực 2 lớp (2FA)"
+    })))
 }
 
 async fn handle_logout(
@@ -1634,6 +2147,7 @@ async fn handle_start_session_helper(
 #[derive(serde::Deserialize)]
 pub struct UninstallPayload {
     pub master_pin: String,
+    pub otp_code: Option<String>,
 }
 
 async fn handle_system_uninstall(
@@ -1653,6 +2167,68 @@ async fn handle_system_uninstall(
 
     match state.service.authenticate_storage(&payload.master_pin) {
         Ok(true) => {
+            // Check step-up 2FA OTP if enabled
+            if let Ok(Some(cfg)) = state.service.storage().get_parent_totp_config() {
+                if cfg.enabled {
+                    let Some(otp) = payload
+                        .otp_code
+                        .as_deref()
+                        .map(str::trim)
+                        .filter(|s| !s.is_empty())
+                    else {
+                        return Err((
+                            StatusCode::BAD_REQUEST,
+                            Json(serde_json::json!({
+                                "success": false,
+                                "requires_otp": true,
+                                "message": "Xác thực 2 lớp (2FA) đang bật. Vui lòng nhập thêm mã OTP 6 số hoặc mã dự phòng để xác nhận gỡ cài đặt."
+                            })),
+                        ));
+                    };
+
+                    let mut valid = false;
+                    if otp.len() == 6 && otp.chars().all(|c| c.is_ascii_digit()) {
+                        if let Ok(unprotected) =
+                            crate::secret_protection::unprotect_secret(&cfg.encrypted_secret)
+                        {
+                            let computer_name = std::env::var("COMPUTERNAME")
+                                .unwrap_or_else(|_| "Desktop".to_string());
+                            let account_name = format!("Parent ({})", computer_name);
+                            if let Ok(true) = crate::totp::TotpManager::verify_code(
+                                &unprotected.plaintext,
+                                &account_name,
+                                otp,
+                            ) {
+                                valid = true;
+                            }
+                        }
+                    }
+
+                    if !valid {
+                        let hash = crate::totp::TotpManager::hash_backup_code(otp);
+                        if let Ok(consumed) = state
+                            .service
+                            .storage()
+                            .verify_and_consume_backup_code(&hash)
+                        {
+                            if consumed {
+                                valid = true;
+                            }
+                        }
+                    }
+
+                    if !valid {
+                        return Err((
+                            StatusCode::UNAUTHORIZED,
+                            Json(serde_json::json!({
+                                "success": false,
+                                "message": "Mã OTP 2FA hoặc mã dự phòng không chính xác."
+                            })),
+                        ));
+                    }
+                }
+            }
+
             tracing::warn!(
                 "⚠️ Master PIN verified for uninstallation. Initiating full clean teardown..."
             );
@@ -1730,6 +2306,241 @@ async fn handle_system_uninstall(
                 "success": false,
                 "message": format!("Lỗi xác thực: {}", e)
             })),
+        )),
+    }
+}
+
+async fn handle_get_dns_config(
+    State(state): State<ServerState>,
+    headers: HeaderMap,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    if !check_auth(&state, &headers, None).await {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+
+    let detected = famshield_windows::NrptManager::get_system_dns_servers();
+    let current_upstream = state
+        .service
+        .storage()
+        .get_meta("dns_upstream")
+        .ok()
+        .flatten()
+        .unwrap_or_else(|| "1.1.1.1".to_string());
+
+    let (entries, hits, misses) = if let Some(ref cache) = state.dns_cache {
+        cache.stats()
+    } else {
+        (0, 0, 0)
+    };
+
+    Ok(Json(serde_json::json!({
+        "detected_system_dns": detected,
+        "current_upstream": current_upstream,
+        "cache_entries": entries,
+        "cache_hits": hits,
+        "cache_misses": misses,
+    })))
+}
+
+#[derive(Deserialize)]
+pub struct DnsConfigPayload {
+    pub upstream: String,
+}
+
+async fn handle_set_dns_config(
+    State(state): State<ServerState>,
+    headers: HeaderMap,
+    Json(payload): Json<DnsConfigPayload>,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    if !check_auth(&state, &headers, None).await {
+        return Err((
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({"error": "Unauthorized"})),
+        ));
+    }
+
+    let trimmed = payload.upstream.trim();
+    if trimmed.is_empty() {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({"error": "Địa chỉ DNS không được để trống"})),
+        ));
+    }
+
+    // Save to metadata storage
+    let _ = state.service.storage().set_meta("dns_upstream", trimmed);
+
+    // Flush cache to ensure immediate adoption
+    if let Some(ref cache) = state.dns_cache {
+        cache.flush();
+    }
+
+    Ok(Json(serde_json::json!({
+        "success": true,
+        "current_upstream": trimmed,
+        "message": format!("Đã cập nhật máy chủ DNS sang: {}", trimmed)
+    })))
+}
+
+async fn handle_flush_dns_cache(
+    State(state): State<ServerState>,
+    headers: HeaderMap,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    if !check_auth(&state, &headers, None).await {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+
+    if let Some(ref cache) = state.dns_cache {
+        cache.flush();
+    }
+
+    #[cfg(windows)]
+    {
+        let _ = std::process::Command::new("ipconfig")
+            .arg("/flushdns")
+            .output();
+    }
+
+    Ok(Json(serde_json::json!({
+        "success": true,
+        "message": "Đã làm sạch toàn bộ bộ nhớ đệm DNS."
+    })))
+}
+
+#[derive(Deserialize)]
+pub struct DnsRetentionPayload {
+    pub retention_days: u32,
+    pub auto_prune: bool,
+}
+
+async fn handle_get_dns_retention(
+    State(state): State<ServerState>,
+    headers: HeaderMap,
+    Query(query): Query<QueryParams>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    if !check_auth(&state, &headers, query.token.as_deref()).await {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+
+    let retention_days: u32 = state
+        .service
+        .storage()
+        .get_meta("dns_log_retention_days")
+        .ok()
+        .flatten()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(7);
+
+    let auto_prune: bool = state
+        .service
+        .storage()
+        .get_meta("dns_auto_prune_enabled")
+        .ok()
+        .flatten()
+        .map(|v| v != "false")
+        .unwrap_or(true);
+
+    let (raw_count, agg_count) = state
+        .service
+        .storage()
+        .get_query_logs_storage_stats()
+        .unwrap_or((0, 0));
+
+    let last_pruned_at = state
+        .service
+        .storage()
+        .get_meta("dns_log_last_pruned_at")
+        .ok()
+        .flatten();
+
+    Ok(Json(serde_json::json!({
+        "retention_days": retention_days,
+        "auto_prune": auto_prune,
+        "raw_query_logs_count": raw_count,
+        "aggregated_domains_count": agg_count,
+        "last_pruned_at": last_pruned_at,
+    })))
+}
+
+async fn handle_set_dns_retention(
+    State(state): State<ServerState>,
+    headers: HeaderMap,
+    Query(query): Query<QueryParams>,
+    Json(payload): Json<DnsRetentionPayload>,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    if !check_auth(&state, &headers, query.token.as_deref()).await {
+        return Err((
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({"error": "Unauthorized"})),
+        ));
+    }
+
+    if payload.retention_days == 0 || payload.retention_days > 365 {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({"error": "Thời gian lưu trữ phải từ 1 đến 365 ngày"})),
+        ));
+    }
+
+    let _ = state
+        .service
+        .storage()
+        .set_meta("dns_log_retention_days", &payload.retention_days.to_string());
+    let _ = state.service.storage().set_meta(
+        "dns_auto_prune_enabled",
+        if payload.auto_prune {
+            "true"
+        } else {
+            "false"
+        },
+    );
+
+    Ok(Json(serde_json::json!({
+        "success": true,
+        "retention_days": payload.retention_days,
+        "auto_prune": payload.auto_prune,
+        "message": format!("Đã cập nhật thời gian lưu trữ chi tiết: {} ngày", payload.retention_days),
+    })))
+}
+
+async fn handle_prune_dns_retention_now(
+    State(state): State<ServerState>,
+    headers: HeaderMap,
+    Query(query): Query<QueryParams>,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    if !check_auth(&state, &headers, query.token.as_deref()).await {
+        return Err((
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({"error": "Unauthorized"})),
+        ));
+    }
+
+    let retention_days: i64 = state
+        .service
+        .storage()
+        .get_meta("dns_log_retention_days")
+        .ok()
+        .flatten()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(7);
+
+    let cutoff = Utc::now() - Duration::days(retention_days);
+    match state.service.storage().rollup_and_prune_query_logs(cutoff) {
+        Ok(deleted) => {
+            let now = Utc::now();
+            let _ = state
+                .service
+                .storage()
+                .set_meta("dns_log_last_pruned_at", &now.to_rfc3339());
+            Ok(Json(serde_json::json!({
+                "success": true,
+                "deleted_raw_logs": deleted,
+                "message": format!("Đã bảo toàn bản tổng hợp và dọn dẹp {} bản ghi DNS chi tiết", deleted)
+            })))
+        }
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": format!("Lỗi dọn dẹp DNS: {}", e)})),
         )),
     }
 }

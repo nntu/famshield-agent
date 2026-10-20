@@ -13,6 +13,7 @@ famshield-dns = { workspace = true }
 famshield-windows = { workspace = true }
 argon2 = { workspace = true }
 rand = { workspace = true }
+totp-rs = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
 thiserror = { workspace = true }

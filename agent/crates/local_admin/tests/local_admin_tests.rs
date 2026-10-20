@@ -1111,3 +1111,288 @@ async fn test_sync_rules_to_cloud_endpoint() {
 
     assert_eq!(res.status(), StatusCode::BAD_GATEWAY);
 }
+
+#[tokio::test]
+async fn test_parent_2fa_totp_full_lifecycle() {
+    use axum::body::Body;
+    use axum::http::{header, Request, StatusCode};
+    use famshield_local_admin::{totp::TotpManager, LocalAdminServer, LocalAdminService};
+    use famshield_storage::StorageEngine;
+    use http_body_util::BodyExt;
+    use serde_json::Value;
+    use std::sync::Arc;
+    use tower::ServiceExt;
+
+    let storage = StorageEngine::in_memory().unwrap();
+    let service = Arc::new(LocalAdminService::new(storage.clone()));
+    let server = LocalAdminServer::new(service.clone(), None);
+
+    // 1. Configure Master PIN
+    service.set_master_pin("123456").unwrap();
+
+    // 2. Normal Login (2FA disabled initially)
+    let res = server
+        .router()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/auth/login")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(r#"{"pin":"123456"}"#))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    let bytes = res.into_body().collect().await.unwrap().to_bytes();
+    let login_json: Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(login_json["success"], true);
+    assert_eq!(login_json["requires_totp"], false);
+    let token = login_json["token"].as_str().unwrap().to_string();
+
+    // 3. GET /api/auth/totp/status
+    let res = server
+        .router()
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/api/auth/totp/status")
+                .header("X-FamShield-Token", &token)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    let bytes = res.into_body().collect().await.unwrap().to_bytes();
+    let status_json: Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(status_json["enabled"], false);
+
+    // 4. POST /api/auth/totp/setup
+    let res = server
+        .router()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/auth/totp/setup")
+                .header("X-FamShield-Token", &token)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    let bytes = res.into_body().collect().await.unwrap().to_bytes();
+    let setup_json: Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(setup_json["success"], true);
+    let secret = setup_json["secret"].as_str().unwrap().to_string();
+    let backup_codes = setup_json["backup_codes"].as_array().unwrap().clone();
+    assert_eq!(backup_codes.len(), 8);
+
+    // 5. POST /api/auth/totp/confirm with invalid code
+    let res = server
+        .router()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/auth/totp/confirm")
+                .header("X-FamShield-Token", &token)
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(r#"{"code":"000000"}"#))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::BAD_REQUEST);
+
+    // 6. POST /api/auth/totp/confirm with valid code
+    let computer_name = std::env::var("COMPUTERNAME").unwrap_or_else(|_| "Desktop".to_string());
+    let account_name = format!("Parent ({})", computer_name);
+    let totp = TotpManager::from_base32_secret(&secret, &account_name).unwrap();
+    let valid_code = totp.generate_current().to_string();
+
+    let res = server
+        .router()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/auth/totp/confirm")
+                .header("X-FamShield-Token", &token)
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(format!(r#"{{"code":"{}"}}"#, valid_code)))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+
+    // 7. Check status now enabled
+    let res = server
+        .router()
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/api/auth/totp/status")
+                .header("X-FamShield-Token", &token)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    let bytes = res.into_body().collect().await.unwrap().to_bytes();
+    let status_json: Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(status_json["enabled"], true);
+    assert_eq!(status_json["unused_backup_codes"], 8);
+
+    // 8. Login Step 1: POST /api/auth/login -> requires TOTP
+    let res = server
+        .router()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/auth/login")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(r#"{"pin":"123456"}"#))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    let bytes = res.into_body().collect().await.unwrap().to_bytes();
+    let login_step1: Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(login_step1["requires_totp"], true);
+    let temp_token = login_step1["temp_auth_token"].as_str().unwrap().to_string();
+
+    // 9. Login Step 2 with incorrect code
+    let res = server
+        .router()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/auth/login/totp")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(format!(
+                    r#"{{"temp_auth_token":"{}","code":"999999"}}"#,
+                    temp_token
+                )))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::UNAUTHORIZED);
+
+    // 10. Login Step 2 with valid TOTP code
+    let valid_code2 = totp.generate_current().to_string();
+    let res = server
+        .router()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/auth/login/totp")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(format!(
+                    r#"{{"temp_auth_token":"{}","code":"{}"}}"#,
+                    temp_token, valid_code2
+                )))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    let bytes = res.into_body().collect().await.unwrap().to_bytes();
+    let login_step2: Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(login_step2["success"], true);
+    assert_eq!(login_step2["requires_totp"], false);
+    assert!(login_step2["token"].is_string());
+
+    // 11. Test Backup Code Login
+    // Login Step 1 to get another temp token
+    let res = server
+        .router()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/auth/login")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(r#"{"pin":"123456"}"#))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let bytes = res.into_body().collect().await.unwrap().to_bytes();
+    let login_step1_b: Value = serde_json::from_slice(&bytes).unwrap();
+    let temp_token_b = login_step1_b["temp_auth_token"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let backup_code_0 = backup_codes[0].as_str().unwrap();
+    // Login Step 2 with backup code
+    let res = server
+        .router()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/auth/login/totp")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(format!(
+                    r#"{{"temp_auth_token":"{}","code":"{}"}}"#,
+                    temp_token_b, backup_code_0
+                )))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+
+    // Verify backup code is consumed (7 remaining)
+    let res = server
+        .router()
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/api/auth/totp/status")
+                .header("X-FamShield-Token", &token)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let bytes = res.into_body().collect().await.unwrap().to_bytes();
+    let status_json_b: Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(status_json_b["unused_backup_codes"], 7);
+
+    // 12. Disable 2FA
+    let res = server
+        .router()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/auth/totp/disable")
+                .header("X-FamShield-Token", &token)
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(r#"{"pin":"123456"}"#))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+
+    // Verify status is disabled
+    let res = server
+        .router()
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/api/auth/totp/status")
+                .header("X-FamShield-Token", &token)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let bytes = res.into_body().collect().await.unwrap().to_bytes();
+    let status_disabled: Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(status_disabled["enabled"], false);
+}

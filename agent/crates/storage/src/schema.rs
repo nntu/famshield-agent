@@ -2,7 +2,7 @@ use crate::error::StorageError;
 use rusqlite::Connection;
 use rusqlite_migration::{Migrations, M};
 
-pub const CURRENT_SCHEMA_VERSION: usize = 4;
+pub const CURRENT_SCHEMA_VERSION: usize = 6;
 
 const V1_SQL: &str = r#"
 -- Agent metadata
@@ -135,12 +135,46 @@ const V4_SQL: &str = r#"
 CREATE INDEX IF NOT EXISTS idx_query_logs_domain ON query_logs(domain);
 "#;
 
+const V5_SQL: &str = r#"
+-- Two-Factor Authentication (2FA TOTP RFC 6238) for Parents
+CREATE TABLE IF NOT EXISTS parent_2fa_config (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    enabled INTEGER NOT NULL DEFAULT 0,
+    encrypted_secret TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    last_verified_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS parent_backup_codes (
+    code_hash TEXT PRIMARY KEY,
+    used INTEGER NOT NULL DEFAULT 0,
+    used_at TEXT
+);
+"#;
+
+const V6_SQL: &str = r#"
+-- Persistent domain query aggregates for long-term storage & disk optimization
+CREATE TABLE IF NOT EXISTS domain_query_aggregates (
+    domain TEXT PRIMARY KEY,
+    total_queries INTEGER NOT NULL DEFAULT 0,
+    allowed_count INTEGER NOT NULL DEFAULT 0,
+    blocked_count INTEGER NOT NULL DEFAULT 0,
+    monitored_count INTEGER NOT NULL DEFAULT 0,
+    error_count INTEGER NOT NULL DEFAULT 0,
+    first_seen_at TEXT NOT NULL,
+    last_seen_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_domain_aggregates_total ON domain_query_aggregates(total_queries DESC);
+"#;
+
 pub fn migrations() -> Migrations<'static> {
     Migrations::new(vec![
         M::up(V1_SQL),
         M::up(V2_SQL),
         M::up(V3_SQL),
         M::up(V4_SQL),
+        M::up(V5_SQL),
+        M::up(V6_SQL),
     ])
 }
 

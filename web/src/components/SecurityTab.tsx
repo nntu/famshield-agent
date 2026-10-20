@@ -23,14 +23,20 @@ import {
   Keyboard,
   Trash2,
   Plus,
+  Smartphone,
+  Copy,
+  QrCode,
 } from 'lucide-react';
 import {
   BackupPayload,
+  DnsConfigResponse,
   KeywordConfigResponse,
   KeywordRule,
   Language,
   ServerConfig,
   StatusResponse,
+  TotpSetupResponse,
+  TotpStatusResponse,
 } from '../types';
 import { translations } from '../i18n';
 import { api } from '../api';
@@ -88,9 +94,32 @@ export const SecurityTab: React.FC<SecurityTabProps> = ({
   const [isAddingKw, setIsAddingKw] = useState(false);
   const [isTogglingKwMonitoring, setIsTogglingKwMonitoring] = useState(false);
 
+  // 2FA TOTP State
+  const [totpStatus, setTotpStatus] = useState<TotpStatusResponse | null>(null);
+  const [showTotpSetupModal, setShowTotpSetupModal] = useState(false);
+  const [totpSetupData, setTotpSetupData] = useState<TotpSetupResponse | null>(null);
+  const [totpConfirmCode, setTotpConfirmCode] = useState('');
+  const [isSettingUpTotp, setIsSettingUpTotp] = useState(false);
+  const [isConfirmingTotp, setIsConfirmingTotp] = useState(false);
+  const [totpError, setTotpError] = useState<string | null>(null);
+
+  const [showTotpDisableModal, setShowTotpDisableModal] = useState(false);
+  const [totpDisablePin, setTotpDisablePin] = useState('');
+  const [totpDisableOtp, setTotpDisableOtp] = useState('');
+  const [isDisablingTotp, setIsDisablingTotp] = useState(false);
+  const [totpDisableError, setTotpDisableError] = useState<string | null>(null);
+
+  // DNS Configuration & Cache State
+  const [dnsConfig, setDnsConfig] = useState<DnsConfigResponse | null>(null);
+  const [selectedUpstream, setSelectedUpstream] = useState('1.1.1.1');
+  const [customUpstreamInput, setCustomUpstreamInput] = useState('');
+  const [isSavingDns, setIsSavingDns] = useState(false);
+  const [isFlushingCache, setIsFlushingCache] = useState(false);
+
   // Uninstall State
   const [showUninstallModal, setShowUninstallModal] = useState(false);
   const [uninstallPin, setUninstallPin] = useState('');
+  const [uninstallOtp, setUninstallOtp] = useState('');
   const [isUninstalling, setIsUninstalling] = useState(false);
   const [uninstallError, setUninstallError] = useState<string | null>(null);
 
@@ -102,16 +131,127 @@ export const SecurityTab: React.FC<SecurityTabProps> = ({
     setIsUninstalling(true);
     setUninstallError(null);
     try {
-      const res = await api.uninstallSystem(uninstallPin);
+      const res = await api.uninstallSystem(uninstallPin, uninstallOtp.trim() || undefined);
+      if (res.requires_otp) {
+        setUninstallError(res.message);
+        return;
+      }
       onShowToast(res.message, 'success');
       setShowUninstallModal(false);
       setTimeout(() => {
         window.location.reload();
       }, 3000);
     } catch (err: any) {
-      setUninstallError(err.message || (isVi ? 'Mật khẩu PIN không chính xác' : 'Incorrect PIN'));
+      setUninstallError(err.message || (isVi ? 'Mật khẩu PIN hoặc OTP không chính xác' : 'Incorrect PIN or OTP'));
     } finally {
       setIsUninstalling(false);
+    }
+  };
+
+  const fetchTotpStatus = async () => {
+    try {
+      const s = await api.getTotpStatus();
+      setTotpStatus(s);
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleStartTotpSetup = async () => {
+    setIsSettingUpTotp(true);
+    setTotpError(null);
+    setTotpConfirmCode('');
+    try {
+      const data = await api.setupTotp();
+      setTotpSetupData(data);
+      setShowTotpSetupModal(true);
+    } catch (e: any) {
+      onShowToast(e.message || (isVi ? 'Lỗi khởi tạo 2FA' : 'Failed to initialize 2FA'), 'error');
+    } finally {
+      setIsSettingUpTotp(false);
+    }
+  };
+
+  const handleConfirmTotp = async () => {
+    if (!totpConfirmCode.trim()) {
+      setTotpError(isVi ? 'Vui lòng nhập mã 6 số từ ứng dụng' : 'Please enter 6-digit code');
+      return;
+    }
+    setIsConfirmingTotp(true);
+    setTotpError(null);
+    try {
+      const res = await api.confirmTotp(totpConfirmCode.trim());
+      onShowToast(res.message, 'success');
+      setShowTotpSetupModal(false);
+      await fetchTotpStatus();
+    } catch (e: any) {
+      setTotpError(e.message || (isVi ? 'Mã xác nhận không đúng' : 'Invalid code'));
+    } finally {
+      setIsConfirmingTotp(false);
+    }
+  };
+
+  const handleDisableTotp = async () => {
+    if (!totpDisablePin.trim()) {
+      setTotpDisableError(isVi ? 'Vui lòng nhập Master PIN' : 'Please enter Master PIN');
+      return;
+    }
+    setIsDisablingTotp(true);
+    setTotpDisableError(null);
+    try {
+      const res = await api.disableTotp(totpDisablePin.trim(), totpDisableOtp.trim() || undefined);
+      onShowToast(res.message, 'success');
+      setShowTotpDisableModal(false);
+      setTotpDisablePin('');
+      setTotpDisableOtp('');
+      await fetchTotpStatus();
+    } catch (e: any) {
+      setTotpDisableError(e.message || (isVi ? 'Không thể tắt 2FA' : 'Failed to disable 2FA'));
+    } finally {
+      setIsDisablingTotp(false);
+    }
+  };
+
+  const fetchDnsConfig = async () => {
+    try {
+      const cfg = await api.getDnsConfig();
+      setDnsConfig(cfg);
+      if (cfg.current_upstream) {
+        setSelectedUpstream(cfg.current_upstream);
+      }
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleSaveDnsConfig = async () => {
+    const target = selectedUpstream === 'custom' ? customUpstreamInput.trim() : selectedUpstream;
+    if (!target) {
+      onShowToast(isVi ? 'Vui lòng chọn hoặc nhập máy chủ DNS' : 'Please select or enter DNS server', 'error');
+      return;
+    }
+    setIsSavingDns(true);
+    try {
+      const res = await api.setDnsConfig(target);
+      onShowToast(res.message || (isVi ? 'Đã lưu cấu hình DNS' : 'DNS configured successfully'), 'success');
+      await fetchDnsConfig();
+    } catch (e: any) {
+      onShowToast(e.message || (isVi ? 'Lỗi lưu cấu hình DNS' : 'Failed to save DNS configuration'), 'error');
+    } finally {
+      setIsSavingDns(false);
+    }
+  };
+
+  const handleFlushCache = async () => {
+    setIsFlushingCache(true);
+    try {
+      const res = await api.flushDnsCache();
+      onShowToast(res.message || (isVi ? 'Đã xóa bộ nhớ đệm DNS' : 'DNS cache flushed'), 'success');
+      await fetchDnsConfig();
+    } catch (e: any) {
+      onShowToast(e.message || (isVi ? 'Lỗi xóa cache DNS' : 'Failed to flush DNS cache'), 'error');
+    } finally {
+      setIsFlushingCache(false);
     }
   };
 
@@ -119,6 +259,8 @@ export const SecurityTab: React.FC<SecurityTabProps> = ({
   useEffect(() => {
     fetchServerConfig();
     fetchKeywordConfig();
+    fetchDnsConfig();
+    fetchTotpStatus();
   }, []);
 
   const fetchKeywordConfig = async () => {
@@ -1534,6 +1676,366 @@ export const SecurityTab: React.FC<SecurityTabProps> = ({
         </div>
       </div>
 
+      {/* 2FA / TOTP Authenticator for Parents */}
+      <div
+        style={{
+          background: 'rgba(30, 41, 59, 0.4)',
+          border: '1px solid rgba(255, 255, 255, 0.08)',
+          borderRadius: 14,
+          padding: 24,
+          marginBottom: 32,
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16, marginBottom: 20 }}>
+          <div>
+            <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: '#f8fafc', display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+              <Smartphone size={18} style={{ color: '#34d399' }} />
+              {isVi ? 'Xác Thực 2 Lớp (2FA / TOTP) Cho Phụ Huynh' : 'Parent Two-Factor Authentication (2FA)'}
+            </h3>
+            <p style={{ fontSize: '0.85rem', color: '#94a3b8', margin: 0, maxWidth: 640 }}>
+              {isVi
+                ? 'Bảo vệ bảng điều khiển chống nhìn lén Master PIN bằng mã OTP 6 chữ số sinh từ Google Authenticator, Microsoft Authenticator hoặc Apple Keychain (chuẩn RFC 6238, 100% ngoại tuyến).'
+                : 'Protect the parental dashboard against shoulder-surfing using 6-digit TOTP codes from Google/Microsoft Authenticator or Apple Keychain (RFC 6238, 100% offline).'}
+            </p>
+          </div>
+          <div>
+            {totpStatus?.enabled ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setTotpDisablePin('');
+                  setTotpDisableOtp('');
+                  setTotpDisableError(null);
+                  setShowTotpDisableModal(true);
+                }}
+                style={{
+                  background: 'rgba(239, 68, 68, 0.1)',
+                  color: '#f87171',
+                  border: '1px solid rgba(239, 68, 68, 0.3)',
+                  padding: '8px 16px',
+                  borderRadius: 8,
+                  fontSize: '0.85rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                {isVi ? 'Tắt Xác Thực 2 Lớp' : 'Disable 2FA'}
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handleStartTotpSetup}
+                disabled={isSettingUpTotp}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  background: '#059669',
+                  color: '#ffffff',
+                  border: 'none',
+                  padding: '8px 18px',
+                  borderRadius: 8,
+                  fontSize: '0.85rem',
+                  fontWeight: 600,
+                  cursor: isSettingUpTotp ? 'not-allowed' : 'pointer',
+                }}
+              >
+                <Smartphone size={16} />
+                {isSettingUpTotp
+                  ? (isVi ? 'Đang tạo mã...' : 'Setting up...')
+                  : (isVi ? 'Kích Hoạt 2FA Authenticator' : 'Enable 2FA Authenticator')}
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* 2FA Status summary */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
+          <div style={{ background: 'rgba(15, 23, 42, 0.6)', border: '1px solid rgba(255, 255, 255, 0.05)', borderRadius: 10, padding: 14 }}>
+            <span style={{ fontSize: '0.75rem', color: '#94a3b8', display: 'block', marginBottom: 4 }}>
+              {isVi ? 'Trạng Thái Bảo Vệ' : 'Protection Status'}
+            </span>
+            <span style={{ fontSize: '1.05rem', fontWeight: 700, color: totpStatus?.enabled ? '#34d399' : '#94a3b8', display: 'flex', alignItems: 'center', gap: 6 }}>
+              {totpStatus?.enabled ? (
+                <>
+                  <CheckCircle2 size={16} color="#34d399" />
+                  {isVi ? 'Đang Bật (Đã Bảo Vệ 2 Lớp)' : 'Active & Protected'}
+                </>
+              ) : (
+                isVi ? 'Chưa Bật (Chỉ dùng Master PIN)' : 'Disabled (PIN Only)'
+              )}
+            </span>
+          </div>
+
+          <div style={{ background: 'rgba(15, 23, 42, 0.6)', border: '1px solid rgba(255, 255, 255, 0.05)', borderRadius: 10, padding: 14 }}>
+            <span style={{ fontSize: '0.75rem', color: '#94a3b8', display: 'block', marginBottom: 4 }}>
+              {isVi ? 'Mã Dự Phòng Khẩn Cấp Còn Lại' : 'Available Backup Codes'}
+            </span>
+            <span style={{ fontSize: '1.05rem', fontWeight: 700, color: totpStatus?.enabled ? '#38bdf8' : '#64748b' }}>
+              {totpStatus?.enabled ? `${totpStatus.unused_backup_codes} / 8 mã` : (isVi ? 'Chưa cấp phát' : 'Not configured')}
+            </span>
+          </div>
+
+          <div style={{ background: 'rgba(15, 23, 42, 0.6)', border: '1px solid rgba(255, 255, 255, 0.05)', borderRadius: 10, padding: 14 }}>
+            <span style={{ fontSize: '0.75rem', color: '#94a3b8', display: 'block', marginBottom: 4 }}>
+              {isVi ? 'Lần Đăng Nhập OTP Gần Nhất' : 'Last OTP Login'}
+            </span>
+            <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#e2e8f0' }}>
+              {totpStatus?.last_verified_at
+                ? new Date(totpStatus.last_verified_at).toLocaleString()
+                : (isVi ? 'Chưa có' : 'Never')}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* DNS Configuration & In-Memory Cache Management */}
+      <div
+        style={{
+          background: 'rgba(30, 41, 59, 0.4)',
+          border: '1px solid rgba(255, 255, 255, 0.08)',
+          borderRadius: 14,
+          padding: 24,
+          marginBottom: 32,
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16, marginBottom: 20 }}>
+          <div>
+            <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: '#f8fafc', display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+              <Globe size={18} style={{ color: '#38bdf8' }} />
+              {isVi ? 'Cấu Hình DNS Chuyển Tiếp & Bộ Nhớ Đệm (DNS Upstream & Cache)' : 'DNS Upstream & Cache Management'}
+            </h3>
+            <p style={{ fontSize: '0.85rem', color: '#94a3b8', margin: 0, maxWidth: 640 }}>
+              {isVi
+                ? 'FamShield chuyển tiếp truy vấn phân giải tên miền an toàn qua danh sách upstream dự phòng (failover) và cache phản hồi cục bộ trong RAM (≤ 2 MB) để tăng tốc độ lướt web.'
+                : 'FamShield forwards DNS queries through fallback upstream servers and caches responses locally in RAM (≤ 2 MB) to accelerate browsing speed.'}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={handleFlushCache}
+            disabled={isFlushingCache}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 8,
+              background: 'rgba(56, 189, 248, 0.1)',
+              color: '#38bdf8',
+              border: '1px solid rgba(56, 189, 248, 0.3)',
+              padding: '8px 16px',
+              borderRadius: 8,
+              fontSize: '0.85rem',
+              fontWeight: 600,
+              cursor: isFlushingCache ? 'not-allowed' : 'pointer',
+            }}
+          >
+            <RefreshCw size={15} className={isFlushingCache ? 'animate-spin' : ''} />
+            {isVi ? 'Xóa Bộ Nhớ Đệm DNS' : 'Flush DNS Cache'}
+          </button>
+        </div>
+
+        {/* Cache Statistics Row */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 20 }}>
+          <div style={{ background: 'rgba(15, 23, 42, 0.6)', border: '1px solid rgba(255, 255, 255, 0.05)', borderRadius: 10, padding: 14 }}>
+            <span style={{ fontSize: '0.75rem', color: '#94a3b8', display: 'block', marginBottom: 4 }}>
+              {isVi ? 'Bản Ghi Đang Cache' : 'Active Cached Records'}
+            </span>
+            <span style={{ fontSize: '1.25rem', fontWeight: 700, color: '#38bdf8' }}>
+              {dnsConfig?.cache_entries ?? 0} <span style={{ fontSize: '0.8rem', color: '#64748b' }}>/ 2.000 (RAM ≤ 2MB)</span>
+            </span>
+          </div>
+          <div style={{ background: 'rgba(15, 23, 42, 0.6)', border: '1px solid rgba(255, 255, 255, 0.05)', borderRadius: 10, padding: 14 }}>
+            <span style={{ fontSize: '0.75rem', color: '#94a3b8', display: 'block', marginBottom: 4 }}>
+              {isVi ? 'Tỷ Lệ Trúng Cache (Hits)' : 'Cache Hits'}
+            </span>
+            <span style={{ fontSize: '1.25rem', fontWeight: 700, color: '#34d399' }}>
+              {dnsConfig?.cache_hits ?? 0}
+            </span>
+          </div>
+          <div style={{ background: 'rgba(15, 23, 42, 0.6)', border: '1px solid rgba(255, 255, 255, 0.05)', borderRadius: 10, padding: 14 }}>
+            <span style={{ fontSize: '0.75rem', color: '#94a3b8', display: 'block', marginBottom: 4 }}>
+              {isVi ? 'Yêu Cầu Ra Upstream (Misses)' : 'Upstream Queries (Misses)'}
+            </span>
+            <span style={{ fontSize: '1.25rem', fontWeight: 700, color: '#fbbf24' }}>
+              {dnsConfig?.cache_misses ?? 0}
+            </span>
+          </div>
+          <div style={{ background: 'rgba(15, 23, 42, 0.6)', border: '1px solid rgba(255, 255, 255, 0.05)', borderRadius: 10, padding: 14 }}>
+            <span style={{ fontSize: '0.75rem', color: '#94a3b8', display: 'block', marginBottom: 4 }}>
+              {isVi ? 'DNS Gốc Hệ Thống Nhận Diện' : 'Detected System DNS'}
+            </span>
+            <span style={{ fontSize: '0.95rem', fontWeight: 600, color: '#a78bfa' }}>
+              {dnsConfig?.detected_system_dns && dnsConfig.detected_system_dns.length > 0
+                ? dnsConfig.detected_system_dns.join(', ')
+                : (isVi ? 'Không phát hiện' : 'None detected')}
+            </span>
+          </div>
+        </div>
+
+        {/* Upstream Selector */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <label style={{ fontSize: '0.85rem', fontWeight: 600, color: '#cbd5e1' }}>
+            {isVi ? 'Chọn Máy Chủ DNS Chuyển Tiếp Ưu Tiên (Primary Upstream):' : 'Select Primary Upstream DNS Server:'}
+          </label>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10 }}>
+            {/* Detected System DNS Option (if any) */}
+            {dnsConfig?.detected_system_dns?.map((sysDns) => (
+              <div
+                key={sysDns}
+                onClick={() => setSelectedUpstream(sysDns)}
+                style={{
+                  padding: '12px 14px',
+                  borderRadius: 10,
+                  cursor: 'pointer',
+                  border: `1px solid ${selectedUpstream === sysDns ? '#38bdf8' : 'rgba(255, 255, 255, 0.08)'}`,
+                  background: selectedUpstream === sysDns ? 'rgba(56, 189, 248, 0.12)' : 'rgba(15, 23, 42, 0.4)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                }}
+              >
+                <div>
+                  <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#f8fafc' }}>
+                    {isVi ? 'DNS Gốc Của Máy / Router' : 'System / Router DNS'}
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>{sysDns}</div>
+                </div>
+                {selectedUpstream === sysDns && <Check size={16} color="#38bdf8" />}
+              </div>
+            ))}
+
+            {/* Cloudflare 1.1.1.1 */}
+            <div
+              onClick={() => setSelectedUpstream('1.1.1.1')}
+              style={{
+                padding: '12px 14px',
+                borderRadius: 10,
+                cursor: 'pointer',
+                border: `1px solid ${selectedUpstream === '1.1.1.1' ? '#38bdf8' : 'rgba(255, 255, 255, 0.08)'}`,
+                background: selectedUpstream === '1.1.1.1' ? 'rgba(56, 189, 248, 0.12)' : 'rgba(15, 23, 42, 0.4)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+              }}
+            >
+              <div>
+                <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#f8fafc' }}>Cloudflare DNS</div>
+                <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>1.1.1.1 (Tốc độ cao & Riêng tư)</div>
+              </div>
+              {selectedUpstream === '1.1.1.1' && <Check size={16} color="#38bdf8" />}
+            </div>
+
+            {/* Google DNS 8.8.8.8 */}
+            <div
+              onClick={() => setSelectedUpstream('8.8.8.8')}
+              style={{
+                padding: '12px 14px',
+                borderRadius: 10,
+                cursor: 'pointer',
+                border: `1px solid ${selectedUpstream === '8.8.8.8' ? '#38bdf8' : 'rgba(255, 255, 255, 0.08)'}`,
+                background: selectedUpstream === '8.8.8.8' ? 'rgba(56, 189, 248, 0.12)' : 'rgba(15, 23, 42, 0.4)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+              }}
+            >
+              <div>
+                <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#f8fafc' }}>Google Public DNS</div>
+                <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>8.8.8.8 (Độ ổn định toàn cầu)</div>
+              </div>
+              {selectedUpstream === '8.8.8.8' && <Check size={16} color="#38bdf8" />}
+            </div>
+
+            {/* Quad9 9.9.9.9 */}
+            <div
+              onClick={() => setSelectedUpstream('9.9.9.9')}
+              style={{
+                padding: '12px 14px',
+                borderRadius: 10,
+                cursor: 'pointer',
+                border: `1px solid ${selectedUpstream === '9.9.9.9' ? '#38bdf8' : 'rgba(255, 255, 255, 0.08)'}`,
+                background: selectedUpstream === '9.9.9.9' ? 'rgba(56, 189, 248, 0.12)' : 'rgba(15, 23, 42, 0.4)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+              }}
+            >
+              <div>
+                <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#f8fafc' }}>Quad9 DNS</div>
+                <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>9.9.9.9 (Lọc mã độc đám mây)</div>
+              </div>
+              {selectedUpstream === '9.9.9.9' && <Check size={16} color="#38bdf8" />}
+            </div>
+
+            {/* Custom Option */}
+            <div
+              onClick={() => setSelectedUpstream('custom')}
+              style={{
+                padding: '12px 14px',
+                borderRadius: 10,
+                cursor: 'pointer',
+                border: `1px solid ${selectedUpstream === 'custom' ? '#38bdf8' : 'rgba(255, 255, 255, 0.08)'}`,
+                background: selectedUpstream === 'custom' ? 'rgba(56, 189, 248, 0.12)' : 'rgba(15, 23, 42, 0.4)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+              }}
+            >
+              <div>
+                <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#f8fafc' }}>
+                  {isVi ? 'Tùy Chỉnh Khác...' : 'Custom Upstream...'}
+                </div>
+                <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>IP:Port hoặc DNS nội bộ</div>
+              </div>
+              {selectedUpstream === 'custom' && <Check size={16} color="#38bdf8" />}
+            </div>
+          </div>
+
+          {selectedUpstream === 'custom' && (
+            <div style={{ marginTop: 8 }}>
+              <input
+                type="text"
+                value={customUpstreamInput}
+                onChange={(e) => setCustomUpstreamInput(e.target.value)}
+                placeholder={isVi ? 'Nhập địa chỉ DNS upstream (ví dụ: 192.168.1.1 hoặc 10.0.0.1:53)' : 'Enter DNS upstream address (e.g., 192.168.1.1 or 10.0.0.1:53)'}
+                style={{
+                  width: '100%',
+                  background: 'rgba(15, 23, 42, 0.6)',
+                  border: '1px solid rgba(255, 255, 255, 0.15)',
+                  borderRadius: 8,
+                  padding: '10px 14px',
+                  color: '#ffffff',
+                  fontSize: '0.85rem',
+                }}
+              />
+            </div>
+          )}
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12 }}>
+            <button
+              type="button"
+              onClick={handleSaveDnsConfig}
+              disabled={isSavingDns}
+              style={{
+                background: '#0284c7',
+                color: '#ffffff',
+                border: 'none',
+                padding: '9px 20px',
+                borderRadius: 8,
+                fontSize: '0.85rem',
+                fontWeight: 600,
+                cursor: isSavingDns ? 'not-allowed' : 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 8,
+              }}
+            >
+              {isSavingDns ? (isVi ? 'Đang lưu...' : 'Saving...') : (isVi ? 'Áp Dụng Cấu Hình DNS' : 'Apply DNS Settings')}
+            </button>
+          </div>
+        </div>
+      </div>
+
       {/* Danger Zone: Gỡ Cài Đặt FamShield */}
       <div
         style={{
@@ -1660,6 +2162,32 @@ export const SecurityTab: React.FC<SecurityTabProps> = ({
               )}
             </div>
 
+            {totpStatus?.enabled && (
+              <div style={{ marginBottom: 18 }}>
+                <label style={{ display: 'block', fontSize: '0.8rem', color: '#38bdf8', marginBottom: 6, fontWeight: 600 }}>
+                  {isVi ? 'Mã OTP 2FA hoặc Mã Dự Phòng Khẩn Cấp:' : '2FA OTP or Emergency Backup Code:'}
+                </label>
+                <input
+                  type="text"
+                  placeholder={isVi ? 'Nhập mã 6 số hoặc ABCD-1234' : 'Enter 6-digit or ABCD-1234'}
+                  value={uninstallOtp}
+                  onChange={(e) => setUninstallOtp(e.target.value)}
+                  style={{
+                    width: '100%',
+                    background: '#070b14',
+                    border: '1px solid #334155',
+                    borderRadius: 8,
+                    padding: '10px 14px',
+                    color: '#38bdf8',
+                    fontSize: '1rem',
+                    fontWeight: 600,
+                    outline: 'none',
+                    boxSizing: 'border-box',
+                  }}
+                />
+              </div>
+            )}
+
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
               <button
                 type="button"
@@ -1698,6 +2226,309 @@ export const SecurityTab: React.FC<SecurityTabProps> = ({
               >
                 {isUninstalling ? <RefreshCw size={14} className="animate-spin" /> : <Trash2 size={14} />}
                 {isVi ? 'Xác Nhận Gỡ Bỏ' : 'Confirm Uninstall'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 2FA Setup Modal */}
+      {showTotpSetupModal && totpSetupData && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0, 0, 0, 0.8)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+            backdropFilter: 'blur(8px)',
+            padding: 20,
+          }}
+        >
+          <div
+            style={{
+              background: '#0f172a',
+              border: '1px solid rgba(56, 189, 248, 0.4)',
+              borderRadius: 20,
+              padding: 28,
+              maxWidth: 520,
+              width: '100%',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+              boxShadow: '0 25px 60px -15px rgba(0, 0, 0, 0.8)',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+              <div style={{ padding: 10, borderRadius: 12, background: 'rgba(56, 189, 248, 0.1)', color: '#38bdf8' }}>
+                <QrCode size={24} />
+              </div>
+              <div>
+                <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#f8fafc', margin: 0 }}>
+                  {isVi ? 'Thiết Lập 2FA Authenticator' : 'Setup 2FA Authenticator'}
+                </h3>
+                <p style={{ fontSize: '0.8rem', color: '#94a3b8', margin: 0 }}>
+                  {isVi ? 'Quét mã QR bằng ứng dụng trên điện thoại' : 'Scan QR code using Authenticator app'}
+                </p>
+              </div>
+            </div>
+
+            {/* QR Code */}
+            <div style={{ textAlign: 'center', background: '#ffffff', padding: 16, borderRadius: 14, maxWidth: 220, margin: '0 auto 16px' }}>
+              <img
+                src={totpSetupData.qr_base64}
+                alt="2FA QR Code"
+                style={{ width: '100%', height: 'auto', display: 'block' }}
+              />
+            </div>
+
+            <div style={{ background: '#070b14', border: '1px solid #1e293b', borderRadius: 10, padding: 12, marginBottom: 20 }}>
+              <div style={{ fontSize: '0.75rem', color: '#94a3b8', marginBottom: 4 }}>
+                {isVi ? 'Hoặc nhập khóa bí mật thủ công:' : 'Or enter secret key manually:'}
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                <code style={{ fontSize: '0.95rem', fontWeight: 700, color: '#38bdf8', wordBreak: 'break-all' }}>
+                  {totpSetupData.secret}
+                </code>
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(totpSetupData.secret);
+                    onShowToast(isVi ? 'Đã sao chép khóa bí mật' : 'Copied secret key', 'info');
+                  }}
+                  style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: 4 }}
+                  title={isVi ? 'Sao chép' : 'Copy'}
+                >
+                  <Copy size={16} />
+                </button>
+              </div>
+            </div>
+
+            {/* Backup Codes */}
+            <div style={{ background: 'rgba(245, 158, 11, 0.08)', border: '1px solid rgba(245, 158, 11, 0.25)', borderRadius: 10, padding: 14, marginBottom: 20 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#fbbf24' }}>
+                  {isVi ? '⚠️ 8 Mã Dự Phòng Khẩn Cấp (Lưu giữ cẩn thận):' : '⚠️ 8 Emergency Backup Codes (Keep safe):'}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(totpSetupData.backup_codes.join('\n'));
+                    onShowToast(isVi ? 'Đã sao chép danh sách 8 mã dự phòng' : 'Copied backup codes', 'info');
+                  }}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'transparent', border: 'none', color: '#fbbf24', fontSize: '0.75rem', cursor: 'pointer', fontWeight: 600 }}
+                >
+                  <Copy size={13} /> {isVi ? 'Sao chép tất cả' : 'Copy all'}
+                </button>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 6 }}>
+                {totpSetupData.backup_codes.map((code, idx) => (
+                  <div key={idx} style={{ background: 'rgba(15, 23, 42, 0.6)', padding: '6px 10px', borderRadius: 6, fontSize: '0.82rem', fontFamily: 'monospace', color: '#f8fafc', textAlign: 'center' }}>
+                    {code}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Confirm Code Input */}
+            <div style={{ marginBottom: 20 }}>
+              <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#f8fafc', marginBottom: 6 }}>
+                {isVi ? 'Nhập mã 6 số trên ứng dụng để xác nhận kích hoạt:' : 'Enter the 6-digit code from your app to activate:'}
+              </label>
+              <input
+                type="text"
+                autoFocus
+                placeholder="582910"
+                value={totpConfirmCode}
+                onChange={(e) => {
+                  setTotpConfirmCode(e.target.value);
+                  setTotpError(null);
+                }}
+                style={{
+                  width: '100%',
+                  background: '#070b14',
+                  border: '2px solid rgba(56, 189, 248, 0.4)',
+                  borderRadius: 10,
+                  padding: '12px 16px',
+                  fontSize: '1.25rem',
+                  fontWeight: 700,
+                  letterSpacing: '4px',
+                  textAlign: 'center',
+                  color: '#38bdf8',
+                  outline: 'none',
+                  boxSizing: 'border-box',
+                }}
+              />
+              {totpError && (
+                <div style={{ color: '#ef4444', fontSize: '0.8rem', marginTop: 6, textAlign: 'center' }}>
+                  {totpError}
+                </div>
+              )}
+            </div>
+
+            {/* Actions */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
+              <button
+                type="button"
+                onClick={() => setShowTotpSetupModal(false)}
+                disabled={isConfirmingTotp}
+                style={{
+                  background: '#1e293b',
+                  color: '#94a3b8',
+                  border: 'none',
+                  padding: '10px 18px',
+                  borderRadius: 8,
+                  fontSize: '0.85rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                {isVi ? 'Hủy' : 'Cancel'}
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmTotp}
+                disabled={isConfirmingTotp || !totpConfirmCode.trim()}
+                style={{
+                  background: '#0284c7',
+                  color: '#ffffff',
+                  border: 'none',
+                  padding: '10px 22px',
+                  borderRadius: 8,
+                  fontSize: '0.85rem',
+                  fontWeight: 700,
+                  cursor: isConfirmingTotp || !totpConfirmCode.trim() ? 'not-allowed' : 'pointer',
+                }}
+              >
+                {isConfirmingTotp ? (isVi ? 'Đang kích hoạt...' : 'Activating...') : (isVi ? 'Kích Hoạt 2FA' : 'Activate 2FA')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 2FA Disable Modal */}
+      {showTotpDisableModal && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0, 0, 0, 0.8)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+            backdropFilter: 'blur(8px)',
+            padding: 20,
+          }}
+        >
+          <div
+            style={{
+              background: '#0f172a',
+              border: '1px solid rgba(239, 68, 68, 0.4)',
+              borderRadius: 16,
+              padding: 28,
+              maxWidth: 440,
+              width: '100%',
+              boxShadow: '0 25px 50px -12px rgba(239, 68, 68, 0.25)',
+            }}
+          >
+            <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#f87171', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <AlertTriangle size={22} color="#f87171" />
+              {isVi ? 'Xác Nhận Tắt 2FA' : 'Confirm Disabling 2FA'}
+            </h3>
+            <p style={{ fontSize: '0.85rem', color: '#cbd5e1', lineHeight: 1.5, marginBottom: 18 }}>
+              {isVi
+                ? 'Tắt tính năng xác thực 2 lớp sẽ làm giảm mức độ bảo vệ của bảng điều khiển. Nhập Master PIN để xác nhận:'
+                : 'Disabling 2FA will reduce the security level of the parent dashboard. Enter Master PIN to confirm:'}
+            </p>
+
+            <div style={{ marginBottom: 14 }}>
+              <input
+                type="password"
+                placeholder={isVi ? 'Nhập Master PIN' : 'Enter Master PIN'}
+                value={totpDisablePin}
+                onChange={(e) => setTotpDisablePin(e.target.value)}
+                style={{
+                  width: '100%',
+                  background: '#070b14',
+                  border: '1px solid #334155',
+                  borderRadius: 8,
+                  padding: '10px 14px',
+                  color: '#f8fafc',
+                  fontSize: '0.95rem',
+                  outline: 'none',
+                  boxSizing: 'border-box',
+                }}
+              />
+            </div>
+
+            <div style={{ marginBottom: 18 }}>
+              <input
+                type="text"
+                placeholder={isVi ? 'Mã OTP hoặc Mã dự phòng (tùy chọn)' : 'OTP or Backup code (optional)'}
+                value={totpDisableOtp}
+                onChange={(e) => setTotpDisableOtp(e.target.value)}
+                style={{
+                  width: '100%',
+                  background: '#070b14',
+                  border: '1px solid #334155',
+                  borderRadius: 8,
+                  padding: '10px 14px',
+                  color: '#38bdf8',
+                  fontSize: '0.95rem',
+                  outline: 'none',
+                  boxSizing: 'border-box',
+                }}
+              />
+              {totpDisableError && (
+                <div style={{ color: '#ef4444', fontSize: '0.8rem', marginTop: 6 }}>
+                  {totpDisableError}
+                </div>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
+              <button
+                type="button"
+                onClick={() => setShowTotpDisableModal(false)}
+                disabled={isDisablingTotp}
+                style={{
+                  background: '#1e293b',
+                  color: '#94a3b8',
+                  border: 'none',
+                  padding: '10px 18px',
+                  borderRadius: 8,
+                  fontSize: '0.85rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                {isVi ? 'Hủy' : 'Cancel'}
+              </button>
+              <button
+                type="button"
+                onClick={handleDisableTotp}
+                disabled={isDisablingTotp || !totpDisablePin.trim()}
+                style={{
+                  background: '#ef4444',
+                  color: '#ffffff',
+                  border: 'none',
+                  padding: '10px 20px',
+                  borderRadius: 8,
+                  fontSize: '0.85rem',
+                  fontWeight: 700,
+                  cursor: isDisablingTotp || !totpDisablePin.trim() ? 'not-allowed' : 'pointer',
+                }}
+              >
+                {isDisablingTotp ? (isVi ? 'Đang tắt...' : 'Disabling...') : (isVi ? 'Xác Nhận Tắt' : 'Confirm Disable')}
               </button>
             </div>
           </div>

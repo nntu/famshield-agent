@@ -1,6 +1,7 @@
 import {
   ActivitySummaryResponse,
   BackupPayload,
+  DnsConfigResponse,
   DomainQuerySummary,
   EvidenceItem,
   InitializeSetupRequest,
@@ -8,14 +9,18 @@ import {
   KeywordConfigResponse,
   KeywordRule,
   LocalRuleRecord,
+  LoginResponse,
   ProtectionModeResponse,
   QueryLogRecord,
   RestoreResponse,
   ServerConfig,
+  SetDnsConfigResponse,
   SetupStatusResponse,
   StatusResponse,
   SyncResponse,
   TestConnectionResponse,
+  TotpSetupResponse,
+  TotpStatusResponse,
   UpdateServerConfigRequest,
 } from './types';
 
@@ -72,19 +77,36 @@ export const api = {
     }
   },
 
-  async login(pin: string): Promise<{ success: boolean; token?: string; error?: string }> {
+  async login(pin: string): Promise<LoginResponse> {
     const res = await fetch('/api/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ pin }),
     });
 
-    const data = await res.json();
+    const data: LoginResponse = await res.json();
+    if (res.ok && data.success) {
+      if (data.token) {
+        setSessionToken(data.token);
+      }
+      return data;
+    }
+    return { success: false, error: data.error || 'Mã PIN không chính xác' };
+  },
+
+  async loginTotp(tempAuthToken: string, code: string): Promise<LoginResponse> {
+    const res = await fetch('/api/auth/login/totp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ temp_auth_token: tempAuthToken, code }),
+    });
+
+    const data: LoginResponse = await res.json();
     if (res.ok && data.success && data.token) {
       setSessionToken(data.token);
       return data;
     }
-    return { success: false, error: data.error || 'Invalid PIN' };
+    return { success: false, error: data.error || 'Mã xác thực không chính xác' };
   },
 
   async logout(): Promise<void> {
@@ -298,11 +320,55 @@ export const api = {
     });
   },
 
-  async uninstallSystem(masterPin: string): Promise<{ success: boolean; message: string }> {
-    return apiRequest<{ success: boolean; message: string }>('/api/system/uninstall', {
+  async uninstallSystem(masterPin: string, otpCode?: string): Promise<{ success: boolean; message: string; requires_otp?: boolean }> {
+    return apiRequest<{ success: boolean; message: string; requires_otp?: boolean }>('/api/system/uninstall', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ master_pin: masterPin }),
+      body: JSON.stringify({ master_pin: masterPin, otp_code: otpCode }),
+    });
+  },
+
+  async getTotpStatus(): Promise<TotpStatusResponse> {
+    return apiRequest<TotpStatusResponse>('/api/auth/totp/status');
+  },
+
+  async setupTotp(): Promise<TotpSetupResponse> {
+    return apiRequest<TotpSetupResponse>('/api/auth/totp/setup', {
+      method: 'POST',
+    });
+  },
+
+  async confirmTotp(code: string): Promise<{ success: boolean; message: string }> {
+    return apiRequest<{ success: boolean; message: string }>('/api/auth/totp/confirm', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code }),
+    });
+  },
+
+  async disableTotp(pin: string, code?: string): Promise<{ success: boolean; message: string }> {
+    return apiRequest<{ success: boolean; message: string }>('/api/auth/totp/disable', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pin, code }),
+    });
+  },
+
+  async getDnsConfig(): Promise<DnsConfigResponse> {
+    return apiRequest<DnsConfigResponse>('/api/dns/config');
+  },
+
+  async setDnsConfig(upstream: string): Promise<SetDnsConfigResponse> {
+    return apiRequest<SetDnsConfigResponse>('/api/dns/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ upstream }),
+    });
+  },
+
+  async flushDnsCache(): Promise<{ success: boolean; message: string }> {
+    return apiRequest<{ success: boolean; message: string }>('/api/dns/cache/flush', {
+      method: 'POST',
     });
   },
 };

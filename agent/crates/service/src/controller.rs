@@ -102,10 +102,13 @@ impl ServiceController {
         let local_admin_svc = Arc::new(famshield_local_admin::LocalAdminService::new(
             storage.clone(),
         ));
-        let local_admin_server = Arc::new(famshield_local_admin::LocalAdminServer::new(
-            local_admin_svc,
-            Some(dns_blocklist.clone()),
-        ));
+        let local_admin_server = Arc::new(
+            famshield_local_admin::LocalAdminServer::new(
+                local_admin_svc,
+                Some(dns_blocklist.clone()),
+            )
+            .with_dns_cache(dns_cache.clone()),
+        );
 
         let telemetry_pipeline = Arc::new(TelemetryPipeline::new(device_id, storage.clone()));
 
@@ -171,19 +174,43 @@ impl ServiceController {
     pub async fn run(&self, mut shutdown_rx: broadcast::Receiver<()>) {
         info!("Starting FamShield Windows Service subsystems...");
 
+        // Resolve initial upstream DNS servers: user-configured upstream + detected system DNS
+        let configured_upstream = self
+            .storage
+            .get_meta("dns_upstream")
+            .ok()
+            .flatten()
+            .unwrap_or_else(|| DEFAULT_UPSTREAM.to_string());
+
+        let system_dns = famshield_windows::NrptManager::get_system_dns_servers();
+        let mut upstreams = vec![configured_upstream.clone()];
+        for s in system_dns {
+            let addr = if s.contains(':') {
+                s
+            } else {
+                format!("{}:53", s)
+            };
+            if !upstreams.contains(&addr) {
+                upstreams.push(addr);
+            }
+        }
+        tracing::info!(
+            "Initializing DNS Proxy with upstream cascade: {:?}",
+            upstreams
+        );
+
         // 1. Initialize Dynamic WFP Session Guard & enforce Port 53 DNS redirection
         let _wfp_guard = match WfpSessionGuard::open_dynamic("FamShieldServiceSession") {
             Ok(mut g) => {
                 info!("Dynamic WFP User-Mode protection armed");
-                let upstream_ips: Vec<std::net::Ipv4Addr> = DEFAULT_UPSTREAM
-                    .parse::<std::net::SocketAddr>()
-                    .ok()
-                    .and_then(|addr| match addr {
-                        std::net::SocketAddr::V4(v4) => Some(*v4.ip()),
-                        _ => None,
-                    })
-                    .into_iter()
-                    .collect();
+                let mut upstream_ips: Vec<std::net::Ipv4Addr> = Vec::new();
+                for u in &upstreams {
+                    if let Ok(std::net::SocketAddr::V4(v4)) = u.parse::<std::net::SocketAddr>() {
+                        if !upstream_ips.contains(v4.ip()) {
+                            upstream_ips.push(*v4.ip());
+                        }
+                    }
+                }
 
                 if let Err(e) = g.block_external_dns(&upstream_ips) {
                     tracing::warn!("Failed to install WFP Port 53 block filters: {}", e);
@@ -207,10 +234,11 @@ impl ServiceController {
 
         let dns_proxy = DnsProxy::new(
             DEFAULT_BIND_ADDR,
-            DEFAULT_UPSTREAM,
+            configured_upstream,
             self.dns_blocklist.clone(),
             self.dns_cache.clone(),
         )
+        .with_upstreams(upstreams)
         .with_log_sender(dns_log_tx);
 
         let dns_storage = self.storage.clone();

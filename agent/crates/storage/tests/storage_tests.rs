@@ -284,3 +284,98 @@ fn test_domain_query_summaries_and_drilldown() {
     assert_eq!(tiktok_logs[0].domain, "tiktok.com");
     assert_eq!(tiktok_logs[1].domain, "tiktok.com");
 }
+
+#[test]
+fn test_rollup_and_prune_query_logs() {
+    let storage = StorageEngine::in_memory().unwrap();
+    let now = Utc::now();
+    let ten_days_ago = now - chrono::Duration::days(10);
+    let one_hour_ago = now - chrono::Duration::hours(1);
+
+    // Old logs (10 days ago): 3 queries for youtube.com (2 ALLOW, 1 BLOCK) and 1 for safe.org
+    let old_logs = vec![
+        QueryLogRecord {
+            domain: "youtube.com".into(),
+            qtype: "A".into(),
+            action: "ALLOW".into(),
+            reason: "upstream".into(),
+            rule_id: None,
+            occurred_at: ten_days_ago,
+        },
+        QueryLogRecord {
+            domain: "youtube.com".into(),
+            qtype: "AAAA".into(),
+            action: "ALLOW".into(),
+            reason: "upstream".into(),
+            rule_id: None,
+            occurred_at: ten_days_ago + chrono::Duration::seconds(1),
+        },
+        QueryLogRecord {
+            domain: "youtube.com".into(),
+            qtype: "A".into(),
+            action: "BLOCK".into(),
+            reason: "quota".into(),
+            rule_id: Some("youtube.com".into()),
+            occurred_at: ten_days_ago + chrono::Duration::seconds(2),
+        },
+        QueryLogRecord {
+            domain: "safe.org".into(),
+            qtype: "A".into(),
+            action: "ALLOW".into(),
+            reason: "upstream".into(),
+            rule_id: None,
+            occurred_at: ten_days_ago,
+        },
+    ];
+    storage.insert_query_logs_batch(&old_logs).unwrap();
+
+    // Recent logs (1 hour ago): 2 queries for youtube.com (both ALLOW)
+    let recent_logs = vec![
+        QueryLogRecord {
+            domain: "youtube.com".into(),
+            qtype: "A".into(),
+            action: "ALLOW".into(),
+            reason: "upstream".into(),
+            rule_id: None,
+            occurred_at: one_hour_ago,
+        },
+        QueryLogRecord {
+            domain: "youtube.com".into(),
+            qtype: "AAAA".into(),
+            action: "ALLOW".into(),
+            reason: "upstream".into(),
+            rule_id: None,
+            occurred_at: one_hour_ago + chrono::Duration::seconds(1),
+        },
+    ];
+    storage.insert_query_logs_batch(&recent_logs).unwrap();
+
+    let (raw_before, agg_before) = storage.get_query_logs_storage_stats().unwrap();
+    assert_eq!(raw_before, 6);
+    assert_eq!(agg_before, 0);
+
+    // Prune logs older than 7 days
+    let cutoff = now - chrono::Duration::days(7);
+    let deleted = storage.rollup_and_prune_query_logs(cutoff).unwrap();
+    assert_eq!(deleted, 4);
+
+    let (raw_after, agg_after) = storage.get_query_logs_storage_stats().unwrap();
+    assert_eq!(raw_after, 2); // only 2 recent queries remain in raw table
+    assert_eq!(agg_after, 2); // 2 domains in aggregates table: youtube.com, safe.org
+
+    // CRITICAL: get_domain_query_summaries must seamlessly combine aggregates + recent raw logs!
+    let summaries = storage.get_domain_query_summaries(10).unwrap();
+    assert_eq!(summaries.len(), 2);
+
+    // youtube.com should have TOTAL 5 queries (3 old + 2 recent), 4 ALLOW, 1 BLOCK
+    let yt = summaries.iter().find(|s| s.domain == "youtube.com").unwrap();
+    assert_eq!(yt.total_queries, 5);
+    assert_eq!(yt.allowed_count, 4);
+    assert_eq!(yt.blocked_count, 1);
+
+    // safe.org has 1 query (from old aggregate)
+    let safe = summaries.iter().find(|s| s.domain == "safe.org").unwrap();
+    assert_eq!(safe.total_queries, 1);
+    assert_eq!(safe.allowed_count, 1);
+    assert_eq!(safe.blocked_count, 0);
+}

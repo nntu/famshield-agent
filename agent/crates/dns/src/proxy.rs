@@ -41,7 +41,7 @@ pub fn qtype_to_string(qtype: u16) -> &'static str {
 
 pub struct DnsProxy {
     bind_addr: String,
-    upstream_addr: String,
+    upstreams: Arc<arc_swap::ArcSwap<Vec<String>>>,
     blocklist: Arc<BlocklistStore>,
     cache: Arc<DnsCache>,
     log_tx: Option<tokio::sync::mpsc::UnboundedSender<DnsLogEntry>>,
@@ -54,13 +54,27 @@ impl DnsProxy {
         blocklist: Arc<BlocklistStore>,
         cache: Arc<DnsCache>,
     ) -> Self {
+        let addr = upstream_addr.into();
         Self {
             bind_addr: bind_addr.into(),
-            upstream_addr: upstream_addr.into(),
+            upstreams: Arc::new(arc_swap::ArcSwap::from_pointee(vec![addr])),
             blocklist,
             cache,
             log_tx: None,
         }
+    }
+
+    pub fn with_upstreams(mut self, upstreams: Vec<String>) -> Self {
+        self.upstreams = Arc::new(arc_swap::ArcSwap::from_pointee(upstreams));
+        self
+    }
+
+    pub fn set_upstreams(&self, upstreams: Vec<String>) {
+        self.upstreams.store(Arc::new(upstreams));
+    }
+
+    pub fn get_upstreams(&self) -> Vec<String> {
+        (**self.upstreams.load()).clone()
     }
 
     pub fn with_log_sender(mut self, tx: tokio::sync::mpsc::UnboundedSender<DnsLogEntry>) -> Self {
@@ -304,13 +318,6 @@ impl DnsProxy {
         let socket = Arc::new(UdpSocket::bind(&self.bind_addr).await?);
         info!("NUMA-style DNS proxy bound to UDP {}", self.bind_addr);
 
-        let upstream_target: SocketAddr = self.upstream_addr.parse().map_err(|e| {
-            DnsError::Format(format!(
-                "Invalid upstream address {}: {}",
-                self.upstream_addr, e
-            ))
-        })?;
-
         let mut buf = [0u8; 4096];
 
         loop {
@@ -331,12 +338,13 @@ impl DnsProxy {
             let blocklist = self.blocklist.clone();
             let cache = self.cache.clone();
             let log_tx = self.log_tx.clone();
+            let upstreams = self.upstreams.clone();
 
             tokio::spawn(async move {
                 Self::handle_query(
                     query_wire,
                     client_addr,
-                    upstream_target,
+                    upstreams,
                     socket,
                     blocklist,
                     cache,
@@ -350,7 +358,7 @@ impl DnsProxy {
     async fn handle_query(
         query_wire: Vec<u8>,
         client_addr: SocketAddr,
-        upstream_target: SocketAddr,
+        upstreams: Arc<arc_swap::ArcSwap<Vec<String>>>,
         socket: Arc<UdpSocket>,
         blocklist: Arc<BlocklistStore>,
         cache: Arc<DnsCache>,
@@ -488,21 +496,47 @@ impl DnsProxy {
             served_stale = true;
         }
 
-        // 3. Upstream Forwarding with isolated ephemeral socket and 2500ms timeout
-        let forward_result = async {
-            let upstream_sock = UdpSocket::bind("0.0.0.0:0").await?;
-            upstream_sock.connect(upstream_target).await?;
-            upstream_sock.send(&query_wire).await?;
-            let mut resp_buf = [0u8; 4096];
-            let resp_len = tokio::time::timeout(
-                std::time::Duration::from_millis(2500),
-                upstream_sock.recv(&mut resp_buf),
-            )
-            .await
-            .map_err(|_| DnsError::EndOfBuffer)??;
-            Ok::<Vec<u8>, DnsError>(resp_buf[..resp_len].to_vec())
+        // 3. Upstream Forwarding with Failover across configured upstreams
+        let current_targets = upstreams.load();
+        let mut forward_result = Err(DnsError::EndOfBuffer);
+
+        for (idx, target_str) in current_targets.iter().enumerate() {
+            let parsed_addr: Result<SocketAddr, _> = if target_str.contains(':') {
+                target_str.parse()
+            } else {
+                format!("{}:53", target_str).parse()
+            };
+
+            if let Ok(target) = parsed_addr {
+                let timeout_ms = if idx == 0 { 1500 } else { 2000 };
+                let query_fut = async {
+                    let upstream_sock = UdpSocket::bind("0.0.0.0:0").await?;
+                    upstream_sock.connect(target).await?;
+                    upstream_sock.send(&query_wire).await?;
+                    let mut resp_buf = [0u8; 4096];
+                    let resp_len = tokio::time::timeout(
+                        std::time::Duration::from_millis(timeout_ms),
+                        upstream_sock.recv(&mut resp_buf),
+                    )
+                    .await
+                    .map_err(|_| DnsError::EndOfBuffer)??;
+                    Ok::<Vec<u8>, DnsError>(resp_buf[..resp_len].to_vec())
+                };
+
+                match query_fut.await {
+                    Ok(resp) => {
+                        forward_result = Ok(resp);
+                        break;
+                    }
+                    Err(e) => {
+                        debug!(
+                            "Upstream {} query failed/timeout: {}, attempting next...",
+                            target, e
+                        );
+                    }
+                }
+            }
         }
-        .await;
 
         match forward_result {
             Ok(resp_wire) => {

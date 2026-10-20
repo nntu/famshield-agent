@@ -42,14 +42,42 @@ rtk git diff
 
 ---
 
-## 3. Tiêu Chuẩn Chất Lượng Mã Nguồn (Build Quality Gate)
+## 3. Tiêu Chuẩn Chất Lượng Mã Nguồn & Chiến Lược Kiểm Thử (Build Quality Gate & Tiered Testing)
 
-Trước khi hoàn thành phiên làm việc hoặc báo cáo với người dùng, Agent **phải tự động kiểm tra và đảm bảo**:
+Nhằm tối ưu hóa tốc độ phát triển (Developer Experience), bảo tồn tài nguyên CPU và tiết kiệm token ngữ cảnh của AI Agent, quy trình kiểm thử và chất lượng mã nguồn bắt buộc tuân theo **Chiến Lược Kiểm Thử Phân Tầng (Tiered Testing Strategy)**:
+
+### 3.1. Trong Quá Trình Code (Fast Inner Loop - TDD)
+> 🛑 **NGHIÊM CẤM:** Tuyệt đối không chạy full workspace test (`rtk cargo test --workspace`) sau mỗi thay đổi nhỏ hoặc mỗi hàm vừa viết xong. Việc này gây lãng phí 15–45s và tiêu tốn hàng nghìn token không cần thiết.
+
+- **Chỉ chạy test nhắm mục tiêu (Targeted Test)** cho đúng crate hoặc test case đang xử lý:
+  ```bash
+  rtk cargo test -p <crate_name> -- <test_name>
+  # Ví dụ:
+  rtk cargo test -p famshield-local-admin -- totp
+  rtk cargo test -p famshield-dns -- cache
+  ```
+  *(Thời gian phản hồi chỉ 0.5s – 1.5s, nhận diện lỗi tức thì).*
+- **Kiểm tra biên dịch & cảnh báo nhẹ cục bộ:**
+  ```bash
+  rtk cargo check -p <crate_name>
+  rtk cargo clippy -p <crate_name> -- -D warnings
+  ```
+
+### 3.2. Cổng Nghiệm Thu Cuối Cùng Trước Khi Bàn Giao (Final Handover Quality Gate)
+**Chỉ chạy đúng 1 LẦN DUY NHẤT** khi toàn bộ tính năng lớn đã hoàn thành xong xuôi, trước khi báo cáo kết quả với người dùng:
 
 1. **Format:** `rtk cargo fmt --all -- --check` (Không có sai lệch định dạng).
 2. **Biên dịch:** `rtk cargo check --workspace --all-targets` (Biên dịch thành công).
 3. **Clippy Linter:** `rtk cargo clippy --workspace --all-targets -- -D warnings` (Tuyệt đối **0 errors, 0 warnings**).
 4. **Unit Tests:** `rtk cargo test --workspace` (Toàn bộ các test suite phải **PASS 100%**).
+5. **Frontend (nếu có thay đổi UI):** `rtk npm --prefix web run build` (Biên dịch Vite thành công).
+
+### 3.3. Rà Soát & Quản Lý Phiên Bản Thư Viện (Dependency Versioning & Modern Standards)
+- Luôn ưu tiên sử dụng phiên bản mới nhất, ổn định của các crate dependencies (ví dụ `totp-rs = "6.0"`, `hickory-proto = "0.26"`).
+- Khi nâng cấp hoặc bổ sung crate mới:
+  - Tận dụng tối đa các mẫu thiết kế hiện đại (Builder pattern, Stack Allocation / Zero-Heap, Zeroize bảo vệ RAM).
+  - Tuyệt đối loại bỏ cảnh báo sử dụng hàm lỗi thời (`#[deprecated]`).
+  - Kiểm tra tính tương thích giữa các crate trong workspace trước khi commit.
 
 ---
 
