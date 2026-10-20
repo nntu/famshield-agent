@@ -272,6 +272,12 @@ Tất cả các thay đổi quan trọng của dự án **FamShield Windows Agen
 
 ---
 
+## [1.0.0] - 2026-10-20
+
+### Changed
+- Đồng bộ phiên bản workspace Rust và bộ cài Windows lên `1.0.0`.
+- Cập nhật hướng dẫn triển khai và quy trình đóng gói theo tên bộ cài `FamShieldSetup-1.0.0.exe`.
+
 ## [0.1.0-rc.1] - 2026-10-19
 
 ### Added

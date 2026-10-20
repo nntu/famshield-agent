@@ -1,137 +1,118 @@
-# FamShield Windows Endpoint Agent
+<p align="center">
+  <img src="assets/logo.png" alt="FamShield" width="132">
+</p>
 
-[🇻🇳 Tiếng Việt](README.md) | [🇬🇧 English](README.en.md) | [🤝 Hướng Dẫn Đóng Góp (Contributing)](CONTRIBUTING.md)
+<h1 align="center">FamShield Agent</h1>
 
-**FamShield Agent** là thành phần bảo vệ máy trạm Windows thuộc hệ sinh thái **FamShield Parental Control & Endpoint Security**. 
+<p align="center">
+  Tác tử bảo vệ và quản lý máy tính Windows, được xây dựng bằng Rust.
+</p>
 
-Dự án được xây dựng 100% bằng **Rust hiện đại**, chú trọng an toàn bộ nhớ tuyệt đối, hiệu năng cực cao, không gây BSOD/treo máy, và chạy ngầm siêu nhẹ (< 15MB RAM).
+<p align="center">
+  <a href="README.en.md">English</a> ·
+  <a href="CONTRIBUTING.md">Đóng góp</a> ·
+  <a href="docs/README.md">Tài liệu kỹ thuật</a> ·
+  <a href="https://github.com/nntu/famshield-agent/issues">Báo lỗi / Đề xuất</a>
+</p>
 
-> **Lưu ý:** Phần máy chủ đám mây (Go Control Plane, NATS JetStream, Telegram Bot & Web Console) được đặt tại:  
-> 👉 [https://github.com/nntu/famshield-server](https://github.com/nntu/famshield-server)
+FamShield Agent là phần mềm chạy trên máy Windows, cung cấp các công cụ bảo vệ và quản trị dành cho gia đình. Agent hỗ trợ chế độ cục bộ, không cần kết nối dịch vụ đám mây; phần máy chủ quản lý tập trung sẽ được triển khai sau.
 
----
+## Chọn cách sử dụng
 
-## 1. Cấu Trúc Không Gian Làm Việc (Rust Workspace)
+| Chế độ | Phù hợp khi | Kết nối đám mây |
+| --- | --- | --- |
+| **Cục bộ (`StandaloneFree`)** | Muốn cấu hình và quản lý trực tiếp trên thiết bị. | Không bắt buộc |
+| **Quản lý tập trung (`OnlineManaged`)** | Quản lý thiết bị tập trung khi máy chủ được triển khai. | Sẽ triển khai sau |
 
-Agent bao gồm 9 crates chuyên biệt hóa theo nguyên lý Idiomatic Rust:
+Cả hai chế độ đều sử dụng agent Windows. Chế độ quản lý tập trung phụ thuộc vào dịch vụ máy chủ sẽ được triển khai trong giai đoạn sau.
 
-| Crate | Vai Trò Kỹ Thuật | Trạng Thái |
-| :--- | :--- | :--- |
-| **`famshield-core`** | Domain models, Newtypes ngữ nghĩa, luật lọc, và State Machine. | **Implemented** ✅ |
-| **`famshield-service`** | Windows Service SCM Dispatcher (`windows-service`), Named Pipe IPC server có SDDL ACL. | **Implemented** ✅ |
-| **`famshield-session`** | Helper chạy trong user session: GDI BitBlt Capture + Gaussian Blur, System Tray, Toast, PIN dialog. | **Implemented** ✅ |
-| **`famshield-dns`** | DNS Proxy NUMA loopback (`127.0.0.2:53`), Serve-Stale Cache, ArcSwap Hot-swap Blocklist. | **Implemented** ✅ |
-| **`famshield-windows`** | WFP Port 53 enforcement (`FWPM_SESSION_FLAG_DYNAMIC`), NRPT Registry, ETW Kernel 0ms & ToolHelp32. | **Implemented** ✅ |
-| **`famshield-local-admin`** | Quản trị cục bộ: Máy chủ Web Admin (Axum :48123), SPA song ngữ, CRUD luật tên miền/app, xem DNS logs, ảnh vi phạm, Master PIN Argon2id + DPAPI. | **Implemented** ✅ |
-| **`famshield-storage`** | SQLite nội bộ (chế độ WAL): Durable Outbox, Error Deduplication, Query Logs, Visual Evidence. | **Implemented** ✅ |
-| **`famshield-sync`** | Freemium Engine (`StandaloneFree` vs `OnlineManaged`), Telemetry Envelope, NATS JetStream, HMAC Auth. | **Implemented** ✅ |
-| **`famshield-updater`** | Xác thực chữ ký số ECDSA P-256, Atomic swap nhị phân và Watchdog timer 30s rollback tự động. | **Implemented** ✅ |
+## Năng lực chính
 
----
+- **Kiểm soát DNS và mạng:** proxy DNS cục bộ, quy tắc lọc tên miền và cơ chế Windows Filtering Platform (WFP) để áp dụng chính sách mạng.
+- **Quản lý trên thiết bị:** giao diện Web Admin chạy cục bộ, nhật ký hoạt động, cấu hình quy tắc và chế độ chỉ giám sát.
+- **Bảo vệ truy cập:** xác thực Master PIN, lưu trữ dữ liệu cục bộ bằng SQLite và bảo vệ bí mật trên Windows bằng DPAPI.
+- **Quản lý ứng dụng và thời gian:** hỗ trợ theo dõi hoạt động ứng dụng và áp dụng chính sách giới hạn theo cấu hình.
+- **Riêng tư có chủ đích:** ảnh xác minh chỉ được chụp theo sự kiện và làm mờ trước khi lưu; bộ phát hiện từ khóa xử lý trong bộ đệm RAM và không ghi chuỗi phím thô xuống đĩa.
+- **Đồng bộ tùy chọn:** chế độ Online Managed hỗ trợ đồng bộ chính sách, gửi telemetry và nhận lệnh đã xác thực từ máy chủ.
 
-## 2. Tính Năng Kỹ Thuật Nổi Bật
+## Kiến trúc
 
-### 🛡️ Windows Filtering Platform (WFP) Port 53 Enforcement
-- Tích hợp trực tiếp Windows Filtering Platform API (`fwpmu.dll`) tại `FWPM_LAYER_ALE_AUTH_CONNECT_V4` và `FWPM_LAYER_ALE_AUTH_CONNECT_V6`.
-- Quy tắc ưu tiên cao (Weight 15, `FWP_ACTION_PERMIT`): Cho phép toàn bộ dải IP loopback `127.0.0.0/8` và upstream DNS đã cấu hình.
-- Quy tắc chặn (Weight 10, `FWP_ACTION_BLOCK`): Chặn triệt để mọi truy vấn DNS trực tiếp ra ngoài máy trạm, ép 100% lưu lượng đi qua bộ lọc FamShield.
-- Sử dụng phiên làm việc động (`FWPM_SESSION_FLAG_DYNAMIC`), tự động hoàn nguyên sạch sẽ nếu dịch vụ tắt/crash, triệt tiêu nguy cơ rớt mạng hay BSOD.
+Workspace Rust được chia thành các crate theo trách nhiệm:
 
-### 📷 Smart Visual Verification (Bảo Vệ Quyền Riêng Tư)
-- Chụp ảnh màn hình thật khi có sự kiện vi phạm bằng Win32 GDI `BitBlt` từ Desktop DC.
-- Tự động downscale về độ phân giải chuẩn 480p và áp dụng thuật toán làm mờ 3-pass separable box blur (hội tụ Gauss trong RAM) với độ phức tạp $O(N)$ để xóa mờ thông tin nhạy cảm.
-- Nén JPEG trực tiếp trong bộ nhớ bằng `jpeg-encoder`, dung lượng luôn khống chế dưới 150 KiB.
+| Crate | Trách nhiệm |
+| --- | --- |
+| `famshield-core` | Kiểu dữ liệu miền nghiệp vụ, chính sách và trạng thái |
+| `famshield-service` | Windows Service, điều phối và IPC |
+| `famshield-session` | Thành phần chạy trong phiên người dùng, thông báo và giao diện hệ thống |
+| `famshield-dns` | Proxy DNS và xử lý chính sách tên miền |
+| `famshield-windows` | Tích hợp Windows, WFP, NRPT và theo dõi tiến trình |
+| `famshield-local-admin` | Web Admin cục bộ và API quản trị |
+| `famshield-storage` | Cơ sở dữ liệu SQLite và hàng đợi sự kiện |
+| `famshield-sync` | Chế độ hoạt động, đồng bộ và xác thực lệnh từ xa |
+| `famshield-updater` | Kiểm tra chữ ký và cập nhật agent |
 
-### 🔐 Bảo Mật Master PIN Đa Lớp (Argon2id + DPAPI + Lockout)
-- Băm mật khẩu Argon2id kèm salt ngẫu nhiên từ hệ điều hành (`OsRng`).
-- Khóa bí mật được mã hóa ở cấp độ máy trạm qua Windows Data Protection API (DPAPI machine-scope).
-- Chống tấn công dò mật khẩu (Brute-force): Đếm số lần nhập sai liên tiếp, tự động khóa đăng nhập theo cấp số nhân (từ 30s đến 15 phút).
-- Cơ chế khôi phục 3 lớp: UAC Elevation CLI (`--reset-pin`), Khóa cứu hộ offline `FAM-XXXX-XXXX-XXXX`, và điều khiển từ xa.
+## Bắt đầu trên Windows
 
-### 💻 Giao Diện Quản Trị Cục Bộ & Quản Lý Tập Trung (Local Web Admin & Central Management Console)
-- Chạy trực tiếp trên máy chủ HTTP Axum cục bộ tại `http://127.0.0.1:48123` (Session 0 Service) với giao diện **React 19 + TypeScript + Vite** hiện đại, mượt mà và tối ưu hóa tài nguyên.
-- Tự động mở trình duyệt sau khi cài đặt thành công (`installer/FamShield.iss`) và hỗ trợ mở tức thì từ menu khay hệ thống Windows (`famshield-session`).
-- Tích hợp **Trợ Lý Thiết Lập Ban Đầu (Initial Setup Wizard 5 Bước)** khi khởi chạy lần đầu: Hướng dẫn cấu hình an toàn, tạo Master PIN và cấp Mã Khôi Phục Khẩn Cấp `FAM-XXXX-XXXX-XXXX`.
-- **Phân Hệ Cấu Hình Kết Nối Máy Chủ Quản Lý Tập Trung**:
-  - Tùy chỉnh linh hoạt Địa chỉ máy chủ (Server URL / Endpoint), Mã tổ chức (Tenant ID), Tên thiết bị (Device Name), và Mã ghép nối (Enrollment Code).
-  - Điều chỉnh chu kỳ đồng bộ dữ liệu (Sync Interval: 15s – 15m) và bật/tắt chế độ Strict TLS Verification cho môi trường mạng nội bộ doanh nghiệp/trường học.
-  - Tích hợp công cụ **Kiểm tra kết nối mạng (Async TCP Probe)** đo độ trễ round-trip (ms) và nút **Đồng bộ ngay** chính sách từ xa.
-- Tích hợp **Chế Độ Giám Sát Không Chặn (Audit-Only / Monitor Mode)**: Cho phép chuyển đổi tức thời giữa Chặn Chủ Động và Chỉ Giám Sát. Khi bật giám sát, các truy vấn vi phạm vẫn được ghi nhật ký và chụp bằng chứng nhưng không ngắt kết nối mạng.
-- Tích hợp **Cơ Chế Sao Lưu & Phục Hồi Dữ Liệu An Toàn (.famshield-bak)**: Xuất và khôi phục toàn bộ cấu hình, quy tắc máy trạm với mã băm toàn vẹn SHA-256 chống giả mạo, hoạt động 100% độc lập ngoại tuyến.
-  - Tích hợp **Phân Hệ Nhật Ký Hoạt Động & Thời Gian Dùng Máy (Activity Monitoring)**: Theo dõi dữ liệu thực từ SQLite, không chèn dữ liệu mẫu; nhật ký DNS phân biệt `ALLOW`, `BLOCK`, `MONITOR` và `ERROR`, đồng thời không suy đoán ứng dụng nguồn khi chưa có tương quan ETW/WFP.
-  - Tích hợp **Giám Sát Gõ Từ Khóa Bậy & Ngôn Từ Nhạy Cảm (Keystroke Keyword Monitoring)**: Phát hiện theo thời gian thực các từ ngữ tục tĩu, bắt nạt mạng, bạo lực và tự hại qua bộ đệm trượt RAM 128 ký tự (`KeystrokeSlidingBuffer`) kết hợp thuật toán Aho-Corasick và bộ chuẩn hóa tiếng Việt/teencode thông minh. Vi phạm được gửi qua IPC có retry và acknowledgement; tuyệt đối không ghi chuỗi phím gõ thô xuống ổ đĩa, bảo đảm chuẩn **Privacy-by-Design**.
-- Hỗ trợ chuyển đổi liền mạch giữa **100% Ngoại tuyến StandaloneFree** và **Quản lý tập trung OnlineManaged**.
-- Hỗ trợ song ngữ Tiếng Việt & Tiếng Anh, bảo vệ phiên đăng nhập qua Master PIN, cookie an toàn `HttpOnly; SameSite=Strict`.
+### Yêu cầu hệ thống
 
-### 📊 Bộ Khung Telemetry Hợp Nhất (Unified Telemetry Pipeline)
-- Mô hình **Store-and-Forward** offline-first thông qua bảng `outbox` trong SQLite.
-- Chuẩn hóa **Telemetry Envelope** gom nhiều loại sự kiện (Heartbeat, DNS Log, Error Log, Process Lifecycle, Security Alert) vào một batch duy nhất.
-- Hỗ trợ truyền tải tối ưu qua Cloudflare Tunnel và NATS JetStream, nén dữ liệu và chống trùng lặp (Idempotency).
-- Băm fingerprint SHA-256 thông minh để gom cụm lỗi (Error Deduplication), tránh tràn log.
+- Windows 10 (1809 trở lên) hoặc Windows 11, kiến trúc x64.
+- Quyền Administrator để cài đặt dịch vụ và cấu hình DNS.
 
-### 💎 Kiến Trúc Freemium (Free Standalone vs Paid Cloud Managed)
-FamShield Agent phân tách rõ ràng giữa 2 chế độ hoạt động:
-- **Chế độ Miễn Phí Cục Bộ (`StandaloneFree`)**:
-  - **100% Miễn phí & Mã nguồn mở**: Hoạt động hoàn toàn độc lập, ngoại tuyến (offline-first), bảo đảm riêng tư tối đa và không bắt buộc kết nối server.
-  - Tích hợp trọn vẹn sức mạnh bảo vệ máy trạm: DNS Proxy NUMA loopback, chặn bypass WFP Port 53, Master PIN Argon2id + DPAPI machine-scope, khóa lockout brute-force, chụp màn hình GDI + Gaussian blur trong RAM, theo dõi foreground & AFK idle, cơ chế tự bảo vệ và Micro-UI System Tray / PIN Native Dialog.
-- **Chế độ Trả Phí Quản Lý Đám Mây (`OnlineManaged`)**:
-  - Mở rộng thông qua mã ghép nối đám mây 6 chữ số (`EnrollmentManager`).
-  - Quản lý tập trung qua Web Console & Telegram Bot đa nền tảng.
-  - Nhận và thực thi lệnh từ xa tức thì qua NATS JetStream 2 chiều: Khóa máy khẩn cấp (`lock_session`), nạp danh sách đen tức thời (`update_blacklist`), đặt lại PIN từ xa (`reset_pin`), phê duyệt/từ chối cài phần mềm (`approve_install`/`deny_install`).
-  - Xác thực chữ ký mã hóa HMAC-SHA256 trên mọi lệnh điều khiển và cơ chế chống tấn công phát lại (Anti-replay window 300 giây).
+### Cài đặt bằng bộ cài
 
----
+1. Tải `FamShieldSetup-1.0.0.exe` từ [GitHub Releases](https://github.com/nntu/famshield-agent/releases). Nếu chưa có bản phát hành, xem mục [Tự đóng gói bộ cài](#tự-đóng-gói-bộ-cài) bên dưới.
+2. Nhấp phải vào file cài đặt, chọn **Run as administrator**, rồi xác nhận yêu cầu UAC.
+3. Làm theo hướng dẫn trên màn hình. Trình cài đặt đăng ký Windows Service, cấu hình DNS cho agent và khởi chạy giao diện thiết lập ban đầu.
+4. Tạo Master PIN và hoàn tất cấu hình trong Web Admin.
 
-## 3. Hướng Dẫn Biên Dịch & Cài Đặt (Quickstart)
+Web Admin thường mở tại [http://127.0.0.1:38123](http://127.0.0.1:38123). Nếu cổng này không khả dụng, agent sẽ thử các cổng dự phòng; cổng đang dùng được ghi tại `%ProgramData%\FamShield\admin_port.txt`.
 
-### Yêu cầu:
-- Windows 10 (1809+) hoặc Windows 11 (x86_64).
-- Rust 1.78+ (`cargo`), Inno Setup 6 (để đóng gói installer).
-- Quyền Administrator khi cài đặt dịch vụ.
+> **Lưu ý về mạng:** FamShield thay đổi cấu hình DNS của Windows để áp dụng chính sách. Khi gỡ cài đặt, bộ gỡ cài đặt đặt DNS adapter về DHCP; nếu thiết bị đang dùng DNS tĩnh, hãy ghi lại cấu hình trước khi cài hoặc gỡ.
 
-### Các lệnh điều khiển qua PowerShell (`build.ps1`):
+### Gỡ cài đặt
+
+Chạy `unins000.exe` trong thư mục cài đặt, thường là `C:\Program Files\FamShield`, với quyền Administrator và làm theo xác nhận trên màn hình. Nếu cài từ mã nguồn, có thể gỡ bằng `.\build.ps1 uninstall` trong PowerShell Administrator.
+
+### Cài đặt từ mã nguồn
+
+Cài Rust toolchain, mở PowerShell Administrator tại thư mục repository, sau đó chạy:
+
 ```powershell
-# 1. Biên dịch nhị phân Release và cài đặt Windows Service + NRPT Policy
 .\build.ps1 install
-
-# 2. Kiểm tra trạng thái hoạt động của Service và Loopback DNS
 .\build.ps1 status
-
-# 3. Đặt lại Master PIN với quyền Administrator (UAC Elevation)
-.\build.ps1 reset-pin -NewPin "8888"
-
-# 4. Gỡ cài đặt sạch sẽ, trả lại 100% cấu hình mạng Windows ban đầu
-.\build.ps1 uninstall
 ```
 
-### Đóng gói Bộ cài đặt Inno Setup:
-File kịch bản tại [`installer/FamShield.iss`](installer/FamShield.iss):
+### Tự đóng gói bộ cài
+
+Cài Rust, Node.js và Inno Setup 6, sau đó chạy trong PowerShell tại thư mục repository:
+
 ```powershell
-& "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer\FamShield.iss
+.\build.ps1 package
 ```
-File cài đặt đầu ra: `installer\Output\FamShieldSetup-0.1.0.exe`.
 
----
+Bộ cài được tạo tại `installer\Output\FamShieldSetup-1.0.0.exe`.
 
-## 4. Kiểm Thử Mã Nguồn (Build Gate)
+## Phát triển và kiểm thử
+
+Một số lệnh thường dùng trong repository:
 
 ```powershell
-cargo check --workspace
+cargo fmt --all -- --check
+cargo check --workspace --all-targets
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 ```
-Toàn bộ **60 unit tests** đạt trạng thái pass 100% trên 29 test suites (DNS wire parser, WFP filter lifecycle, GDI capture blur, Argon2id lockout, DPAPI secret migration, SQLite Outbox retry backoff, Telemetry batching, ETW Kernel tracing, Online/Offline Signed Updater ECDSA P-256, và Freemium HMAC command authentication).
 
----
+## Tài liệu
 
-## 5. Dành Cho Nhà Phát Triển & Đóng Góp (Contributing)
+- [Hướng dẫn cài đặt & cấu hình ban đầu dành cho phụ huynh](docs/17-INSTALLATION-AND-INITIAL-SETUP-GUIDE.md)
+- [Giới thiệu kiến trúc bộ cài đặt Inno Setup](installer/README.md)
+- [Tài liệu kiến trúc và đặc tả](docs/README.md)
+- [Hướng dẫn đóng góp](CONTRIBUTING.md)
+- [Nhật ký thay đổi](CHANGELOG.md)
+- [Hợp đồng OpenAPI](contracts/openapi.yaml)
+- [JSON Schema chính sách](contracts/policy.schema.json)
 
-Chúng tôi hoan nghênh mọi đóng góp từ cộng đồng (sửa lỗi, bổ sung tính năng, tối ưu hiệu năng và tài liệu)!
+## Đóng góp
 
-- 📜 **Quy định đóng góp chi tiết**: Vui lòng đọc kỹ [CONTRIBUTING.md](CONTRIBUTING.md) trước khi tạo Pull Request.
-- 🚦 **Tiêu chuẩn Pull Request**:
-  - Mã nguồn phải định dạng chuẩn `cargo fmt`.
-  - Không có cảnh báo clippy (`cargo clippy --workspace --all-targets -- -D warnings`).
-  - Toàn bộ unit tests phải pass 100% (`cargo test --workspace`).
-  - Viết commit message theo chuẩn [Conventional Commits](https://www.conventionalcommits.org/).
-- 🐛 **Báo cáo sự cố hoặc yêu cầu tính năng**: Sử dụng [GitHub Issues](https://github.com/nntu/famshield-agent/issues) theo mẫu sẵn có.
+Chào mừng các báo cáo lỗi, đề xuất cải tiến và đóng góp mã nguồn. Vui lòng đọc [CONTRIBUTING.md](CONTRIBUTING.md) trước khi mở Pull Request và tạo issue tại [GitHub Issues](https://github.com/nntu/famshield-agent/issues) nếu cần trao đổi.

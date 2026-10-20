@@ -289,7 +289,7 @@ function Package-Agent {
     }
 
     # 3. Locate and sign the generated installer executable
-    $installerExe = Join-Path $ProjectRoot "installer\Output\FamShieldSetup-0.1.0.exe"
+    $installerExe = Join-Path $ProjectRoot "installer\Output\FamShieldSetup-1.0.0.exe"
     if (Test-Path $installerExe) {
         Sign-Binary -FilePath $installerExe
         Write-Host "==========================================================" -ForegroundColor Green
@@ -389,5 +389,4 @@ switch ($Action) {
     "status"    { Show-Status }
     "reset-pin" { Reset-Pin }
 }
-
 

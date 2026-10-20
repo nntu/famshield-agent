@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Activity, ShieldCheck, AlertOctagon, Layers, ArrowRight, RefreshCw, Smartphone, AlertTriangle, Play } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Activity, ShieldCheck, AlertOctagon, Layers, ArrowRight, RefreshCw, Smartphone, AlertTriangle, Play, Lock } from 'lucide-react';
 import { Language, QueryLogRecord, StatusResponse, TabType } from '../types';
 import { translations } from '../i18n';
 import { api } from '../api';
@@ -21,6 +21,13 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
 }) => {
   const t = translations[lang];
   const [startingHelper, setStartingHelper] = useState(false);
+  const [totpStatus, setTotpStatus] = useState<{ enabled: boolean } | null>(null);
+
+  useEffect(() => {
+    api.getTotpStatus()
+      .then((s) => setTotpStatus(s))
+      .catch(() => {});
+  }, []);
 
   const handleStartHelper = async () => {
     try {
@@ -133,6 +140,56 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
             }}
           >
             {t.nav_security} &rarr;
+          </button>
+        </div>
+      )}
+
+      {/* 2FA Disabled Security Banner */}
+      {totpStatus && !totpStatus.enabled && (
+        <div
+          style={{
+            background: 'linear-gradient(90deg, rgba(245, 158, 11, 0.14) 0%, rgba(15, 23, 42, 0.85) 100%)',
+            border: '1px solid rgba(245, 158, 11, 0.4)',
+            borderRadius: 14,
+            padding: '14px 20px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: 14,
+            boxShadow: '0 4px 16px rgba(245, 158, 11, 0.1)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <span style={{ fontSize: '1.5rem' }}>🔐</span>
+            <div>
+              <div style={{ fontWeight: 700, color: '#fef3c7', fontSize: '0.95rem', marginBottom: 2 }}>
+                {lang === 'vi' ? 'Khuyến Nghị Bảo Mật: Chưa Kích Hoạt Xác Thực 2 Lớp (2FA / OTP)' : 'Security Notice: Two-Factor Authentication (2FA) is Disabled'}
+              </div>
+              <div style={{ color: '#cbd5e1', fontSize: '0.82rem' }}>
+                {lang === 'vi'
+                  ? 'Bảo vệ bảng điều khiển chống nhìn lén Master PIN bằng mã OTP 6 số sinh từ Google/Microsoft Authenticator (100% ngoại tuyến).'
+                  : 'Protect your Master PIN with 6-digit OTP codes from Google/Microsoft Authenticator (100% offline).'}
+              </div>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => onNavigateTab('security')}
+            style={{
+              background: '#f59e0b',
+              color: '#0f172a',
+              border: 'none',
+              padding: '8px 18px',
+              borderRadius: 8,
+              fontSize: '0.84rem',
+              fontWeight: 800,
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+              boxShadow: '0 2px 10px rgba(245, 158, 11, 0.3)',
+            }}
+          >
+            {lang === 'vi' ? '👉 Kích Hoạt 2FA Ngay' : '👉 Enable 2FA Now'}
           </button>
         </div>
       )}

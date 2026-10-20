@@ -1,137 +1,118 @@
-# FamShield Windows Endpoint Agent
+<p align="center">
+  <img src="assets/logo.png" alt="FamShield" width="132">
+</p>
 
-[🇻🇳 Tiếng Việt](README.md) | [🇬🇧 English](README.en.md) | [🤝 Contribution Guidelines](CONTRIBUTING.md)
+<h1 align="center">FamShield Agent</h1>
 
-**FamShield Agent** is the Windows endpoint protection agent for the **FamShield Parental Control & Endpoint Security** ecosystem.
+<p align="center">
+  A Windows endpoint protection and management agent built with Rust.
+</p>
 
-The project is built 100% in **modern Rust**, emphasizing zero memory corruption, robust safety without BSOD/crashes, and a lightweight background footprint (< 15MB RAM).
+<p align="center">
+  <a href="README.md">Tiếng Việt</a> ·
+  <a href="CONTRIBUTING.md">Contributing</a> ·
+  <a href="docs/README.md">Technical documentation</a> ·
+  <a href="https://github.com/nntu/famshield-agent/issues">Report an issue</a>
+</p>
 
-> **Note:** The cloud management server (Go Control Plane, NATS JetStream, Telegram Bot & Web Console) is located at:  
-> 👉 [https://github.com/nntu/famshield-server](https://github.com/nntu/famshield-server)
+FamShield Agent runs on Windows and provides protection and management capabilities for families. It supports local operation without a cloud connection; the centralized management server will be deployed later.
 
----
+## Choose a mode
 
-## 1. Workspace Architecture (Idiomatic Rust)
+| Mode | Best for | Cloud connection |
+| --- | --- | --- |
+| **Standalone (`StandaloneFree`)** | Configuring and managing the device locally. | Not required |
+| **Online managed (`OnlineManaged`)** | Centralized device management once the server is deployed. | Planned for a future deployment |
 
-The agent consists of 9 decoupled, modular crates:
+Both modes use the Windows agent. Online Managed mode depends on the server service, which is planned for a future deployment.
 
-| Crate | Role & Responsibilities | Status |
-| :--- | :--- | :--- |
-| **`famshield-core`** | Domain models, strongly-typed semantic Newtypes, policy rules, and State Machine. | **Implemented** ✅ |
-| **`famshield-service`** | Windows Service SCM Dispatcher (`windows-service`), framed Named Pipe IPC server with SDDL ACL. | **Implemented** ✅ |
-| **`famshield-session`** | User-session helper: Win32 GDI BitBlt Capture + Gaussian Blur, System Tray, Toast, Native PIN dialog. | **Implemented** ✅ |
-| **`famshield-dns`** | Zero-copy DNS proxy on loopback (`127.0.0.2:53`), Serve-Stale Cache, ArcSwap lock-free Blocklist hot-swap. | **Implemented** ✅ |
-| **`famshield-windows`** | WFP Port 53 filter (`FWPM_SESSION_FLAG_DYNAMIC`), NRPT Registry, ETW Kernel 0ms & ToolHelp32 monitor. | **Implemented** ✅ |
-| **`famshield-local-admin`** | Local Web Admin Console (Axum :48123), bilingual SPA, domain/app rule CRUD, DNS telemetry, blurred evidence, Master PIN Argon2id + DPAPI. | **Implemented** ✅ |
-| **`famshield-storage`** | Local SQLite (WAL mode): Durable Outbox, Error Deduplication, Query Logs, Visual Evidence. | **Implemented** ✅ |
-| **`famshield-sync`** | Freemium Engine (`StandaloneFree` vs `OnlineManaged`), Telemetry Envelope, NATS JetStream, HMAC Auth. | **Implemented** ✅ |
-| **`famshield-updater`** | ECDSA P-256 digital signature verification, atomic staging binary swap, 30s watchdog rollback. | **Implemented** ✅ |
+## Key capabilities
 
----
+- **DNS and network controls:** local DNS proxy, domain filtering policies, and Windows Filtering Platform (WFP) enforcement.
+- **On-device management:** local Web Admin, activity logs, policy configuration, and audit-only monitoring.
+- **Access protection:** Master PIN authentication, local SQLite storage, and Windows DPAPI protection for secrets.
+- **App and time policies:** supports application activity monitoring and configured usage limits.
+- **Privacy by design:** visual evidence is event-triggered and blurred before storage; keyword detection uses an in-memory buffer and does not write raw keystroke sequences to disk.
+- **Optional synchronization:** Online Managed mode supports policy synchronization, telemetry delivery, and authenticated remote commands.
 
-## 2. Key Technical Features
+## Architecture
 
-### 🛡️ Windows Filtering Platform (WFP) Port 53 Enforcement
-- Directly interfaces with Windows Filtering Platform API (`fwpmu.dll`) at `FWPM_LAYER_ALE_AUTH_CONNECT_V4` and `FWPM_LAYER_ALE_AUTH_CONNECT_V6`.
-- **High-priority Permit rule** (Weight 15, `FWP_ACTION_PERMIT`): Allows loopback `127.0.0.0/8` and configured upstream DNS resolvers.
-- **Block rule** (Weight 10, `FWP_ACTION_BLOCK`): Blocks all outbound Port 53 traffic, preventing DNS bypass via external resolvers (e.g., 8.8.8.8 or 1.1.1.1).
-- Uses dynamic session (`FWPM_SESSION_FLAG_DYNAMIC`): Windows automatically purges registered filters if the agent stops or terminates abnormally, preventing network lockup or BSOD.
+The Rust workspace is split into crates by responsibility:
 
-### 📷 Smart Visual Verification (Privacy-Preserving Screen Capture)
-- Captures desktop visuals on violation events using Win32 GDI `BitBlt` from Desktop DC into an in-memory 32-bit DIB buffer.
-- Downscales automatically to standard 480p and applies a 3-pass separable box blur (Gaussian blur approximation in RAM, $O(N)$ complexity) to blur private text and credentials.
-- Encodes directly to valid JPEG stream via `jpeg-encoder`, keeping storage size strictly below 150 KiB.
+| Crate | Responsibility |
+| --- | --- |
+| `famshield-core` | Domain types, policies, and state |
+| `famshield-service` | Windows Service, orchestration, and IPC |
+| `famshield-session` | User-session component, notifications, and system UI |
+| `famshield-dns` | DNS proxy and domain policy processing |
+| `famshield-windows` | Windows integration, WFP, NRPT, and process monitoring |
+| `famshield-local-admin` | Local Web Admin and management API |
+| `famshield-storage` | SQLite database and event outbox |
+| `famshield-sync` | Operating modes, synchronization, and remote command authentication |
+| `famshield-updater` | Signature verification and agent updates |
 
-### 🔐 Multi-Tier Master PIN Security (Argon2id + DPAPI + Lockout)
-- Password hashing via Argon2id with cryptographically secure random salt (`OsRng`).
-- Machine-scope encryption using Windows Data Protection API (DPAPI) to protect secrets in the SQLite database.
-- **Brute-force protection**: Exponential lockout timer (30s to 15m) upon repeated failed attempts.
-- **3-tier recovery model**: Administrator UAC elevation CLI (`--reset-pin`), offline emergency recovery key `FAM-XXXX-XXXX-XXXX`, and remote cloud reset.
+## Get started on Windows
 
-### 💻 Local Web Admin & Centralized Management Console
-- Runs directly on local Axum HTTP server at `http://127.0.0.1:48123` (Session 0 Service) with a high-performance **React 19 + TypeScript + Vite** frontend.
-- Automatically launches in default browser upon post-install completion (`installer/FamShield.iss`) and accessible directly from Windows System Tray menu (`famshield-session`).
-- Interactive **5-step Initial Setup Wizard** on first boot: Guides parents through secure initialization, Master PIN creation, and Emergency Recovery Key issuance (`FAM-XXXX-XXXX-XXXX`).
-- **Comprehensive Centralized Management Server Settings**:
-  - Customizable Server URL/Endpoint, Organization/Tenant ID, Device Friendly Name, and Enrollment Code.
-  - Configurable telemetry & policy synchronization frequency (15s – 15m) and toggleable Strict TLS Verification for self-signed certificates in private enterprise/school LANs.
-  - Integrated **Async Network Connection Probe** (Tokio TCP probe measuring round-trip latency in ms) and **Instant Policy Synchronization** trigger.
-- Integrated **Audit-Only / Monitor Mode**: Instant toggle between Active Enforcement and Audit-Only monitoring. When active, blacklisted queries and violations are logged without blocking network traffic.
-- Integrated **Tamper-Evident Backup & Disaster Recovery (.famshield-bak)**: Export and restore complete system configurations and rulesets backed by SHA-256 integrity checksums, operating 100% offline.
-  - Integrated **Comprehensive Activity & Screen Time Timeline**: Displays real SQLite records without synthetic seed activity; DNS logs distinguish `ALLOW`, `BLOCK`, `MONITOR`, and `ERROR`, and do not fabricate a source application without ETW/WFP correlation.
-  - Integrated **Inappropriate Keystroke Keyword Monitoring**: Real-time detection of profanity, cyberbullying, self-harm, and adult keywords using an in-memory 128-char sliding buffer (`KeystrokeSlidingBuffer`), Aho-Corasick multi-pattern search, and Vietnamese/teencode normalization. Violations use acknowledged IPC with retries, while raw keystroke sequences are never persisted to disk.
-- Seamless transition between **100% Offline StandaloneFree** and **Centralized OnlineManaged** modes.
-- Full bilingual support (Vietnamese & English), Master PIN protection, and secure `HttpOnly; SameSite=Strict` cookies.
+### System requirements
 
-### 📊 Unified Telemetry Pipeline (Store-and-Forward)
-- Durable **Store-and-Forward** offline-first telemetry backed by SQLite `outbox` table.
-- Standardized **Telemetry Envelope** batching diverse events (Heartbeat, DNS Log, Error Log, Process Lifecycle, Security Alert) into unified transmissions.
-- Optimized for transmission through Cloudflare Tunnel and NATS JetStream with payload compression and idempotency.
-- Smart SHA-256 fingerprinting for Error Log Deduplication, grouping recurring faults and preventing log flooding.
+- Windows 10 (version 1809 or later) or Windows 11, x64.
+- Administrator privileges to install the service and configure DNS.
 
-### 💎 Freemium Architecture (Free Standalone vs Paid Cloud Managed)
-FamShield Agent cleanly isolates two operational modes:
-- **Free Standalone Mode (`StandaloneFree`)**:
-  - **100% Free & Open Source**: Fully functional offline-first, maximum privacy with zero cloud account or external connectivity required.
-  - Complete endpoint protection suite: Loopback DNS proxy, WFP Port 53 block, Master PIN Argon2id + DPAPI, brute-force lockout, GDI screen capture with Gaussian blur, foreground & AFK idle tracking, self-protection, and native Win32 System Tray & Dialogs.
-- **Paid Cloud Managed Mode (`OnlineManaged`)**:
-  - Enrolled via a 6-digit one-time code (`EnrollmentManager`).
-  - Centralized multi-device management via Web Console & Telegram Bot.
-  - Instant bi-directional command dispatch via NATS JetStream: Emergency session lock (`lock_session`), real-time blocklist hot-swap (`update_blacklist`), cloud PIN reset (`reset_pin`), and installer approval/rejection (`approve_install`/`deny_install`).
-  - Cryptographic HMAC-SHA256 signature verification on all remote commands with anti-replay protection (maximum timestamp drift $\le 300\text{s}$).
+### Install with the setup program
 
----
+1. Download `FamShieldSetup-1.0.0.exe` from [GitHub Releases](https://github.com/nntu/famshield-agent/releases). If a release is not available yet, see [Build the installer](#build-the-installer) below.
+2. Right-click the setup program, select **Run as administrator**, and approve the UAC prompt.
+3. Follow the setup wizard. It registers the Windows Service, configures DNS for the agent, and launches the initial setup experience.
+4. Create a Master PIN and complete the setup in Web Admin.
 
-## 3. Quickstart & Installation
+Web Admin normally opens at [http://127.0.0.1:38123](http://127.0.0.1:38123). If that port is unavailable, the agent tries fallback ports; the active port is recorded in `%ProgramData%\FamShield\admin_port.txt`.
 
-### Requirements:
-- Windows 10 (1809+) or Windows 11 (x86_64).
-- Rust 1.78+ (`cargo`), Inno Setup 6 (for packaging the Windows installer).
-- Administrator privileges for service installation.
+> **Network note:** FamShield changes Windows DNS settings to enforce policies. During uninstall, the uninstaller resets adapter DNS settings to DHCP. If the device uses static DNS, record its configuration before installing or uninstalling.
 
-### Management via PowerShell Script (`build.ps1`):
+### Uninstall
+
+Run `unins000.exe` from the installation directory, usually `C:\Program Files\FamShield`, as Administrator and follow the confirmation prompts. If installed from source, you can uninstall with `.\build.ps1 uninstall` in an elevated PowerShell window.
+
+### Install from source
+
+Install the Rust toolchain, open PowerShell as Administrator in the repository directory, and run:
+
 ```powershell
-# 1. Compile Release binaries and install Windows Service + NRPT Policy
 .\build.ps1 install
-
-# 2. Check service status and loopback DNS resolution
 .\build.ps1 status
-
-# 3. Reset Master PIN using Administrator privilege (UAC Elevation)
-.\build.ps1 reset-pin -NewPin "8888"
-
-# 4. Clean uninstall, fully restoring Windows default network configuration
-.\build.ps1 uninstall
 ```
 
-### Packaging Windows Installer (Inno Setup):
-Build script located at [`installer/FamShield.iss`](installer/FamShield.iss):
+### Build the installer
+
+Install Rust, Node.js, and Inno Setup 6, then run this from PowerShell in the repository directory:
+
 ```powershell
-& "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer\FamShield.iss
+.\build.ps1 package
 ```
-Output executable: `installer\Output\FamShieldSetup-0.1.0.exe`.
 
----
+The installer is generated at `installer\Output\FamShieldSetup-1.0.0.exe`.
 
-## 4. Build Quality Gates (Testing & CI)
+## Development and testing
+
+Common repository checks:
 
 ```powershell
-cargo check --workspace
+cargo fmt --all -- --check
+cargo check --workspace --all-targets
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 ```
-All **60 unit tests** across 29 test suites pass 100% green (DNS wire parser, WFP filter lifecycle, GDI capture blur, Argon2id lockout, DPAPI secret migration, SQLite Outbox retry backoff, Telemetry batching, ETW Kernel tracing, Online/Offline Signed Updater ECDSA P-256, and Freemium HMAC command authentication).
 
----
+## Documentation
 
-## 5. Development & Contributing
+- [Installation & Initial Setup Guide for Parents](docs/17-INSTALLATION-AND-INITIAL-SETUP-GUIDE.md)
+- [Inno Setup Packaging & Architecture Overview](installer/README.md)
+- [Architecture and specifications](docs/README.md)
+- [Contribution guidelines](CONTRIBUTING.md)
+- [Changelog](CHANGELOG.md)
+- [OpenAPI contract](contracts/openapi.yaml)
+- [Policy JSON Schema](contracts/policy.schema.json)
 
-We welcome community contributions (bug fixes, new features, performance optimizations, and documentation)!
+## Contributing
 
-- 📜 **Contribution Guidelines**: Please review [CONTRIBUTING.md](CONTRIBUTING.md) before submitting a Pull Request.
-- 🚦 **Pull Request Quality Standards**:
-  - Code must be formatted with `cargo fmt --all -- --check`.
-  - Zero clippy warnings (`cargo clippy --workspace --all-targets -- -D warnings`).
-  - All workspace tests must pass (`cargo test --workspace`).
-  - Follow [Conventional Commits](https://www.conventionalcommits.org/) for git commit messages.
-- 🐛 **Issue Reporting & Feature Requests**: Submit via [GitHub Issues](https://github.com/nntu/famshield-agent/issues) using provided templates.
+Bug reports, improvement proposals, and code contributions are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request, and use [GitHub Issues](https://github.com/nntu/famshield-agent/issues) to start a discussion.
