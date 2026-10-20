@@ -49,6 +49,16 @@ Copy-Item -Path $serviceSrc -Destination $installDir -Force
 Copy-Item -Path $sessionSrc -Destination $installDir -Force
 Write-Host "      Da cap nhat famshield-service.exe va famshield-session.exe" -ForegroundColor Green
 
+$webDistSrc = Join-Path $repoRoot "web\dist"
+if (Test-Path $webDistSrc) {
+    $targetWebDir = Join-Path $installDir "web"
+    if (-not (Test-Path $targetWebDir)) {
+        New-Item -ItemType Directory -Path $targetWebDir -Force | Out-Null
+    }
+    Copy-Item -Path $webDistSrc -Destination $targetWebDir -Recurse -Force
+    Write-Host "      Da cap nhat web/dist giao dien Web Admin moi nhat" -ForegroundColor Green
+}
+
 Write-Host "[4/6] Khoi dong FamShieldService..." -ForegroundColor Yellow
 Start-Service -Name $serviceName
 $svc = Get-Service -Name $serviceName

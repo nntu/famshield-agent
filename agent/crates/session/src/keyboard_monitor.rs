@@ -459,6 +459,77 @@ pub async fn send_violation_via_ipc(
     }
 }
 
+/// Dispatches event-triggered visual evidence (blurred screenshot in RAM) to Windows Service via IPC.
+pub async fn send_visual_evidence_via_ipc(
+    event_id: String,
+    trigger: String,
+    image_jpeg_bytes: Vec<u8>,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    #[cfg(windows)]
+    {
+        use famshield_service::ipc::{
+            read_framed_message, write_framed_message, IpcMessage, IPC_PIPE_NAME,
+        };
+        use tokio::net::windows::named_pipe::ClientOptions;
+
+        let message = IpcMessage::VisualEvidenceSubmission {
+            event_id,
+            trigger,
+            image_jpeg_bytes,
+        };
+        let mut client = ClientOptions::new().open(IPC_PIPE_NAME)?;
+        write_framed_message(&mut client, &message).await?;
+        match read_framed_message(&mut client).await? {
+            Some(IpcMessage::Response { success: true, .. }) => Ok(()),
+            Some(IpcMessage::Response { message, .. }) => {
+                Err(std::io::Error::other(format!("Visual evidence rejected by service: {message}")).into())
+            }
+            _ => Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "Unexpected response for visual evidence submission",
+            )
+            .into()),
+        }
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = (event_id, trigger, image_jpeg_bytes);
+        Ok(())
+    }
+}
+
+/// Sends periodic foreground heartbeat to Windows Service and receives possible capture commands.
+pub async fn send_heartbeat_via_ipc(
+    session_id: u32,
+    executable_name: String,
+    is_idle: bool,
+    idle_duration_ms: u64,
+) -> Result<Option<famshield_service::ipc::IpcMessage>, Box<dyn std::error::Error + Send + Sync>> {
+    #[cfg(windows)]
+    {
+        use famshield_service::ipc::{
+            read_framed_message, write_framed_message, IpcMessage, IPC_PIPE_NAME,
+        };
+        use tokio::net::windows::named_pipe::ClientOptions;
+
+        let message = IpcMessage::ForegroundHeartbeat {
+            session_id,
+            executable_name,
+            is_idle,
+            idle_duration_ms,
+        };
+        let mut client = ClientOptions::new().open(IPC_PIPE_NAME)?;
+        write_framed_message(&mut client, &message).await?;
+        let resp = read_framed_message(&mut client).await?;
+        Ok(resp)
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = (session_id, executable_name, is_idle, idle_duration_ms);
+        Ok(None)
+    }
+}
+
 /// Synchronizes active keyword rules and enabled state from Windows Service via IPC.
 pub async fn sync_keyword_rules_from_service(monitor: Arc<KeyboardMonitor>) {
     #[cfg(windows)]
@@ -540,19 +611,52 @@ pub fn start_keyboard_monitor_hook(monitor: Arc<KeyboardMonitor>) {
                             &format!("{:?}", violation.category),
                         );
 
-                        // Asynchronously send to Windows Service
+                        let v_app = violation.app_name.clone();
+                        let v_pat = violation.pattern.clone();
+                        let v_cat = format!("{:?}", violation.category);
+                        let v_sev = format!("{:?}", violation.severity);
+                        let v_snip = violation.snippet_masked.clone();
+
+                        // Asynchronously send violation & capture blurred visual evidence in RAM
                         runtime_handle.spawn(async move {
                             if let Err(e) = send_violation_via_ipc(
                                 session_id,
-                                violation.app_name,
-                                violation.pattern,
-                                format!("{:?}", violation.category),
-                                format!("{:?}", violation.severity),
-                                violation.snippet_masked,
+                                v_app.clone(),
+                                v_pat.clone(),
+                                v_cat.clone(),
+                                v_sev,
+                                v_snip,
                             )
                             .await
                             {
                                 tracing::warn!("Failed to dispatch keyword violation IPC: {}", e);
+                            }
+
+                            // Capture trigger frame with privacy Gaussian blur (radius=15, 480p JPEG)
+                            let verifier = crate::capture::SmartVisualVerifier::new(15);
+                            let capture_res = tokio::task::spawn_blocking(move || {
+                                verifier.capture_blurred_frame()
+                            })
+                            .await;
+
+                            match capture_res {
+                                Ok(Ok(jpeg_bytes)) => {
+                                    let now_micros = std::time::SystemTime::now()
+                                        .duration_since(std::time::UNIX_EPOCH)
+                                        .unwrap_or_default()
+                                        .as_micros();
+                                    let event_id = format!("kw-ev-{}", now_micros);
+                                    let trigger = format!("KEYWORD: {} ({}) in {}", v_pat, v_cat, v_app);
+                                    if let Err(e) = send_visual_evidence_via_ipc(event_id, trigger, jpeg_bytes).await {
+                                        tracing::warn!("Failed to dispatch keyword visual evidence IPC: {}", e);
+                                    }
+                                }
+                                Ok(Err(e)) => {
+                                    tracing::warn!("Failed to capture keyword evidence frame: {}", e);
+                                }
+                                Err(e) => {
+                                    tracing::warn!("Spawn blocking error during screen capture: {}", e);
+                                }
                             }
                         });
                     }

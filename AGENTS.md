@@ -70,7 +70,7 @@ Nhằm tối ưu hóa tốc độ phát triển (Developer Experience), bảo t�
 2. **Biên dịch:** `rtk cargo check --workspace --all-targets` (Biên dịch thành công).
 3. **Clippy Linter:** `rtk cargo clippy --workspace --all-targets -- -D warnings` (Tuyệt đối **0 errors, 0 warnings**).
 4. **Unit Tests:** `rtk cargo test --workspace` (Toàn bộ các test suite phải **PASS 100%**).
-5. **Frontend (nếu có thay đổi UI):** `rtk npm --prefix web run build` (Biên dịch Vite thành công).
+5. **Frontend (nếu có thay đổi UI):** `rtk pnpm --prefix web run build` (Biên dịch Vite thành công; hỗ trợ pnpm v12.x standalone).
 
 ### 3.3. Rà Soát & Quản Lý Phiên Bản Thư Viện (Dependency Versioning & Modern Standards)
 - Luôn ưu tiên sử dụng phiên bản mới nhất, ổn định của các crate dependencies (ví dụ `totp-rs = "6.0"`, `hickory-proto = "0.26"`).

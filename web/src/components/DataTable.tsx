@@ -1,24 +1,24 @@
-import React, { useState } from 'react';
 import {
-  ColumnDef,
+  type ColumnDef,
   flexRender,
   getCoreRowModel,
-  getSortedRowModel,
-  getPaginationRowModel,
   getFilteredRowModel,
+  getPaginationRowModel,
+  getSortedRowModel,
+  type SortingState,
   useReactTable,
-  SortingState,
 } from '@tanstack/react-table';
 import {
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
   ChevronLeft,
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
-  ArrowUpDown,
-  ArrowUp,
-  ArrowDown,
   Search,
 } from 'lucide-react';
+import { useId, useState } from 'react';
 
 interface DataTableProps<TData> {
   data: TData[];
@@ -41,6 +41,7 @@ export function DataTable<TData>({
 }: DataTableProps<TData>) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = useState('');
+  const pageSizeId = useId();
 
   const table = useReactTable({
     data,
@@ -69,13 +70,15 @@ export function DataTable<TData>({
       {/* Search and Table Toolbar */}
       {showSearch && (
         <div className="flex justify-between items-center flex-wrap gap-2.5">
-          <div className="relative min-w-[260px]">
+          <div className="relative w-full sm:w-auto sm:min-w-[260px]">
             <Search
               size={15}
+              aria-hidden="true"
               className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
             />
             <input
               type="text"
+              aria-label={searchPlaceholder}
               value={globalFilter ?? ''}
               onChange={(e) => setGlobalFilter(e.target.value)}
               placeholder={searchPlaceholder}
@@ -84,7 +87,9 @@ export function DataTable<TData>({
           </div>
 
           <div className="text-xs font-medium text-slate-500">
-            {isVi ? `Hiển thị ${table.getRowModel().rows.length} / ${data.length} dòng` : `Showing ${table.getRowModel().rows.length} of ${data.length} rows`}
+            {isVi
+              ? `Hiển thị ${table.getRowModel().rows.length} / ${data.length} dòng`
+              : `Showing ${table.getRowModel().rows.length} of ${data.length} rows`}
           </div>
         </div>
       )}
@@ -102,15 +107,30 @@ export function DataTable<TData>({
                   return (
                     <th
                       key={header.id}
-                      onClick={header.column.getToggleSortingHandler()}
+                      aria-sort={
+                        isSorted === 'asc'
+                          ? 'ascending'
+                          : isSorted === 'desc'
+                            ? 'descending'
+                            : canSort
+                              ? 'none'
+                              : undefined
+                      }
                       className={`text-left px-4 py-3 text-slate-600 font-semibold whitespace-nowrap select-none ${
-                        canSort ? 'cursor-pointer hover:bg-slate-100/70' : 'cursor-default'
+                        canSort ? 'hover:bg-slate-100/70' : ''
                       }`}
                     >
-                      <div className="flex items-center gap-1.5">
-                        {flexRender(header.column.columnDef.header, header.getContext())}
-                        {canSort && (
-                          <span className={isSorted ? 'text-sky-600' : 'text-slate-400'}>
+                      {canSort ? (
+                        <button
+                          type="button"
+                          onClick={header.column.getToggleSortingHandler()}
+                          className="flex w-full items-center gap-1.5 rounded-sm text-left outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2"
+                        >
+                          {flexRender(header.column.columnDef.header, header.getContext())}
+                          <span
+                            aria-hidden="true"
+                            className={isSorted ? 'text-sky-600' : 'text-slate-400'}
+                          >
                             {isSorted === 'asc' ? (
                               <ArrowUp size={14} />
                             ) : isSorted === 'desc' ? (
@@ -119,8 +139,12 @@ export function DataTable<TData>({
                               <ArrowUpDown size={13} />
                             )}
                           </span>
-                        )}
-                      </div>
+                        </button>
+                      ) : (
+                        <div className="flex items-center gap-1.5">
+                          {flexRender(header.column.columnDef.header, header.getContext())}
+                        </div>
+                      )}
                     </th>
                   );
                 })}
@@ -139,10 +163,7 @@ export function DataTable<TData>({
               </tr>
             ) : (
               table.getRowModel().rows.map((row) => (
-                <tr
-                  key={row.id}
-                  className="hover:bg-slate-50/80 transition-colors"
-                >
+                <tr key={row.id} className="hover:bg-slate-50/80 transition-colors">
                   {row.getVisibleCells().map((cell) => (
                     <td key={cell.id} className="px-4 py-3 text-slate-700">
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
@@ -159,8 +180,9 @@ export function DataTable<TData>({
       <div className="flex justify-between items-center flex-wrap gap-3 px-1 py-1.5 text-xs text-slate-500">
         {/* Page size dropdown */}
         <div className="flex items-center gap-2">
-          <span>{isVi ? 'Số dòng mỗi trang:' : 'Rows per page:'}</span>
+          <label htmlFor={pageSizeId}>{isVi ? 'Số dòng mỗi trang:' : 'Rows per page:'}</label>
           <select
+            id={pageSizeId}
             value={table.getState().pagination.pageSize}
             onChange={(e) => table.setPageSize(Number(e.target.value))}
             className="bg-white border border-slate-200 text-slate-700 px-2 py-1 rounded-md text-xs outline-none cursor-pointer focus:border-sky-500 shadow-xs"
@@ -186,6 +208,7 @@ export function DataTable<TData>({
             disabled={!table.getCanPreviousPage()}
             className="bg-white hover:bg-slate-50 disabled:hover:bg-white border border-slate-200 text-slate-700 p-1.5 rounded-md flex items-center cursor-pointer disabled:cursor-not-allowed disabled:opacity-40 transition-colors shadow-xs"
             title={isVi ? 'Trang đầu' : 'First page'}
+            aria-label={isVi ? 'Trang đầu' : 'First page'}
           >
             <ChevronsLeft size={15} />
           </button>
@@ -194,6 +217,7 @@ export function DataTable<TData>({
             disabled={!table.getCanPreviousPage()}
             className="bg-white hover:bg-slate-50 disabled:hover:bg-white border border-slate-200 text-slate-700 p-1.5 rounded-md flex items-center cursor-pointer disabled:cursor-not-allowed disabled:opacity-40 transition-colors shadow-xs"
             title={isVi ? 'Trang trước' : 'Previous page'}
+            aria-label={isVi ? 'Trang trước' : 'Previous page'}
           >
             <ChevronLeft size={15} />
           </button>
@@ -202,6 +226,7 @@ export function DataTable<TData>({
             disabled={!table.getCanNextPage()}
             className="bg-white hover:bg-slate-50 disabled:hover:bg-white border border-slate-200 text-slate-700 p-1.5 rounded-md flex items-center cursor-pointer disabled:cursor-not-allowed disabled:opacity-40 transition-colors shadow-xs"
             title={isVi ? 'Trang sau' : 'Next page'}
+            aria-label={isVi ? 'Trang sau' : 'Next page'}
           >
             <ChevronRight size={15} />
           </button>
@@ -210,6 +235,7 @@ export function DataTable<TData>({
             disabled={!table.getCanNextPage()}
             className="bg-white hover:bg-slate-50 disabled:hover:bg-white border border-slate-200 text-slate-700 p-1.5 rounded-md flex items-center cursor-pointer disabled:cursor-not-allowed disabled:opacity-40 transition-colors shadow-xs"
             title={isVi ? 'Trang cuối' : 'Last page'}
+            aria-label={isVi ? 'Trang cuối' : 'Last page'}
           >
             <ChevronsRight size={15} />
           </button>

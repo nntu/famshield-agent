@@ -1,7 +1,7 @@
-import React from 'react';
-import { Shield, LogOut, CheckCircle2 } from 'lucide-react';
-import { Language, TabType } from '../types';
+import { CheckCircle2, LogOut, Shield } from 'lucide-react';
+import type React from 'react';
 import { translations } from '../i18n';
+import type { Language, TabType } from '../types';
 
 interface NavbarProps {
   currentTab: TabType;
@@ -34,30 +34,30 @@ export const Navbar: React.FC<NavbarProps> = ({
   ];
 
   return (
-    <header className="bg-white/95 backdrop-blur-md border-b border-slate-200 sticky top-0 z-40 shadow-xs">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between flex-wrap gap-3">
+    <header className="w-full bg-white border-b border-slate-200/80 sticky top-0 z-40 shadow-xs">
+      <div className="w-full max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between flex-wrap gap-3">
         {/* Brand */}
-        <div className="flex items-center gap-3.5">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-sky-500 to-blue-600 flex items-center justify-center shadow-md shadow-sky-500/20 text-white">
-            <Shield size={22} strokeWidth={2.5} />
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-lg bg-sky-600 flex items-center justify-center text-white shadow-xs shrink-0">
+            <Shield size={20} strokeWidth={2.5} />
           </div>
           <div>
-            <div className="text-xl font-extrabold tracking-tight text-slate-900 leading-none">
+            <div className="text-lg font-bold tracking-tight text-slate-900 leading-none">
               FamShield
             </div>
-            <div className="text-xs text-slate-500 mt-1 font-medium">{t.app_subtitle}</div>
+            <div className="text-2xs text-slate-500 mt-1 font-medium">{t.app_subtitle}</div>
           </div>
 
           <span
-            className={`px-2.5 py-0.5 rounded-full text-xs font-semibold flex items-center gap-1.5 border ml-1 ${
+            className={`px-2.5 py-0.5 rounded-full text-xs font-semibold flex items-center gap-1.5 border ml-1.5 ${
               operatingMode === 'StandaloneFree'
-                ? 'bg-sky-50 text-sky-700 border-sky-200'
-                : 'bg-purple-50 text-purple-700 border-purple-200'
+                ? 'bg-sky-50 text-sky-700 border-sky-200/80'
+                : 'bg-indigo-50 text-indigo-700 border-indigo-200/80'
             }`}
           >
             <span
               className={`w-1.5 h-1.5 rounded-full ${
-                operatingMode === 'StandaloneFree' ? 'bg-sky-500' : 'bg-purple-500'
+                operatingMode === 'StandaloneFree' ? 'bg-sky-500' : 'bg-indigo-500'
               }`}
             />
             {operatingMode}
@@ -65,25 +65,29 @@ export const Navbar: React.FC<NavbarProps> = ({
         </div>
 
         {/* Right Controls */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5">
           {/* Language Selector */}
-          <div className="inline-flex bg-slate-100 rounded-lg p-0.5 border border-slate-200">
+          <div className="inline-flex bg-slate-100 rounded-lg p-0.5 border border-slate-200/80">
             <button
               onClick={() => onLangChange('vi')}
-              className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all ${
+              aria-pressed={lang === 'vi'}
+              aria-label="Tiếng Việt"
+              className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer ${
                 lang === 'vi'
-                  ? 'bg-white text-sky-600 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
+                  ? 'bg-white text-slate-900 shadow-xs'
+                  : 'text-slate-500 hover:text-slate-900'
               }`}
             >
               🇻🇳 VN
             </button>
             <button
               onClick={() => onLangChange('en')}
-              className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all ${
+              aria-pressed={lang === 'en'}
+              aria-label="English"
+              className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer ${
                 lang === 'en'
-                  ? 'bg-white text-sky-600 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
+                  ? 'bg-white text-slate-900 shadow-xs'
+                  : 'text-slate-500 hover:text-slate-900'
               }`}
             >
               🇺🇸 EN
@@ -92,15 +96,15 @@ export const Navbar: React.FC<NavbarProps> = ({
 
           {isAuthenticated ? (
             <>
-              <div className="flex items-center gap-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 px-3 py-1.5 rounded-lg text-xs font-semibold">
-                <CheckCircle2 size={14} />
+              <div className="flex items-center gap-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200/80 px-2.5 py-1 rounded-lg text-xs font-semibold">
+                <CheckCircle2 size={13} className="text-emerald-600" />
                 <span>{t.status_authenticated}</span>
               </div>
               <button
                 onClick={onLogout}
-                className="flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors"
+                className="flex items-center gap-1.5 bg-white hover:bg-slate-50 text-slate-600 hover:text-slate-900 border border-slate-200/80 px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
               >
-                <LogOut size={14} />
+                <LogOut size={13} />
                 <span>{t.btn_logout}</span>
               </button>
             </>
@@ -109,24 +113,38 @@ export const Navbar: React.FC<NavbarProps> = ({
       </div>
 
       {/* Tabs navigation */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 flex gap-1 overflow-x-auto border-t border-slate-100">
-        {tabs.map((tab) => {
-          const isActive = currentTab === tab.id;
-          return (
-            <button
-              key={tab.id}
-              onClick={() => onTabChange(tab.id)}
-              className={`flex items-center gap-2 px-4 py-3 text-sm font-semibold border-b-2 transition-all whitespace-nowrap cursor-pointer ${
-                isActive
-                  ? 'border-sky-600 text-sky-600 bg-sky-50/50'
-                  : 'border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-              }`}
-            >
-              <span>{tab.icon}</span>
-              <span>{tab.label}</span>
-            </button>
-          );
-        })}
+      <div className="border-t border-slate-100 bg-white">
+        <div
+          role="tablist"
+          aria-label={lang === 'vi' ? 'Điều hướng chính' : 'Primary navigation'}
+          className="w-full max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 flex gap-1 overflow-x-auto"
+        >
+          {tabs.map((tab) => {
+            const isActive = currentTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                role="tab"
+                aria-selected={isActive}
+                onClick={() => onTabChange(tab.id)}
+                className={`flex items-center gap-2 px-3.5 py-2.5 text-xs sm:text-sm font-semibold border-b-2 transition-all whitespace-nowrap cursor-pointer ${
+                  isActive
+                    ? 'border-sky-600 text-sky-700 bg-sky-50/50 font-bold'
+                    : 'border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                }`}
+                style={{
+                  borderTop: 'none',
+                  borderLeft: 'none',
+                  borderRight: 'none',
+                }}
+              >
+                <span aria-hidden="true">{tab.icon}</span>
+                <span>{tab.label}</span>
+              </button>
+            );
+          })}
+        </div>
       </div>
     </header>
   );

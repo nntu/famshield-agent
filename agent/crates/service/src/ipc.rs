@@ -32,6 +32,11 @@ pub enum IpcMessage {
         trigger: String,
         image_jpeg_bytes: Vec<u8>,
     },
+    /// Request session helper to capture blurred evidence frame (e.g. upon malicious DNS block).
+    CaptureEvidenceCommand {
+        event_id: String,
+        trigger: String,
+    },
     /// Child requests additional time or rule exception.
     TimeExtensionRequest {
         session_id: u32,

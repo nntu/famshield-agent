@@ -1,5 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { ColumnDef } from '@tanstack/react-table';
+import type { ColumnDef } from '@tanstack/react-table';
 import {
   Ban,
   CheckCircle,
@@ -14,10 +13,12 @@ import {
   Trash2,
   X,
 } from 'lucide-react';
-import { DnsRetentionConfig, DomainQuerySummary, Language, QueryLogRecord } from '../types';
-import { translations } from '../i18n';
-import { DataTable } from './DataTable';
+import type React from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { api } from '../api';
+import { translations } from '../i18n';
+import type { DnsRetentionConfig, DomainQuerySummary, Language, QueryLogRecord } from '../types';
+import { DataTable } from './DataTable';
 
 interface LogsTabProps {
   logs: QueryLogRecord[];
@@ -41,7 +42,9 @@ export const LogsTab: React.FC<LogsTabProps> = ({
 
   // View mode: 'summary' (Bản tổng hợp theo domain - Mặc định) or 'stream' (Toàn bộ chi tiết)
   const [viewMode, setViewMode] = useState<'summary' | 'stream'>('summary');
-  const [filterType, setFilterType] = useState<'all' | 'blocked' | 'allowed' | 'monitored' | 'errors'>('all');
+  const [filterType, setFilterType] = useState<
+    'all' | 'blocked' | 'allowed' | 'monitored' | 'errors'
+  >('all');
 
   // Aggregated domain summary state
   const [summaries, setSummaries] = useState<DomainQuerySummary[]>([]);
@@ -82,8 +85,12 @@ export const LogsTab: React.FC<LogsTabProps> = ({
       const res = await api.setDnsRetention(days, auto);
       onShowToast?.(res.message, 'success');
       await fetchRetentionConfig();
-    } catch (e: any) {
-      onShowToast?.(e.message || (isVi ? 'Lỗi lưu cấu hình lưu trữ' : 'Failed to save retention'), 'error');
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      onShowToast?.(
+        msg || (isVi ? 'Lỗi lưu cấu hình lưu trữ' : 'Failed to save retention'),
+        'error'
+      );
     } finally {
       setIsSavingRetention(false);
     }
@@ -97,8 +104,9 @@ export const LogsTab: React.FC<LogsTabProps> = ({
       await fetchRetentionConfig();
       fetchSummaries();
       onRefresh();
-    } catch (e: any) {
-      onShowToast?.(e.message || (isVi ? 'Lỗi dọn dẹp nhật ký' : 'Failed to prune logs'), 'error');
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      onShowToast?.(msg || (isVi ? 'Lỗi dọn dẹp nhật ký' : 'Failed to prune logs'), 'error');
     } finally {
       setIsPruningNow(false);
     }
@@ -112,14 +120,17 @@ export const LogsTab: React.FC<LogsTabProps> = ({
       setSummaries(data);
     } catch {
       // Fallback: aggregate in memory from logs prop if summary endpoint fails
-      const map = new Map<string, {
-        total: number;
-        allowed: number;
-        blocked: number;
-        monitored: number;
-        errors: number;
-        lastSeen: string;
-      }>();
+      const map = new Map<
+        string,
+        {
+          total: number;
+          allowed: number;
+          blocked: number;
+          monitored: number;
+          errors: number;
+          lastSeen: string;
+        }
+      >();
       for (const l of logs) {
         const item = map.get(l.domain) || {
           total: 0,
@@ -241,17 +252,15 @@ export const LogsTab: React.FC<LogsTabProps> = ({
           const domain = getValue<string>();
           return (
             <div
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 8,
-                cursor: 'pointer',
-              }}
+              className="inline-flex items-center gap-2 cursor-pointer group"
               onClick={() => handleOpenDomainDetail(domain)}
               title={isVi ? 'Nhấp để xem chi tiết các truy vấn' : 'Click to drill down queries'}
             >
-              <Globe size={15} style={{ color: '#38bdf8', flexShrink: 0 }} />
-              <span style={{ color: '#f8fafc', fontWeight: 600, wordBreak: 'break-all' }}>
+              <Globe
+                size={15}
+                className="text-sky-600 shrink-0 group-hover:scale-110 transition-transform"
+              />
+              <span className="text-slate-900 font-semibold break-all group-hover:text-sky-600 transition-colors">
                 {domain}
               </span>
             </div>
@@ -262,16 +271,7 @@ export const LogsTab: React.FC<LogsTabProps> = ({
         accessorKey: 'total_queries',
         header: t.th_total_queries,
         cell: ({ getValue }) => (
-          <span
-            style={{
-              background: '#1e293b',
-              color: '#38bdf8',
-              padding: '3px 10px',
-              borderRadius: 6,
-              fontSize: '0.82rem',
-              fontWeight: 700,
-            }}
-          >
+          <span className="bg-slate-100 text-slate-800 font-bold px-2.5 py-1 rounded-md text-xs">
             {getValue<number>().toLocaleString()}
           </span>
         ),
@@ -282,60 +282,24 @@ export const LogsTab: React.FC<LogsTabProps> = ({
         cell: ({ row }) => {
           const s = row.original;
           return (
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+            <div className="flex gap-1.5 flex-wrap items-center">
               {s.blocked_count > 0 && (
-                <span
-                  style={{
-                    background: '#f8717126',
-                    color: '#f87171',
-                    padding: '2px 7px',
-                    borderRadius: 4,
-                    fontSize: '0.74rem',
-                    fontWeight: 700,
-                  }}
-                >
+                <span className="bg-rose-50 text-rose-700 border border-rose-200/80 px-2 py-0.5 rounded text-xs font-semibold">
                   {s.blocked_count} BLOCK
                 </span>
               )}
               {s.allowed_count > 0 && (
-                <span
-                  style={{
-                    background: '#34d39926',
-                    color: '#34d399',
-                    padding: '2px 7px',
-                    borderRadius: 4,
-                    fontSize: '0.74rem',
-                    fontWeight: 700,
-                  }}
-                >
+                <span className="bg-emerald-50 text-emerald-700 border border-emerald-200/80 px-2 py-0.5 rounded text-xs font-semibold">
                   {s.allowed_count} ALLOW
                 </span>
               )}
               {s.monitored_count > 0 && (
-                <span
-                  style={{
-                    background: '#fbbf2426',
-                    color: '#fbbf24',
-                    padding: '2px 7px',
-                    borderRadius: 4,
-                    fontSize: '0.74rem',
-                    fontWeight: 700,
-                  }}
-                >
+                <span className="bg-amber-50 text-amber-700 border border-amber-200/80 px-2 py-0.5 rounded text-xs font-semibold">
                   {s.monitored_count} MONITOR
                 </span>
               )}
               {s.error_count > 0 && (
-                <span
-                  style={{
-                    background: '#94a3b826',
-                    color: '#94a3b8',
-                    padding: '2px 7px',
-                    borderRadius: 4,
-                    fontSize: '0.74rem',
-                    fontWeight: 700,
-                  }}
-                >
+                <span className="bg-slate-100 text-slate-600 border border-slate-200 px-2 py-0.5 rounded text-xs font-semibold">
                   {s.error_count} ERROR
                 </span>
               )}
@@ -349,7 +313,7 @@ export const LogsTab: React.FC<LogsTabProps> = ({
         cell: ({ getValue }) => {
           const val = getValue<string>();
           return (
-            <span style={{ color: '#94a3b8', fontSize: '0.84rem' }}>
+            <span className="text-slate-600 text-xs font-mono">
               {new Date(val).toLocaleTimeString()} ({new Date(val).toLocaleDateString()})
             </span>
           );
@@ -361,22 +325,9 @@ export const LogsTab: React.FC<LogsTabProps> = ({
         cell: ({ row }) => (
           <button
             onClick={() => handleOpenDomainDetail(row.original.domain)}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 5,
-              background: '#1e293b',
-              color: '#38bdf8',
-              border: '1px solid #334155',
-              padding: '4px 10px',
-              borderRadius: 6,
-              fontSize: '0.78rem',
-              fontWeight: 600,
-              cursor: 'pointer',
-              transition: 'all 0.15s ease',
-            }}
+            className="inline-flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 px-2.5 py-1 rounded-md text-xs font-semibold transition-colors cursor-pointer"
           >
-            <Eye size={13} />
+            <Eye size={13} className="text-slate-500" />
             <span>{t.btn_domain_details}</span>
           </button>
         ),
@@ -394,7 +345,7 @@ export const LogsTab: React.FC<LogsTabProps> = ({
         cell: ({ getValue }) => {
           const val = getValue<string>();
           return (
-            <span style={{ color: '#94a3b8', fontSize: '0.84rem' }}>
+            <span className="text-slate-600 text-xs font-mono">
               {new Date(val).toLocaleTimeString()}
             </span>
           );
@@ -407,12 +358,7 @@ export const LogsTab: React.FC<LogsTabProps> = ({
           const domain = getValue<string>();
           return (
             <span
-              style={{
-                color: '#f8fafc',
-                fontWeight: 600,
-                wordBreak: 'break-all',
-                cursor: 'pointer',
-              }}
+              className="text-slate-900 font-semibold break-all cursor-pointer hover:text-sky-600 transition-colors"
               onClick={() => handleOpenDomainDetail(domain)}
               title={isVi ? 'Nhấp để lọc riêng tên miền này' : 'Click to drill down'}
             >
@@ -425,16 +371,7 @@ export const LogsTab: React.FC<LogsTabProps> = ({
         accessorKey: 'qtype',
         header: t.th_type,
         cell: ({ getValue }) => (
-          <span
-            style={{
-              background: '#1e293b',
-              color: '#cbd5e1',
-              padding: '2px 8px',
-              borderRadius: 4,
-              fontSize: '0.75rem',
-              fontWeight: 700,
-            }}
-          >
+          <span className="bg-slate-100 text-slate-700 border border-slate-200 px-1.5 py-0.5 rounded text-2xs font-mono font-medium">
             {getValue<string>()}
           </span>
         ),
@@ -447,22 +384,19 @@ export const LogsTab: React.FC<LogsTabProps> = ({
           const isBlock = action === 'BLOCK';
           const isMonitor = action === 'MONITOR';
           const isError = action === 'ERROR';
-          const color = isBlock || isError ? '#f87171' : isMonitor ? '#fbbf24' : '#34d399';
           return (
             <span
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 5,
-                background: `${color}26`,
-                color,
-                padding: '3px 10px',
-                borderRadius: 6,
-                fontWeight: 700,
-                fontSize: '0.78rem',
-              }}
+              className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full font-bold text-2xs border ${
+                isBlock
+                  ? 'bg-rose-50 text-rose-700 border-rose-200/80'
+                  : isMonitor
+                    ? 'bg-amber-50 text-amber-700 border-amber-200/80'
+                    : isError
+                      ? 'bg-slate-100 text-slate-600 border-slate-200'
+                      : 'bg-emerald-50 text-emerald-700 border-emerald-200/80'
+              }`}
             >
-              {isBlock || isError ? <ShieldAlert size={13} /> : <ShieldCheck size={13} />}
+              {isBlock || isError ? <ShieldAlert size={12} /> : <ShieldCheck size={12} />}
               {isBlock ? t.tag_block : isMonitor ? 'MONITOR' : isError ? 'ERROR' : t.tag_allow}
             </span>
           );
@@ -472,9 +406,7 @@ export const LogsTab: React.FC<LogsTabProps> = ({
         accessorKey: 'reason',
         header: t.th_reason,
         cell: ({ getValue }) => (
-          <span style={{ color: '#94a3b8', fontSize: '0.82rem' }}>
-            {getValue<string>()}
-          </span>
+          <span className="text-slate-500 text-xs">{getValue<string>()}</span>
         ),
       },
     ],
@@ -488,184 +420,97 @@ export const LogsTab: React.FC<LogsTabProps> = ({
   }, [selectedDomain, summaries]);
 
   return (
-    <div
-      style={{
-        background: '#0f172a',
-        border: '1px solid #1e293b',
-        borderRadius: 16,
-        padding: 24,
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 20,
-        position: 'relative',
-      }}
-    >
+    <div className="bg-white border border-slate-200/80 rounded-2xl p-6 flex flex-col gap-5 shadow-xs relative">
       {/* Header & Controls */}
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          flexWrap: 'wrap',
-          gap: 14,
-        }}
-      >
+      <div className="flex justify-between items-center flex-wrap gap-3.5">
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#f8fafc' }}>
-              {t.dns_logs_title}
-            </h2>
-            <span
-              style={{
-                background: '#1e293b',
-                color: '#38bdf8',
-                padding: '2px 8px',
-                borderRadius: 6,
-                fontSize: '0.75rem',
-                fontWeight: 600,
-              }}
-            >
-              {viewMode === 'summary' ? `${filteredSummaries.length} domains` : `${filteredLogs.length} queries`}
+          <div className="flex items-center gap-2.5">
+            <h2 className="text-xl font-bold text-slate-900">{t.dns_logs_title}</h2>
+            <span className="bg-slate-100 text-slate-700 border border-slate-200 px-2 py-0.5 rounded-md text-xs font-semibold">
+              {viewMode === 'summary'
+                ? `${filteredSummaries.length} domains`
+                : `${filteredLogs.length} queries`}
             </span>
           </div>
-          <p style={{ fontSize: '0.85rem', color: '#94a3b8' }}>
-            {t.dns_logs_desc}
-          </p>
+          <p className="text-sm text-slate-500 mt-0.5">{t.dns_logs_desc}</p>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <div className="flex items-center gap-2.5 flex-wrap">
           {/* View Mode Toggle: Summary (Default) vs Stream */}
-          <div
-            style={{
-              display: 'inline-flex',
-              background: '#070b14',
-              borderRadius: 8,
-              padding: 3,
-              border: '1px solid #1e293b',
-            }}
-          >
+          <div className="inline-flex bg-slate-100 p-1 rounded-xl border border-slate-200/80">
             <button
               onClick={() => setViewMode('summary')}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 5,
-                background: viewMode === 'summary' ? '#38bdf8' : 'transparent',
-                color: viewMode === 'summary' ? '#070b14' : '#94a3b8',
-                border: 'none',
-                padding: '5px 12px',
-                borderRadius: 6,
-                fontSize: '0.8rem',
-                fontWeight: viewMode === 'summary' ? 700 : 500,
-                cursor: 'pointer',
-              }}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-all ${
+                viewMode === 'summary'
+                  ? 'bg-white text-slate-900 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
             >
-              <Layers size={14} />
+              <Layers size={13} />
               <span>{t.view_mode_summary}</span>
             </button>
             <button
               onClick={() => setViewMode('stream')}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 5,
-                background: viewMode === 'stream' ? '#38bdf8' : 'transparent',
-                color: viewMode === 'stream' ? '#070b14' : '#94a3b8',
-                border: 'none',
-                padding: '5px 12px',
-                borderRadius: 6,
-                fontSize: '0.8rem',
-                fontWeight: viewMode === 'stream' ? 700 : 500,
-                cursor: 'pointer',
-              }}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-all ${
+                viewMode === 'stream'
+                  ? 'bg-white text-slate-900 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
             >
-              <List size={14} />
+              <List size={13} />
               <span>{t.view_mode_stream}</span>
             </button>
           </div>
 
           {/* Filter Pills */}
-          <div
-            style={{
-              display: 'inline-flex',
-              background: '#070b14',
-              borderRadius: 8,
-              padding: 3,
-              border: '1px solid #1e293b',
-            }}
-          >
+          <div className="inline-flex bg-slate-100 p-1 rounded-xl border border-slate-200/80 gap-1">
             <button
               onClick={() => setFilterType('all')}
-              style={{
-                background: filterType === 'all' ? '#38bdf8' : 'transparent',
-                color: filterType === 'all' ? '#070b14' : '#94a3b8',
-                border: 'none',
-                padding: '4px 10px',
-                borderRadius: 6,
-                fontSize: '0.8rem',
-                fontWeight: filterType === 'all' ? 700 : 500,
-                cursor: 'pointer',
-              }}
+              className={`px-2.5 py-1 rounded-lg text-xs font-semibold cursor-pointer transition-all ${
+                filterType === 'all'
+                  ? 'bg-white text-slate-900 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
             >
               {t.filter_all}
             </button>
             <button
               onClick={() => setFilterType('blocked')}
-              style={{
-                background: filterType === 'blocked' ? '#f87171' : 'transparent',
-                color: filterType === 'blocked' ? '#070b14' : '#94a3b8',
-                border: 'none',
-                padding: '4px 10px',
-                borderRadius: 6,
-                fontSize: '0.8rem',
-                fontWeight: filterType === 'blocked' ? 700 : 500,
-                cursor: 'pointer',
-              }}
+              className={`px-2.5 py-1 rounded-lg text-xs font-semibold cursor-pointer transition-all ${
+                filterType === 'blocked'
+                  ? 'bg-rose-50 text-rose-700 border border-rose-200/80 shadow-xs'
+                  : 'text-slate-600 hover:text-rose-600'
+              }`}
             >
               {t.filter_blocked}
             </button>
             <button
               onClick={() => setFilterType('allowed')}
-              style={{
-                background: filterType === 'allowed' ? '#34d399' : 'transparent',
-                color: filterType === 'allowed' ? '#070b14' : '#94a3b8',
-                border: 'none',
-                padding: '4px 10px',
-                borderRadius: 6,
-                fontSize: '0.8rem',
-                fontWeight: filterType === 'allowed' ? 700 : 500,
-                cursor: 'pointer',
-              }}
+              className={`px-2.5 py-1 rounded-lg text-xs font-semibold cursor-pointer transition-all ${
+                filterType === 'allowed'
+                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/80 shadow-xs'
+                  : 'text-slate-600 hover:text-emerald-600'
+              }`}
             >
               {t.filter_allowed}
             </button>
             <button
               onClick={() => setFilterType('monitored')}
-              style={{
-                background: filterType === 'monitored' ? '#fbbf24' : 'transparent',
-                color: filterType === 'monitored' ? '#070b14' : '#94a3b8',
-                border: 'none',
-                padding: '4px 10px',
-                borderRadius: 6,
-                fontSize: '0.8rem',
-                fontWeight: filterType === 'monitored' ? 700 : 500,
-                cursor: 'pointer',
-              }}
+              className={`px-2.5 py-1 rounded-lg text-xs font-semibold cursor-pointer transition-all ${
+                filterType === 'monitored'
+                  ? 'bg-amber-50 text-amber-700 border border-amber-200/80 shadow-xs'
+                  : 'text-slate-600 hover:text-amber-600'
+              }`}
             >
               {t.filter_monitored}
             </button>
             <button
               onClick={() => setFilterType('errors')}
-              style={{
-                background: filterType === 'errors' ? '#f87171' : 'transparent',
-                color: filterType === 'errors' ? '#070b14' : '#94a3b8',
-                border: 'none',
-                padding: '4px 10px',
-                borderRadius: 6,
-                fontSize: '0.8rem',
-                fontWeight: filterType === 'errors' ? 700 : 500,
-                cursor: 'pointer',
-              }}
+              className={`px-2.5 py-1 rounded-lg text-xs font-semibold cursor-pointer transition-all ${
+                filterType === 'errors'
+                  ? 'bg-slate-200 text-slate-800 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
             >
               {t.filter_error}
             </button>
@@ -674,18 +519,19 @@ export const LogsTab: React.FC<LogsTabProps> = ({
           {/* Auto Refresh Toggle */}
           <button
             onClick={onToggleAutoRefresh}
-            style={{
-              background: autoRefresh ? 'rgba(56, 189, 248, 0.15)' : '#1e293b',
-              color: autoRefresh ? '#38bdf8' : '#94a3b8',
-              border: '1px solid #334155',
-              padding: '6px 12px',
-              borderRadius: 8,
-              fontSize: '0.8rem',
-              fontWeight: 600,
-              cursor: 'pointer',
-            }}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold border cursor-pointer transition-all ${
+              autoRefresh
+                ? 'bg-sky-50 text-sky-700 border-sky-200'
+                : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+            }`}
           >
-            {autoRefresh ? (isVi ? 'Tự động: BẬT' : 'Auto: ON') : (isVi ? 'Tự động: TẮT' : 'Auto: OFF')}
+            {autoRefresh
+              ? isVi
+                ? 'Tự động: BẬT'
+                : 'Auto: ON'
+              : isVi
+                ? 'Tự động: TẮT'
+                : 'Auto: OFF'}
           </button>
 
           {/* Refresh Button */}
@@ -694,43 +540,27 @@ export const LogsTab: React.FC<LogsTabProps> = ({
               onRefresh();
               fetchSummaries();
             }}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              background: '#1e293b',
-              color: '#f8fafc',
-              border: '1px solid #334155',
-              padding: '7px 12px',
-              borderRadius: 8,
-              fontSize: '0.82rem',
-              fontWeight: 600,
-              cursor: 'pointer',
-            }}
+            className="flex items-center gap-1.5 bg-white text-slate-700 border border-slate-200 hover:bg-slate-50 hover:text-slate-900 px-3 py-1.5 rounded-lg text-xs font-semibold shadow-xs cursor-pointer transition-all"
           >
-            <RefreshCw size={14} className={isLoadingSummaries ? 'animate-spin' : ''} />
+            <RefreshCw size={13} className={isLoadingSummaries ? 'animate-spin' : ''} />
             <span>{t.btn_refresh}</span>
           </button>
 
           {/* Storage Retention & Optimization Toggle */}
           <button
             onClick={() => setShowRetentionSettings(!showRetentionSettings)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              background: showRetentionSettings ? 'rgba(56, 189, 248, 0.2)' : '#1e293b',
-              color: showRetentionSettings ? '#38bdf8' : '#94a3b8',
-              border: `1px solid ${showRetentionSettings ? '#38bdf8' : '#334155'}`,
-              padding: '7px 12px',
-              borderRadius: 8,
-              fontSize: '0.82rem',
-              fontWeight: 600,
-              cursor: 'pointer',
-            }}
-            title={isVi ? 'Cấu hình thời gian lưu trữ & dọn dẹp dung lượng' : 'Storage retention & cleanup'}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border cursor-pointer transition-all ${
+              showRetentionSettings
+                ? 'bg-sky-50 text-sky-700 border-sky-300'
+                : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+            }`}
+            title={
+              isVi
+                ? 'Cấu hình thời gian lưu trữ & dọn dẹp dung lượng'
+                : 'Storage retention & cleanup'
+            }
           >
-            <Database size={14} />
+            <Database size={13} />
             <span>{isVi ? 'Tối Ưu Lưu Trữ' : 'Storage Optimization'}</span>
           </button>
         </div>
@@ -738,43 +568,36 @@ export const LogsTab: React.FC<LogsTabProps> = ({
 
       {/* Storage Optimization & Retention Banner */}
       {showRetentionSettings && (
-        <div
-          style={{
-            background: 'rgba(15, 23, 42, 0.7)',
-            border: '1px solid rgba(56, 189, 248, 0.3)',
-            borderRadius: 12,
-            padding: '16px 20px',
-            marginTop: 14,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            flexWrap: 'wrap',
-            gap: 16,
-          }}
-        >
-          <div style={{ maxWidth: 600 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-              <Database size={16} color="#38bdf8" />
-              <span style={{ fontSize: '0.95rem', fontWeight: 700, color: '#f8fafc' }}>
-                {isVi ? 'Cơ Chế Nén & Tối Ưu Dung Lượng Nhật Ký DNS' : 'DNS Query Logs Compression & Retention'}
+        <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 flex items-center justify-between flex-wrap gap-4 shadow-xs">
+          <div className="max-w-2xl">
+            <div className="flex items-center gap-2 mb-1">
+              <Database size={16} className="text-sky-600" />
+              <span className="text-sm font-bold text-slate-900">
+                {isVi
+                  ? 'Cơ Chế Nén & Tối Ưu Dung Lượng Nhật Ký DNS'
+                  : 'DNS Query Logs Compression & Retention'}
               </span>
             </div>
-            <p style={{ fontSize: '0.82rem', color: '#94a3b8', margin: 0, lineHeight: 1.5 }}>
+            <p className="text-xs text-slate-600 m-0 leading-relaxed">
               {isVi
                 ? 'Để tiết kiệm ổ cứng, hệ thống tự động tổng hợp số liệu của từng tên miền vào bảng thống kê vĩnh viễn và dọn dẹp các dòng log chi tiết từng giây đã quá hạn. Dữ liệu tổng hợp (Tổng truy vấn, Cho phép, Chặn) luôn được bảo toàn 100%.'
                 : 'To minimize disk space, raw second-by-second queries are rolled up into persistent domain aggregates and pruned when expired. Domain totals are always preserved 100%.'}
             </p>
-            <div style={{ display: 'flex', gap: 16, marginTop: 8, fontSize: '0.8rem', color: '#cbd5e1' }}>
+            <div className="flex gap-4 mt-2 text-xs text-slate-600 flex-wrap">
               <span>
                 {isVi ? 'Bản ghi chi tiết:' : 'Raw queries:'}{' '}
-                <strong style={{ color: '#38bdf8' }}>{retentionConfig?.raw_query_logs_count ?? 0}</strong>
+                <strong className="text-sky-600">
+                  {retentionConfig?.raw_query_logs_count ?? 0}
+                </strong>
               </span>
               <span>
                 {isVi ? 'Tên miền tổng hợp vĩnh viễn:' : 'Aggregated domains:'}{' '}
-                <strong style={{ color: '#34d399' }}>{retentionConfig?.aggregated_domains_count ?? 0}</strong>
+                <strong className="text-emerald-600">
+                  {retentionConfig?.aggregated_domains_count ?? 0}
+                </strong>
               </span>
               {retentionConfig?.last_pruned_at && (
-                <span style={{ color: '#94a3b8' }}>
+                <span className="text-slate-500">
                   {isVi ? 'Dọn dẹp gần nhất:' : 'Last pruned:'}{' '}
                   {new Date(retentionConfig.last_pruned_at).toLocaleTimeString()}
                 </span>
@@ -782,9 +605,9 @@ export const LogsTab: React.FC<LogsTabProps> = ({
             </div>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <label style={{ fontSize: '0.82rem', color: '#94a3b8', fontWeight: 600 }}>
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex items-center gap-2">
+              <label className="text-xs text-slate-600 font-semibold">
                 {isVi ? 'Lưu chi tiết:' : 'Retain raw:'}
               </label>
               <select
@@ -795,18 +618,11 @@ export const LogsTab: React.FC<LogsTabProps> = ({
                   handleSaveRetention(days, autoPruneEnabled);
                 }}
                 disabled={isSavingRetention}
-                style={{
-                  background: '#070b14',
-                  border: '1px solid #334155',
-                  color: '#f8fafc',
-                  padding: '6px 10px',
-                  borderRadius: 6,
-                  fontSize: '0.82rem',
-                  cursor: 'pointer',
-                  outline: 'none',
-                }}
+                className="bg-white border border-slate-200 text-slate-800 px-2.5 py-1.5 rounded-lg text-xs cursor-pointer outline-none focus:border-sky-500"
               >
-                <option value={1}>{isVi ? '1 ngày (Tiết kiệm tối đa)' : '1 day (Max savings)'}</option>
+                <option value={1}>
+                  {isVi ? '1 ngày (Tiết kiệm tối đa)' : '1 day (Max savings)'}
+                </option>
                 <option value={3}>{isVi ? '3 ngày' : '3 days'}</option>
                 <option value={7}>{isVi ? '7 ngày (Khuyên dùng)' : '7 days (Recommended)'}</option>
                 <option value={14}>{isVi ? '14 ngày' : '14 days'}</option>
@@ -819,24 +635,16 @@ export const LogsTab: React.FC<LogsTabProps> = ({
               type="button"
               onClick={handlePruneNow}
               disabled={isPruningNow}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 6,
-                background: '#0284c7',
-                color: '#ffffff',
-                border: 'none',
-                padding: '7px 14px',
-                borderRadius: 6,
-                fontSize: '0.82rem',
-                fontWeight: 600,
-                cursor: isPruningNow ? 'not-allowed' : 'pointer',
-              }}
+              className="inline-flex items-center gap-1.5 bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white border-0 px-3.5 py-1.5 rounded-lg text-xs font-semibold cursor-pointer shadow-xs transition-all"
             >
               <Trash2 size={13} className={isPruningNow ? 'animate-spin' : ''} />
               {isPruningNow
-                ? (isVi ? 'Đang dọn dẹp...' : 'Pruning...')
-                : (isVi ? 'Thu Gọn & Dọn Dẹp Ngay' : 'Prune Now')}
+                ? isVi
+                  ? 'Đang dọn dẹp...'
+                  : 'Pruning...'
+                : isVi
+                  ? 'Thu Gọn & Dọn Dẹp Ngay'
+                  : 'Prune Now'}
             </button>
           </div>
         </div>
@@ -866,148 +674,77 @@ export const LogsTab: React.FC<LogsTabProps> = ({
       {/* DRILLDOWN DETAIL MODAL FOR A SPECIFIC DOMAIN */}
       {selectedDomain && (
         <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(0, 0, 0, 0.75)',
-            backdropFilter: 'blur(4px)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 100,
-            padding: 16,
-          }}
+          className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center z-50 p-4"
           onClick={handleCloseDomainDetail}
         >
           <div
-            style={{
-              background: '#0f172a',
-              border: '1px solid #334155',
-              borderRadius: 16,
-              width: '100%',
-              maxWidth: 850,
-              maxHeight: '90vh',
-              display: 'flex',
-              flexDirection: 'column',
-              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7)',
-              overflow: 'hidden',
-            }}
+            className="bg-white border border-slate-200 rounded-2xl w-full max-w-3xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Modal Header */}
-            <div
-              style={{
-                padding: '20px 24px',
-                borderBottom: '1px solid #1e293b',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                flexWrap: 'wrap',
-                gap: 12,
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <div
-                  style={{
-                    width: 40,
-                    height: 40,
-                    borderRadius: 10,
-                    background: 'rgba(56, 189, 248, 0.15)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: '#38bdf8',
-                  }}
-                >
-                  <Globe size={22} />
+            <div className="p-5 sm:p-6 border-b border-slate-100 flex justify-between items-center flex-wrap gap-3 bg-white">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center shrink-0">
+                  <Globe size={20} />
                 </div>
                 <div>
-                  <h3 style={{ fontSize: '1.2rem', fontWeight: 700, color: '#f8fafc' }}>
-                    {selectedDomain}
-                  </h3>
-                  <p style={{ fontSize: '0.82rem', color: '#94a3b8' }}>
-                    {t.modal_domain_desc}: <span style={{ color: '#38bdf8' }}>{selectedDomain}</span>
+                  <h3 className="text-lg font-bold text-slate-900 break-all">{selectedDomain}</h3>
+                  <p className="text-xs text-slate-500">
+                    {t.modal_domain_desc}:{' '}
+                    <span className="text-sky-600 font-medium">{selectedDomain}</span>
                   </p>
                 </div>
               </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div className="flex items-center gap-2.5">
                 {/* Quick Block Button */}
                 <button
                   onClick={() => handleQuickBlockDomain(selectedDomain)}
                   disabled={isBlocking}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 6,
-                    background: '#f8717126',
-                    color: '#f87171',
-                    border: '1px solid #f8717140',
-                    padding: '7px 14px',
-                    borderRadius: 8,
-                    fontSize: '0.82rem',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                  }}
+                  className="inline-flex items-center gap-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 px-3.5 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-all disabled:opacity-50"
                 >
-                  <Ban size={14} />
+                  <Ban size={13} />
                   <span>{isBlocking ? 'Đang chặn...' : t.btn_quick_block}</span>
                 </button>
 
                 {/* Close Button */}
                 <button
                   onClick={handleCloseDomainDetail}
-                  style={{
-                    background: '#1e293b',
-                    color: '#94a3b8',
-                    border: 'none',
-                    borderRadius: 8,
-                    width: 32,
-                    height: 32,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    cursor: 'pointer',
-                  }}
+                  className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center cursor-pointer transition-colors border-0"
                 >
-                  <X size={18} />
+                  <X size={16} />
                 </button>
               </div>
             </div>
 
             {/* Modal Subheader with Stats */}
             {activeSummary && (
-              <div
-                style={{
-                  padding: '12px 24px',
-                  background: '#070b14',
-                  borderBottom: '1px solid #1e293b',
-                  display: 'flex',
-                  gap: 12,
-                  flexWrap: 'wrap',
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.82rem', color: '#94a3b8' }}>
+              <div className="px-6 py-3 bg-slate-50 border-b border-slate-100 flex gap-4 flex-wrap text-xs text-slate-600 font-medium">
+                <div className="flex items-center gap-1.5">
                   <span>{t.th_total_queries}:</span>
-                  <strong style={{ color: '#38bdf8' }}>{activeSummary.total_queries}</strong>
+                  <strong className="text-sky-700 font-bold">{activeSummary.total_queries}</strong>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.82rem', color: '#94a3b8' }}>
+                <div className="flex items-center gap-1.5">
                   <span>ALLOW:</span>
-                  <strong style={{ color: '#34d399' }}>{activeSummary.allowed_count}</strong>
+                  <strong className="text-emerald-700 font-bold">
+                    {activeSummary.allowed_count}
+                  </strong>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.82rem', color: '#94a3b8' }}>
+                <div className="flex items-center gap-1.5">
                   <span>BLOCK:</span>
-                  <strong style={{ color: '#f87171' }}>{activeSummary.blocked_count}</strong>
+                  <strong className="text-rose-700 font-bold">{activeSummary.blocked_count}</strong>
                 </div>
                 {activeSummary.monitored_count > 0 && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.82rem', color: '#94a3b8' }}>
+                  <div className="flex items-center gap-1.5">
                     <span>MONITOR:</span>
-                    <strong style={{ color: '#fbbf24' }}>{activeSummary.monitored_count}</strong>
+                    <strong className="text-amber-700 font-bold">
+                      {activeSummary.monitored_count}
+                    </strong>
                   </div>
                 )}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.82rem', color: '#94a3b8' }}>
+                <div className="flex items-center gap-1.5">
                   <span>{t.th_last_seen}:</span>
-                  <strong style={{ color: '#cbd5e1' }}>
+                  <strong className="text-slate-800 font-mono">
                     {new Date(activeSummary.last_seen_at).toLocaleTimeString()}
                   </strong>
                 </div>
@@ -1015,24 +752,28 @@ export const LogsTab: React.FC<LogsTabProps> = ({
             )}
 
             {/* Modal Body: Query Log Table for Domain */}
-            <div style={{ flex: 1, overflowY: 'auto', padding: 20 }}>
+            <div className="flex-1 overflow-y-auto p-5">
               {isLoadingDetails ? (
-                <div style={{ textAlign: 'center', padding: 40, color: '#94a3b8' }}>
-                  <RefreshCw size={24} className="animate-spin" style={{ margin: '0 auto 12px' }} />
-                  <p>{isVi ? 'Đang truy xuất chi tiết truy vấn của tên miền...' : 'Loading query resolution details...'}</p>
+                <div className="text-center py-10 text-slate-500">
+                  <RefreshCw size={24} className="animate-spin mx-auto mb-3 text-sky-600" />
+                  <p className="text-sm">
+                    {isVi
+                      ? 'Đang truy xuất chi tiết truy vấn của tên miền...'
+                      : 'Loading query resolution details...'}
+                  </p>
                 </div>
               ) : domainLogs.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: 40, color: '#94a3b8' }}>
+                <div className="text-center py-10 text-slate-500 text-sm">
                   <p>{t.no_matching_logs}</p>
                 </div>
               ) : (
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                <table className="w-full border-collapse text-xs text-left">
                   <thead>
-                    <tr style={{ borderBottom: '1px solid #334155', color: '#94a3b8', textAlign: 'left' }}>
-                      <th style={{ padding: '10px 12px' }}>{t.th_time}</th>
-                      <th style={{ padding: '10px 12px' }}>{t.th_type}</th>
-                      <th style={{ padding: '10px 12px' }}>{t.th_action}</th>
-                      <th style={{ padding: '10px 12px' }}>{t.th_reason}</th>
+                    <tr className="border-b border-slate-200 bg-slate-50 text-slate-600 font-semibold">
+                      <th className="py-2.5 px-3">{t.th_time}</th>
+                      <th className="py-2.5 px-3">{t.th_type}</th>
+                      <th className="py-2.5 px-3">{t.th_action}</th>
+                      <th className="py-2.5 px-3">{t.th_reason}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1040,56 +781,41 @@ export const LogsTab: React.FC<LogsTabProps> = ({
                       const isBlock = item.action === 'BLOCK';
                       const isMonitor = item.action === 'MONITOR';
                       const isError = item.action === 'ERROR';
-                      const color = isBlock || isError ? '#f87171' : isMonitor ? '#fbbf24' : '#34d399';
                       return (
                         <tr
                           key={idx}
-                          style={{
-                            borderBottom: '1px solid #1e293b',
-                            transition: 'background 0.15s ease',
-                          }}
+                          className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors"
                         >
-                          <td style={{ padding: '10px 12px', color: '#cbd5e1' }}>
+                          <td className="py-2.5 px-3 text-slate-700 font-mono">
                             {new Date(item.occurred_at).toLocaleTimeString()}{' '}
-                            <span style={{ color: '#64748b', fontSize: '0.75rem' }}>
+                            <span className="text-slate-400 text-2xs">
                               ({new Date(item.occurred_at).toLocaleDateString()})
                             </span>
                           </td>
-                          <td style={{ padding: '10px 12px' }}>
-                            <span
-                              style={{
-                                background: '#1e293b',
-                                color: '#cbd5e1',
-                                padding: '2px 8px',
-                                borderRadius: 4,
-                                fontSize: '0.75rem',
-                                fontWeight: 700,
-                              }}
-                            >
+                          <td className="py-2.5 px-3">
+                            <span className="bg-slate-100 text-slate-700 border border-slate-200 px-1.5 py-0.5 rounded text-2xs font-mono font-medium">
                               {item.qtype}
                             </span>
                           </td>
-                          <td style={{ padding: '10px 12px' }}>
+                          <td className="py-2.5 px-3">
                             <span
-                              style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: 4,
-                                background: `${color}26`,
-                                color,
-                                padding: '2px 8px',
-                                borderRadius: 6,
-                                fontWeight: 700,
-                                fontSize: '0.76rem',
-                              }}
+                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-bold text-2xs border ${
+                                isBlock || isError
+                                  ? 'bg-rose-50 text-rose-700 border-rose-200/80'
+                                  : isMonitor
+                                    ? 'bg-amber-50 text-amber-700 border-amber-200/80'
+                                    : 'bg-emerald-50 text-emerald-700 border-emerald-200/80'
+                              }`}
                             >
-                              {isBlock || isError ? <ShieldAlert size={12} /> : <ShieldCheck size={12} />}
+                              {isBlock || isError ? (
+                                <ShieldAlert size={11} />
+                              ) : (
+                                <ShieldCheck size={11} />
+                              )}
                               {item.action}
                             </span>
                           </td>
-                          <td style={{ padding: '10px 12px', color: '#94a3b8', fontSize: '0.8rem' }}>
-                            {item.reason}
-                          </td>
+                          <td className="py-2.5 px-3 text-slate-600 text-xs">{item.reason}</td>
                         </tr>
                       );
                     })}
@@ -1099,27 +825,10 @@ export const LogsTab: React.FC<LogsTabProps> = ({
             </div>
 
             {/* Modal Footer */}
-            <div
-              style={{
-                padding: '14px 24px',
-                borderTop: '1px solid #1e293b',
-                display: 'flex',
-                justifyContent: 'flex-end',
-                background: '#070b14',
-              }}
-            >
+            <div className="px-6 py-3.5 border-t border-slate-100 flex justify-end bg-slate-50">
               <button
                 onClick={handleCloseDomainDetail}
-                style={{
-                  background: '#1e293b',
-                  color: '#f8fafc',
-                  border: '1px solid #334155',
-                  padding: '7px 18px',
-                  borderRadius: 8,
-                  fontSize: '0.85rem',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                }}
+                className="bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 px-4 py-1.5 rounded-lg text-xs font-semibold cursor-pointer shadow-xs transition-all"
               >
                 {isVi ? 'Đóng' : 'Close'}
               </button>

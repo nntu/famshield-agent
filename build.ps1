@@ -178,7 +178,12 @@ function Build-Agent {
         Write-Host "==> Building Local Admin Web Frontend (React 19 + Vite)..." -ForegroundColor Cyan
         Push-Location $webDir
         try {
-            npm run build
+            if (Get-Command pnpm -ErrorAction SilentlyContinue) {
+                Write-Host "    Using pnpm $(pnpm --version)..." -ForegroundColor DarkCyan
+                pnpm run build
+            } else {
+                npm run build
+            }
         } catch {
             Write-Warning "Could not build web frontend: $_"
         } finally {
@@ -237,6 +242,16 @@ function Install-Agent {
 
     Copy-Item -Path (Join-Path $TargetDir "famshield-service.exe") -Destination (Join-Path $InstallDir "famshield-service.exe") -Force
     Copy-Item -Path (Join-Path $TargetDir "famshield-session.exe") -Destination (Join-Path $InstallDir "famshield-session.exe") -Force
+
+    $webDistSrc = Join-Path $ProjectRoot "web\dist"
+    if (Test-Path $webDistSrc) {
+        $targetWebDir = Join-Path $InstallDir "web"
+        if (-not (Test-Path $targetWebDir)) {
+            New-Item -ItemType Directory -Path $targetWebDir -Force | Out-Null
+        }
+        Copy-Item -Path $webDistSrc -Destination $targetWebDir -Recurse -Force
+        Write-Host "==> Copied latest web/dist admin assets to $targetWebDir\dist" -ForegroundColor Green
+    }
 
     Write-Host "==> [3/3] Registering Windows Service ($ServiceName) and NRPT Routing..." -ForegroundColor Cyan
 

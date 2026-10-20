@@ -1,81 +1,106 @@
 @import "tailwindcss";
 
 :root {
-  --bg-main: #f8fafc;
-  --bg-card: #ffffff;
-  --bg-card-subtle: #f1f5f9;
-  --border-color: #e2e8f0;
-  --border-subtle: #f1f5f9;
+  --canvas: #f8fafc;
+  --surface: #ffffff;
+  --surface-subtle: #f1f5f9;
+  --border: #e2e8f0;
+  --border-subtle: #edf2f7;
   --text-primary: #0f172a;
-  --text-secondary: #64748b;
-  --text-muted: #94a3b8;
+  --text-secondary: #475569;
+  --text-muted: #64748b;
   --accent: #0284c7;
   --accent-hover: #0369a1;
   --accent-light: #e0f2fe;
 }
 
-body {
-  background-color: #f8fafc;
-  color: #0f172a;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
-  -webkit-font-smoothing: antialiased;
+:where(
+  button,
+  a,
+  input,
+  select,
+  textarea,
+  [role="button"],
+  [role="radio"],
+  [role="tab"]
+):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
-/* Custom scrollbars for clean modern light UI */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Subtle modern scrollbar */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 7px;
+  height: 7px;
 }
 ::-webkit-scrollbar-track {
-  background: #f1f5f9;
+  background: transparent;
 }
 ::-webkit-scrollbar-thumb {
   background: #cbd5e1;
-  border-radius: 4px;
+  border-radius: 9999px;
 }
 ::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
 }
 
 /* 
-  LIGHT THEME GLOBAL MAPPINGS & OVERRIDES
-  Maps legacy dark tokens to modern light theme tokens 
+  HARMONIZED LIGHT THEME NORMALIZATION
+  Translates hardcoded legacy dark inline styles into unified, readable light surfaces.
 */
 
-/* Cards and Surfaces */
+/* Card surfaces */
 [style*="background: #0f172a"],
 [style*="background:#0f172a"],
 [style*="background: rgb(15, 23, 42)"],
 [style*="background: rgba(15, 23, 42"] {
   background-color: #ffffff !important;
   border-color: #e2e8f0 !important;
-  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.05) !important;
+  box-shadow: 0 1px 3px 0 rgba(15, 23, 42, 0.05) !important;
+  color: #0f172a !important;
 }
 
-/* Backgrounds / Inner wells / Table containers */
+/* Wells and Inner areas */
 [style*="background: #070b14"],
 [style*="background:#070b14"],
+[style*="background: rgb(7, 11, 20)"],
+[style*="background: rgba(7, 11, 20"],
 [style*="background: #0b1120"],
 [style*="background:#0b1120"],
+[style*="background: rgb(11, 17, 32)"],
 [style*="background: #090d16"] {
   background-color: #f8fafc !important;
   border-color: #e2e8f0 !important;
 }
 
-/* Dark Slate containers / Sub-cards */
-[style*="background: #1e293b"],
-[style*="background:#1e293b"],
-[style*="background: rgba(30, 41, 59"] {
+/* Sub-card backgrounds */
+[style*="background: #1e293b"]:not(button),
+[style*="background:#1e293b"]:not(button),
+[style*="background: rgb(30, 41, 59)"]:not(button),
+[style*="background: rgba(30, 41, 59"]:not(button) {
   background-color: #f1f5f9 !important;
   color: #1e293b !important;
   border-color: #e2e8f0 !important;
 }
 
-/* Border overrides */
+/* Borders normalization */
 [style*="border: 1px solid #1e293b"],
 [style*="border:1px solid #1e293b"],
+[style*="border: 1px solid rgb(30, 41, 59)"],
 [style*="border: 1px solid #334155"],
 [style*="border:1px solid #334155"],
+[style*="border: 1px solid rgb(51, 65, 85)"],
 [style*="border: 2px solid #1e293b"],
 [style*="border: 2px solid #334155"],
 [style*="border: 1px solid rgba(255, 255, 255, 0.1)"] {
@@ -94,7 +119,13 @@ body {
   border-top-color: #e2e8f0 !important;
 }
 
-/* Text colors */
+/* 
+  CRITICAL TEXT VISIBILITY:
+  Prevents white/faint text from appearing on white light backgrounds!
+  Browsers convert hex colors in inline styles to rgb(...), so we support both!
+*/
+[style*="color: rgb(248, 250, 252)"],
+[style*="color: rgb(241, 245, 249)"],
 [style*="color: #f8fafc"],
 [style*="color:#f8fafc"],
 [style*="color: #f1f5f9"],
@@ -102,19 +133,72 @@ body {
   color: #0f172a !important;
 }
 
+[style*="color: rgb(148, 163, 184)"],
 [style*="color: #94a3b8"],
 [style*="color:#94a3b8"] {
-  color: #64748b !important;
+  color: #475569 !important;
 }
 
+[style*="color: rgb(203, 213, 225)"],
 [style*="color: #cbd5e1"],
-[style*="color:#cbd5e1"],
-[style*="color: #e2e8f0"],
-[style*="color:#e2e8f0"] {
+[style*="color:#cbd5e1"] {
   color: #334155 !important;
 }
 
-/* Table header styling */
+[style*="color: rgb(100, 116, 139)"],
+[style*="color: #64748b"],
+[style*="color:#64748b"] {
+  color: #64748b !important;
+}
+
+/* Solid dark/colored buttons MUST maintain high-contrast white text */
+button.bg-slate-900,
+button.bg-slate-800,
+button.bg-sky-600,
+button.bg-sky-700,
+button.bg-blue-600,
+button.bg-rose-600,
+button.bg-red-600,
+button.bg-emerald-600,
+button.bg-amber-600,
+button.bg-amber-700,
+button[style*="background: #0284c7"],
+button[style*="background: #ef4444"],
+button[style*="background: #10b981"],
+button[style*="background: #f59e0b"],
+button[style*="background: #0f172a"] {
+  color: #ffffff !important;
+}
+
+button.bg-slate-900 *,
+button.bg-sky-600 *,
+button.bg-rose-600 *,
+button.bg-emerald-600 * {
+  color: #ffffff !important;
+}
+
+/* Secondary dark buttons converted to clean light buttons */
+button[style*="background: #1e293b"],
+button[style*="background:#1e293b"],
+button[style*="background: rgb(30, 41, 59)"],
+button[style*="background: #070b14"],
+button[style*="background:#070b14"],
+button[style*="background: rgb(7, 11, 20)"] {
+  background-color: #f1f5f9 !important;
+  color: #334155 !important;
+  border-color: #cbd5e1 !important;
+}
+
+button[style*="background: #1e293b"]:hover,
+button[style*="background:#1e293b"]:hover,
+button[style*="background: rgb(30, 41, 59)"]:hover,
+button[style*="background: #070b14"]:hover,
+button[style*="background:#070b14"]:hover,
+button[style*="background: rgb(7, 11, 20)"]:hover {
+  background-color: #e2e8f0 !important;
+}
+
+/* Table styling */
 thead tr {
   background-color: #f8fafc !important;
   border-bottom-color: #e2e8f0 !important;

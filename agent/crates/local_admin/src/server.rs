@@ -458,6 +458,16 @@ fn sync_dns_blocklist(state: &ServerState) {
 }
 
 fn find_dist_dir() -> Option<std::path::PathBuf> {
+    #[cfg(target_os = "windows")]
+    {
+        if let Ok(program_data) = std::env::var("ProgramData") {
+            let pd_path = std::path::PathBuf::from(program_data).join("FamShield").join("web").join("dist");
+            if pd_path.join("index.html").exists() {
+                return Some(pd_path);
+            }
+        }
+    }
+
     let candidates = [
         std::path::PathBuf::from("web/dist"),
         std::path::PathBuf::from("../web/dist"),

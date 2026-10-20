@@ -29,7 +29,7 @@ Both modes use the Windows agent. Online Managed mode depends on the server serv
 ## Key capabilities
 
 - **DNS and network controls:** local DNS proxy, domain filtering policies, and Windows Filtering Platform (WFP) enforcement.
-- **On-device management:** local Web Admin, activity logs, policy configuration, and audit-only monitoring.
+- **On-device management:** responsive, keyboard-accessible local Web Admin with activity logs, policy configuration, and audit-only monitoring.
 - **Access protection:** Master PIN authentication, local SQLite storage, and Windows DPAPI protection for secrets.
 - **App and time policies:** supports application activity monitoring and configured usage limits.
 - **Privacy by design:** visual evidence is event-triggered and blurred before storage; keyword detection uses an in-memory buffer and does not write raw keystroke sequences to disk.

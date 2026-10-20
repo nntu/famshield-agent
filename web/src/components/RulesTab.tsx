@@ -1,25 +1,25 @@
-import React, { useState, useRef, useMemo } from 'react';
-import { ColumnDef } from '@tanstack/react-table';
+import type { ColumnDef } from '@tanstack/react-table';
 import {
-  Globe,
-  Smartphone,
-  Plus,
-  Trash2,
-  CheckCircle2,
-  XCircle,
-  FileSpreadsheet,
-  Upload,
-  Download,
-  FileText,
-  X,
   AlertCircle,
   Check,
+  CheckCircle2,
   Cloud,
+  Download,
+  FileSpreadsheet,
+  FileText,
+  Globe,
+  Plus,
+  Smartphone,
+  Trash2,
+  Upload,
+  X,
+  XCircle,
 } from 'lucide-react';
-import * as XLSX from 'xlsx';
-import { Language, LocalRuleRecord } from '../types';
-import { translations } from '../i18n';
+import type React from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { api } from '../api';
+import { translations } from '../i18n';
+import type { Language, LocalRuleRecord } from '../types';
 import { DataTable } from './DataTable';
 
 interface RulesTabProps {
@@ -37,12 +37,7 @@ interface ParsedImportRule {
   enabled: boolean;
 }
 
-export const RulesTab: React.FC<RulesTabProps> = ({
-  rules,
-  lang,
-  onRefresh,
-  onShowToast,
-}) => {
+export const RulesTab: React.FC<RulesTabProps> = ({ rules, lang, onRefresh, onShowToast }) => {
   const t = translations[lang];
   const isVi = lang === 'vi';
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -87,8 +82,9 @@ export const RulesTab: React.FC<RulesTabProps> = ({
       setNewDomain('');
       setDomainReason('');
       onRefresh();
-    } catch (e: any) {
-      onShowToast(e.message || (isVi ? 'Lỗi thêm quy tắc' : 'Failed to add rule'), 'error');
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      onShowToast(msg || (isVi ? 'Lỗi thêm quy tắc' : 'Failed to add rule'), 'error');
     } finally {
       setIsAddingDomain(false);
     }
@@ -112,11 +108,9 @@ export const RulesTab: React.FC<RulesTabProps> = ({
       } else {
         onShowToast(isVi ? 'Đồng bộ thất bại' : 'Sync failed', 'error');
       }
-    } catch (e: any) {
-      onShowToast(
-        e.message || (isVi ? 'Lỗi kết nối máy chủ' : 'Network error during sync'),
-        'error'
-      );
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      onShowToast(msg || (isVi ? 'Lỗi kết nối máy chủ' : 'Network error during sync'), 'error');
     } finally {
       setIsSyncingCloud(false);
     }
@@ -151,8 +145,9 @@ export const RulesTab: React.FC<RulesTabProps> = ({
       setNewApp('');
       setAppQuota('60');
       onRefresh();
-    } catch (e: any) {
-      onShowToast(e.message || (isVi ? 'Lỗi thêm giới hạn' : 'Failed to set app limit'), 'error');
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      onShowToast(msg || (isVi ? 'Lỗi thêm giới hạn' : 'Failed to set app limit'), 'error');
     } finally {
       setIsAddingApp(false);
     }
@@ -164,8 +159,9 @@ export const RulesTab: React.FC<RulesTabProps> = ({
       await api.deleteRule(ruleId);
       onShowToast(isVi ? `Đã xóa quy tắc: ${ruleId}` : `Deleted rule: ${ruleId}`, 'info');
       onRefresh();
-    } catch (e: any) {
-      onShowToast(e.message || (isVi ? 'Lỗi khi xóa quy tắc' : 'Delete failed'), 'error');
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      onShowToast(msg || (isVi ? 'Lỗi khi xóa quy tắc' : 'Delete failed'), 'error');
     }
   };
 
@@ -182,8 +178,8 @@ export const RulesTab: React.FC<RulesTabProps> = ({
           } catch {}
           return (
             <div>
-              <div style={{ fontWeight: 600, color: '#f8fafc' }}>{row.original.rule_id}</div>
-              {reason && <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{reason}</div>}
+              <div className="font-semibold text-slate-900">{row.original.rule_id}</div>
+              {reason && <div className="text-xs text-slate-500">{reason}</div>}
             </div>
           );
         },
@@ -192,7 +188,7 @@ export const RulesTab: React.FC<RulesTabProps> = ({
         accessorKey: 'rule_type',
         header: t.th_rule_type,
         cell: () => (
-          <span style={{ background: '#1e293b', color: '#cbd5e1', padding: '3px 8px', borderRadius: 4, fontSize: '0.75rem', fontWeight: 700 }}>
+          <span className="bg-slate-100 text-slate-700 border border-slate-200 px-2 py-0.5 rounded text-2xs font-mono font-medium">
             DOMAIN
           </span>
         ),
@@ -201,7 +197,7 @@ export const RulesTab: React.FC<RulesTabProps> = ({
         accessorKey: 'created_at',
         header: t.th_date_added,
         cell: ({ getValue }) => (
-          <span style={{ color: '#94a3b8' }}>
+          <span className="text-slate-500 text-xs font-mono">
             {new Date(getValue<string>()).toLocaleDateString(isVi ? 'vi-VN' : 'en-US')}
           </span>
         ),
@@ -212,33 +208,27 @@ export const RulesTab: React.FC<RulesTabProps> = ({
         cell: ({ getValue }) => {
           const enabled = getValue<boolean>();
           return enabled ? (
-            <span style={{ color: '#34d399', display: 'flex', alignItems: 'center', gap: 4, fontWeight: 600 }}>
-              <CheckCircle2 size={14} /> {isVi ? 'BẬT' : 'ENABLED'}
+            <span className="inline-flex items-center gap-1.5 text-emerald-700 font-semibold text-xs">
+              <CheckCircle2 size={13} /> {isVi ? 'BẬT' : 'ENABLED'}
             </span>
           ) : (
-            <span style={{ color: '#f87171', display: 'flex', alignItems: 'center', gap: 4, fontWeight: 600 }}>
-              <XCircle size={14} /> {isVi ? 'TẮT' : 'DISABLED'}
+            <span className="inline-flex items-center gap-1.5 text-rose-700 font-semibold text-xs">
+              <XCircle size={13} /> {isVi ? 'TẮT' : 'DISABLED'}
             </span>
           );
         },
       },
       {
         id: 'actions',
-        header: () => <div style={{ textAlign: 'right' }}>{t.th_action_col}</div>,
+        header: () => <div className="text-right">{t.th_action_col}</div>,
         cell: ({ row }) => (
-          <div style={{ textAlign: 'right' }}>
+          <div className="text-right">
             <button
               onClick={() => handleDeleteRule(row.original.rule_id)}
-              style={{
-                background: 'transparent',
-                border: 'none',
-                color: '#f87171',
-                cursor: 'pointer',
-                padding: 4,
-              }}
+              className="text-rose-500 hover:text-rose-700 p-1.5 rounded-md hover:bg-rose-50 cursor-pointer border-0 bg-transparent transition-colors"
               title={isVi ? 'Xóa quy tắc' : 'Delete rule'}
             >
-              <Trash2 size={16} />
+              <Trash2 size={15} />
             </button>
           </div>
         ),
@@ -253,7 +243,7 @@ export const RulesTab: React.FC<RulesTabProps> = ({
         accessorKey: 'rule_id',
         header: t.th_app_name,
         cell: ({ getValue }) => (
-          <span style={{ color: '#f8fafc', fontWeight: 600 }}>{getValue<string>()}</span>
+          <span className="font-semibold text-slate-900">{getValue<string>()}</span>
         ),
       },
       {
@@ -268,7 +258,7 @@ export const RulesTab: React.FC<RulesTabProps> = ({
           }
         },
         cell: ({ getValue }) => (
-          <span style={{ color: '#38bdf8', fontWeight: 700 }}>
+          <span className="text-sky-700 font-bold text-xs bg-sky-50 border border-sky-200/80 px-2 py-0.5 rounded-md">
             {getValue<number>()} {isVi ? 'phút' : 'mins'}
           </span>
         ),
@@ -277,7 +267,7 @@ export const RulesTab: React.FC<RulesTabProps> = ({
         accessorKey: 'created_at',
         header: t.th_date_added,
         cell: ({ getValue }) => (
-          <span style={{ color: '#94a3b8' }}>
+          <span className="text-slate-500 text-xs font-mono">
             {new Date(getValue<string>()).toLocaleDateString(isVi ? 'vi-VN' : 'en-US')}
           </span>
         ),
@@ -288,33 +278,27 @@ export const RulesTab: React.FC<RulesTabProps> = ({
         cell: ({ getValue }) => {
           const enabled = getValue<boolean>();
           return enabled ? (
-            <span style={{ color: '#34d399', display: 'flex', alignItems: 'center', gap: 4, fontWeight: 600 }}>
-              <CheckCircle2 size={14} /> {isVi ? 'BẬT' : 'ENABLED'}
+            <span className="inline-flex items-center gap-1.5 text-emerald-700 font-semibold text-xs">
+              <CheckCircle2 size={13} /> {isVi ? 'BẬT' : 'ENABLED'}
             </span>
           ) : (
-            <span style={{ color: '#f87171', display: 'flex', alignItems: 'center', gap: 4, fontWeight: 600 }}>
-              <XCircle size={14} /> {isVi ? 'TẮT' : 'DISABLED'}
+            <span className="inline-flex items-center gap-1.5 text-rose-700 font-semibold text-xs">
+              <XCircle size={13} /> {isVi ? 'TẮT' : 'DISABLED'}
             </span>
           );
         },
       },
       {
         id: 'actions',
-        header: () => <div style={{ textAlign: 'right' }}>{t.th_action_col}</div>,
+        header: () => <div className="text-right">{t.th_action_col}</div>,
         cell: ({ row }) => (
-          <div style={{ textAlign: 'right' }}>
+          <div className="text-right">
             <button
               onClick={() => handleDeleteRule(row.original.rule_id)}
-              style={{
-                background: 'transparent',
-                border: 'none',
-                color: '#f87171',
-                cursor: 'pointer',
-                padding: 4,
-              }}
+              className="text-rose-500 hover:text-rose-700 p-1.5 rounded-md hover:bg-rose-50 cursor-pointer border-0 bg-transparent transition-colors"
               title={isVi ? 'Xóa hạn mức' : 'Delete app limit'}
             >
-              <Trash2 size={16} />
+              <Trash2 size={15} />
             </button>
           </div>
         ),
@@ -324,13 +308,14 @@ export const RulesTab: React.FC<RulesTabProps> = ({
   );
 
   // ================= EXCEL EXPORT =================
-  const handleExportExcel = () => {
+  const handleExportExcel = async () => {
     if (rules.length === 0) {
       onShowToast(t.no_rules_to_export, 'info');
       return;
     }
 
     try {
+      const XLSX = await import('xlsx');
       const wb = XLSX.utils.book_new();
 
       // 1. Domain Blocklist Sheet
@@ -345,13 +330,25 @@ export const RulesTab: React.FC<RulesTabProps> = ({
           [isVi ? 'Tên Miền (Domain)' : 'Domain']: r.rule_id,
           [isVi ? 'Loại Quy Tắc' : 'Type']: 'DOMAIN',
           [isVi ? 'Lý Do Chặn' : 'Block Reason']: reason,
-          [isVi ? 'Trạng Thái' : 'Status']: r.enabled ? (isVi ? 'BẬT' : 'ENABLED') : (isVi ? 'TẮT' : 'DISABLED'),
-          [isVi ? 'Ngày Tạo' : 'Created At']: new Date(r.created_at).toLocaleString(isVi ? 'vi-VN' : 'en-US'),
+          [isVi ? 'Trạng Thái' : 'Status']: r.enabled
+            ? isVi
+              ? 'BẬT'
+              : 'ENABLED'
+            : isVi
+              ? 'TẮT'
+              : 'DISABLED',
+          [isVi ? 'Ngày Tạo' : 'Created At']: new Date(r.created_at).toLocaleString(
+            isVi ? 'vi-VN' : 'en-US'
+          ),
         };
       });
 
       const wsDomains = XLSX.utils.json_to_sheet(domainData.length > 0 ? domainData : [{}]);
-      XLSX.utils.book_append_sheet(wb, wsDomains, isVi ? 'Danh Sách Chặn Tên Miền' : 'Domain Blocklist');
+      XLSX.utils.book_append_sheet(
+        wb,
+        wsDomains,
+        isVi ? 'Danh Sách Chặn Tên Miền' : 'Domain Blocklist'
+      );
 
       // 2. App Limits Sheet
       const appData = appRules.map((r) => {
@@ -365,8 +362,16 @@ export const RulesTab: React.FC<RulesTabProps> = ({
           [isVi ? 'Tên Ứng Dụng (.exe)' : 'Application (.exe)']: r.rule_id,
           [isVi ? 'Loại Quy Tắc' : 'Type']: 'APPLICATION',
           [isVi ? 'Hạn Mức (Phút/Ngày)' : 'Daily Quota (Mins)']: limit,
-          [isVi ? 'Trạng Thái' : 'Status']: r.enabled ? (isVi ? 'BẬT' : 'ENABLED') : (isVi ? 'TẮT' : 'DISABLED'),
-          [isVi ? 'Ngày Tạo' : 'Created At']: new Date(r.created_at).toLocaleString(isVi ? 'vi-VN' : 'en-US'),
+          [isVi ? 'Trạng Thái' : 'Status']: r.enabled
+            ? isVi
+              ? 'BẬT'
+              : 'ENABLED'
+            : isVi
+              ? 'TẮT'
+              : 'DISABLED',
+          [isVi ? 'Ngày Tạo' : 'Created At']: new Date(r.created_at).toLocaleString(
+            isVi ? 'vi-VN' : 'en-US'
+          ),
         };
       });
 
@@ -377,14 +382,16 @@ export const RulesTab: React.FC<RulesTabProps> = ({
       const dateStr = new Date().toISOString().slice(0, 10);
       XLSX.writeFile(wb, `FamShield_Blacklist_${dateStr}.xlsx`);
       onShowToast(t.export_success, 'success');
-    } catch (e: any) {
-      onShowToast(e.message || (isVi ? 'Lỗi khi xuất file Excel' : 'Export failed'), 'error');
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      onShowToast(msg || (isVi ? 'Lỗi khi xuất file Excel' : 'Export failed'), 'error');
     }
   };
 
   // ================= DOWNLOAD SAMPLE TEMPLATE =================
-  const handleDownloadTemplate = () => {
+  const handleDownloadTemplate = async () => {
     try {
+      const XLSX = await import('xlsx');
       const wb = XLSX.utils.book_new();
 
       const sampleDomains = [
@@ -431,8 +438,9 @@ export const RulesTab: React.FC<RulesTabProps> = ({
 
       XLSX.writeFile(wb, 'FamShield_Blacklist_Template.xlsx');
       onShowToast(isVi ? 'Đã tải xuống file mẫu Excel!' : 'Sample template downloaded!', 'success');
-    } catch (e: any) {
-      onShowToast(e.message || (isVi ? 'Lỗi tải file mẫu' : 'Failed to download template'), 'error');
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      onShowToast(msg || (isVi ? 'Lỗi tải file mẫu' : 'Failed to download template'), 'error');
     }
   };
 
@@ -444,15 +452,16 @@ export const RulesTab: React.FC<RulesTabProps> = ({
     setImportFileName(file.name);
     const reader = new FileReader();
 
-    reader.onload = (evt) => {
+    reader.onload = async (evt) => {
       try {
+        const XLSX = await import('xlsx');
         const buffer = evt.target?.result as ArrayBuffer;
         const wb = XLSX.read(buffer, { type: 'array' });
         const parsed: ParsedImportRule[] = [];
 
         for (const sheetName of wb.SheetNames) {
           const sheet = wb.Sheets[sheetName];
-          const rows: any[] = XLSX.utils.sheet_to_json(sheet);
+          const rows: Record<string, unknown>[] = XLSX.utils.sheet_to_json(sheet);
 
           for (const row of rows) {
             // Find key case-insensitively
@@ -464,7 +473,16 @@ export const RulesTab: React.FC<RulesTabProps> = ({
               return matchedKey ? row[matchedKey] : undefined;
             };
 
-            const targetVal = findVal(['tên miền', 'domain', 'target', 'ứng dụng', 'application', 'file', 'app', 'rule_id']);
+            const targetVal = findVal([
+              'tên miền',
+              'domain',
+              'target',
+              'ứng dụng',
+              'application',
+              'file',
+              'app',
+              'rule_id',
+            ]);
             if (!targetVal) continue;
 
             const target = String(targetVal).trim().toLowerCase();
@@ -476,8 +494,7 @@ export const RulesTab: React.FC<RulesTabProps> = ({
             const statusVal = findVal(['trạng thái', 'status', 'enable']);
 
             const isApp =
-              target.endsWith('.exe') ||
-              (typeVal && String(typeVal).toLowerCase().includes('app'));
+              target.endsWith('.exe') || (typeVal && String(typeVal).toLowerCase().includes('app'));
 
             const ruleType = isApp ? 'application' : 'domain';
             const reason = reasonVal ? String(reasonVal).trim() : 'imported_from_excel';
@@ -509,8 +526,9 @@ export const RulesTab: React.FC<RulesTabProps> = ({
 
         setPreviewRules(parsed);
         setImportModalOpen(true);
-      } catch (err: any) {
-        onShowToast(err.message || t.invalid_excel_file, 'error');
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        onShowToast(msg || t.invalid_excel_file, 'error');
       } finally {
         if (fileInputRef.current) fileInputRef.current.value = '';
       }
@@ -554,8 +572,9 @@ export const RulesTab: React.FC<RulesTabProps> = ({
       setImportModalOpen(false);
       setPreviewRules([]);
       onRefresh();
-    } catch (e: any) {
-      onShowToast(e.message || (isVi ? 'Lỗi nhập quy tắc' : 'Import failed'), 'error');
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      onShowToast(msg || (isVi ? 'Lỗi nhập quy tắc' : 'Import failed'), 'error');
     } finally {
       setIsImporting(false);
     }
@@ -565,41 +584,18 @@ export const RulesTab: React.FC<RulesTabProps> = ({
   const previewAppsCount = previewRules.filter((r) => r.rule_type === 'application').length;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+    <div className="flex flex-col gap-6">
       {/* 1. EXCEL IMPORT / EXPORT ACTION BAR */}
-      <div
-        style={{
-          background: '#0f172a',
-          border: '1px solid #1e293b',
-          borderRadius: 16,
-          padding: '16px 22px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          flexWrap: 'wrap',
-          gap: 16,
-          boxShadow: '0 4px 20px rgba(0,0,0,0.2)',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          <div
-            style={{
-              background: 'rgba(16, 185, 129, 0.15)',
-              border: '1px solid rgba(16, 185, 129, 0.35)',
-              borderRadius: 12,
-              padding: '10px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <FileSpreadsheet size={24} color="#10b981" />
+      <div className="bg-white border border-slate-200/80 rounded-2xl p-5 sm:p-6 flex items-center justify-between flex-wrap gap-4 shadow-xs">
+        <div className="flex items-center gap-3.5">
+          <div className="bg-emerald-50 text-emerald-600 border border-emerald-100 p-2.5 rounded-xl flex items-center justify-center">
+            <FileSpreadsheet size={22} className="text-emerald-600" />
           </div>
           <div>
-            <div style={{ fontWeight: 800, fontSize: '1rem', color: '#f8fafc' }}>
+            <div className="font-bold text-slate-900 text-base">
               {isVi ? 'Quản Lý Danh Sách Đen Bằng Excel' : 'Excel Blacklist Import & Export'}
             </div>
-            <div style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: 2 }}>
+            <div className="text-xs text-slate-500 mt-0.5">
               {isVi
                 ? 'Nhập & xuất danh sách tên miền chặn và ứng dụng giới hạn qua định dạng bảng tính (.xlsx, .csv)'
                 : 'Bulk import & export domain blocklist and app limits via spreadsheets (.xlsx, .csv)'}
@@ -607,27 +603,14 @@ export const RulesTab: React.FC<RulesTabProps> = ({
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <div className="flex items-center gap-2.5 flex-wrap">
           {/* Download Sample Template */}
           <button
             type="button"
             onClick={handleDownloadTemplate}
-            style={{
-              background: '#1e293b',
-              color: '#38bdf8',
-              border: '1px solid #334155',
-              padding: '9px 14px',
-              borderRadius: 10,
-              fontSize: '0.82rem',
-              fontWeight: 600,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              transition: 'all 0.2s',
-            }}
+            className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 px-3.5 py-2 rounded-xl text-xs font-semibold cursor-pointer shadow-xs flex items-center gap-1.5 transition-all"
           >
-            <FileText size={15} />
+            <FileText size={14} className="text-sky-600" />
             <span>{t.btn_download_template}</span>
           </button>
 
@@ -635,23 +618,9 @@ export const RulesTab: React.FC<RulesTabProps> = ({
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            style={{
-              background: 'linear-gradient(135deg, #059669, #10b981)',
-              color: '#fff',
-              border: 'none',
-              padding: '9px 16px',
-              borderRadius: 10,
-              fontSize: '0.85rem',
-              fontWeight: 700,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              boxShadow: '0 4px 12px rgba(16, 185, 129, 0.25)',
-              transition: 'all 0.2s',
-            }}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-xs font-semibold cursor-pointer shadow-xs flex items-center gap-1.5 transition-all border-0"
           >
-            <Upload size={16} />
+            <Upload size={14} />
             <span>{t.btn_import_excel}</span>
           </button>
           <input
@@ -666,123 +635,62 @@ export const RulesTab: React.FC<RulesTabProps> = ({
           <button
             type="button"
             onClick={handleExportExcel}
-            style={{
-              background: '#1e293b',
-              color: '#f8fafc',
-              border: '1px solid #334155',
-              padding: '9px 16px',
-              borderRadius: 10,
-              fontSize: '0.85rem',
-              fontWeight: 600,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              transition: 'all 0.2s',
-            }}
+            className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 px-4 py-2 rounded-xl text-xs font-semibold cursor-pointer shadow-xs flex items-center gap-1.5 transition-all"
           >
-            <Download size={16} />
+            <Download size={14} className="text-slate-600" />
             <span>{t.btn_export_excel}</span>
           </button>
         </div>
       </div>
 
       {/* 2. DOMAIN BLOCKLIST SECTION */}
-      <div
-        style={{
-          background: '#0f172a',
-          border: '1px solid #1e293b',
-          borderRadius: 16,
-          padding: 24,
-        }}
-      >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
+      <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-xs flex flex-col gap-5">
+        <div className="flex justify-between items-start flex-wrap gap-3">
           <div>
-            <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#f8fafc', display: 'flex', alignItems: 'center', gap: 10 }}>
-              <Globe size={20} color="#38bdf8" />
+            <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+              <Globe size={18} className="text-sky-600" />
               {t.title_domain_block}
             </h2>
-            <p style={{ fontSize: '0.85rem', color: '#94a3b8', marginTop: 4 }}>
-              {t.desc_domain_block}
-            </p>
+            <p className="text-xs text-slate-500 mt-0.5">{t.desc_domain_block}</p>
           </div>
           <button
             onClick={handleSyncToCloud}
             disabled={isSyncingCloud}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              background: '#0284c7',
-              color: '#fff',
-              border: 'none',
-              padding: '8px 16px',
-              borderRadius: 8,
-              fontWeight: 600,
-              fontSize: '0.85rem',
-              cursor: isSyncingCloud ? 'not-allowed' : 'pointer',
-              opacity: isSyncingCloud ? 0.7 : 1,
-            }}
+            className="flex items-center gap-1.5 bg-sky-600 hover:bg-sky-700 text-white px-3.5 py-2 rounded-lg font-semibold text-xs cursor-pointer shadow-xs transition-all border-0 disabled:opacity-60"
           >
-            <Cloud size={16} />
-            {isSyncingCloud ? (isVi ? 'Đang đồng bộ...' : 'Syncing...') : (isVi ? 'Đồng bộ lên Cloud' : 'Sync to Cloud')}
+            <Cloud size={14} />
+            {isSyncingCloud
+              ? isVi
+                ? 'Đang đồng bộ...'
+                : 'Syncing...'
+              : isVi
+                ? 'Đồng bộ lên Cloud'
+                : 'Sync to Cloud'}
           </button>
         </div>
 
         {/* Add Form */}
-        <form onSubmit={handleAddDomain} style={{ display: 'flex', gap: 12, marginBottom: 24, flexWrap: 'wrap' }}>
+        <form onSubmit={handleAddDomain} className="flex gap-2.5 flex-wrap">
           <input
             type="text"
             placeholder={t.placeholder_domain}
             value={newDomain}
             onChange={(e) => setNewDomain(e.target.value)}
-            style={{
-              flex: 2,
-              minWidth: 200,
-              background: '#070b14',
-              border: '1px solid #1e293b',
-              color: '#fff',
-              padding: '10px 14px',
-              borderRadius: 8,
-              fontSize: '0.9rem',
-              outline: 'none',
-            }}
+            className="flex-2 min-w-[200px] bg-white border border-slate-200 text-slate-900 px-3.5 py-2 rounded-lg text-sm outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 shadow-xs placeholder-slate-400"
           />
           <input
             type="text"
             placeholder={t.placeholder_reason}
             value={domainReason}
             onChange={(e) => setDomainReason(e.target.value)}
-            style={{
-              flex: 2,
-              minWidth: 200,
-              background: '#070b14',
-              border: '1px solid #1e293b',
-              color: '#fff',
-              padding: '10px 14px',
-              borderRadius: 8,
-              fontSize: '0.9rem',
-              outline: 'none',
-            }}
+            className="flex-2 min-w-[200px] bg-white border border-slate-200 text-slate-900 px-3.5 py-2 rounded-lg text-sm outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 shadow-xs placeholder-slate-400"
           />
           <button
             type="submit"
             disabled={isAddingDomain}
-            style={{
-              background: '#38bdf8',
-              color: '#070b14',
-              border: 'none',
-              padding: '10px 20px',
-              borderRadius: 8,
-              fontSize: '0.9rem',
-              fontWeight: 700,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-            }}
+            className="bg-sky-600 hover:bg-sky-700 text-white px-4 py-2 rounded-lg text-sm font-semibold cursor-pointer shadow-xs flex items-center gap-1.5 border-0 transition-all"
           >
-            <Plus size={16} />
+            <Plus size={15} />
             <span>{t.btn_add_domain}</span>
           </button>
         </form>
@@ -799,78 +707,37 @@ export const RulesTab: React.FC<RulesTabProps> = ({
       </div>
 
       {/* 3. APPLICATION QUOTAS SECTION */}
-      <div
-        style={{
-          background: '#0f172a',
-          border: '1px solid #1e293b',
-          borderRadius: 16,
-          padding: 24,
-        }}
-      >
-        <div style={{ marginBottom: 20 }}>
-          <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#f8fafc', display: 'flex', alignItems: 'center', gap: 10 }}>
-            <Smartphone size={20} color="#34d399" />
+      <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-xs flex flex-col gap-5">
+        <div>
+          <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+            <Smartphone size={18} className="text-emerald-600" />
             {t.title_app_limits}
           </h2>
-          <p style={{ fontSize: '0.85rem', color: '#94a3b8', marginTop: 4 }}>
-            {t.desc_app_limits}
-          </p>
+          <p className="text-xs text-slate-500 mt-0.5">{t.desc_app_limits}</p>
         </div>
 
         {/* Add Form */}
-        <form onSubmit={handleAddApp} style={{ display: 'flex', gap: 12, marginBottom: 24, flexWrap: 'wrap' }}>
+        <form onSubmit={handleAddApp} className="flex gap-2.5 flex-wrap">
           <input
             type="text"
             placeholder={t.placeholder_app}
             value={newApp}
             onChange={(e) => setNewApp(e.target.value)}
-            style={{
-              flex: 3,
-              minWidth: 200,
-              background: '#070b14',
-              border: '1px solid #1e293b',
-              color: '#fff',
-              padding: '10px 14px',
-              borderRadius: 8,
-              fontSize: '0.9rem',
-              outline: 'none',
-            }}
+            className="flex-3 min-w-[200px] bg-white border border-slate-200 text-slate-900 px-3.5 py-2 rounded-lg text-sm outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 shadow-xs placeholder-slate-400"
           />
           <input
             type="number"
             placeholder={t.placeholder_quota}
             value={appQuota}
             onChange={(e) => setAppQuota(e.target.value)}
-            style={{
-              flex: 1,
-              minWidth: 120,
-              background: '#070b14',
-              border: '1px solid #1e293b',
-              color: '#fff',
-              padding: '10px 14px',
-              borderRadius: 8,
-              fontSize: '0.9rem',
-              outline: 'none',
-            }}
+            className="w-32 bg-white border border-slate-200 text-slate-900 px-3.5 py-2 rounded-lg text-sm outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 shadow-xs placeholder-slate-400"
           />
           <button
             type="submit"
             disabled={isAddingApp}
-            style={{
-              background: '#34d399',
-              color: '#070b14',
-              border: 'none',
-              padding: '10px 20px',
-              borderRadius: 8,
-              fontSize: '0.9rem',
-              fontWeight: 700,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-            }}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-semibold cursor-pointer shadow-xs flex items-center gap-1.5 border-0 transition-all"
           >
-            <Plus size={16} />
+            <Plus size={15} />
             <span>{t.btn_add_app}</span>
           </button>
         </form>
@@ -888,107 +755,74 @@ export const RulesTab: React.FC<RulesTabProps> = ({
 
       {/* 4. EXCEL IMPORT PREVIEW MODAL */}
       {importModalOpen && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            zIndex: 150,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            background: 'rgba(0, 0, 0, 0.75)',
-            backdropFilter: 'blur(8px)',
-            padding: 20,
-          }}
-        >
-          <div
-            style={{
-              maxWidth: 750,
-              width: '100%',
-              background: '#0f172a',
-              border: '1px solid #334155',
-              borderRadius: 20,
-              padding: 28,
-              boxShadow: '0 25px 60px rgba(0,0,0,0.6)',
-              maxHeight: '85vh',
-              display: 'flex',
-              flexDirection: 'column',
-            }}
-          >
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
+          <div className="max-w-2xl w-full bg-white border border-slate-200 rounded-2xl p-6 shadow-2xl max-h-[85vh] flex flex-col">
             {/* Header */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
+            <div className="flex justify-between items-start mb-4">
               <div>
-                <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#f8fafc', display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <FileSpreadsheet size={22} color="#10b981" />
+                <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                  <FileSpreadsheet size={20} className="text-emerald-600" />
                   {t.import_modal_title}
                 </h3>
-                <p style={{ fontSize: '0.85rem', color: '#94a3b8', marginTop: 4 }}>
+                <p className="text-xs text-slate-500 mt-1">
                   {t.import_modal_desc
                     .replace('{domains}', String(previewDomainsCount))
                     .replace('{apps}', String(previewAppsCount))}
-                  {importFileName && <span style={{ color: '#38bdf8' }}> ({importFileName})</span>}
+                  {importFileName && (
+                    <span className="text-sky-600 font-medium"> ({importFileName})</span>
+                  )}
                 </p>
               </div>
 
               <button
                 onClick={() => setImportModalOpen(false)}
-                style={{
-                  background: 'transparent',
-                  border: 'none',
-                  color: '#94a3b8',
-                  cursor: 'pointer',
-                  padding: 4,
-                }}
+                className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center cursor-pointer transition-colors border-0"
               >
-                <X size={20} />
+                <X size={16} />
               </button>
             </div>
 
             {/* Preview Table Scrollable */}
-            <div style={{ flex: 1, overflowY: 'auto', border: '1px solid #1e293b', borderRadius: 12, marginBottom: 20 }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.84rem' }}>
-                <thead style={{ position: 'sticky', top: 0, background: '#1e293b', color: '#cbd5e1' }}>
+            <div className="flex-1 overflow-y-auto border border-slate-200 rounded-xl mb-5">
+              <table className="w-full border-collapse text-left text-xs">
+                <thead className="sticky top-0 bg-slate-50 border-b border-slate-200 text-slate-700 font-semibold">
                   <tr>
-                    <th style={{ padding: '10px 14px' }}>{isVi ? 'Mục Tiêu' : 'Target'}</th>
-                    <th style={{ padding: '10px 14px' }}>{isVi ? 'Loại' : 'Type'}</th>
-                    <th style={{ padding: '10px 14px' }}>{isVi ? 'Thông Số / Lý Do' : 'Details / Reason'}</th>
-                    <th style={{ padding: '10px 14px' }}>{isVi ? 'Trạng Thái' : 'Status'}</th>
+                    <th className="py-2.5 px-3">{isVi ? 'Mục Tiêu' : 'Target'}</th>
+                    <th className="py-2.5 px-3">{isVi ? 'Loại' : 'Type'}</th>
+                    <th className="py-2.5 px-3">
+                      {isVi ? 'Thông Số / Lý Do' : 'Details / Reason'}
+                    </th>
+                    <th className="py-2.5 px-3">{isVi ? 'Trạng Thái' : 'Status'}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {previewRules.map((rule, idx) => (
                     <tr
-                      key={idx}
-                      style={{
-                        borderBottom: '1px solid #1e293b',
-                        background: idx % 2 === 0 ? 'transparent' : 'rgba(30, 41, 59, 0.3)',
-                      }}
+                      key={rule.rule_id || `preview-${idx}`}
+                      className="border-b border-slate-100 hover:bg-slate-50/50 text-slate-800"
                     >
-                      <td style={{ padding: '10px 14px', color: '#f8fafc', fontWeight: 600 }}>
-                        {rule.rule_id}
-                      </td>
-                      <td style={{ padding: '10px 14px' }}>
+                      <td className="py-2.5 px-3 font-semibold text-slate-900">{rule.rule_id}</td>
+                      <td className="py-2.5 px-3">
                         <span
-                          style={{
-                            background: rule.rule_type === 'domain' ? 'rgba(56, 189, 248, 0.15)' : 'rgba(52, 211, 153, 0.15)',
-                            color: rule.rule_type === 'domain' ? '#38bdf8' : '#34d399',
-                            padding: '2px 8px',
-                            borderRadius: 6,
-                            fontSize: '0.75rem',
-                            fontWeight: 700,
-                          }}
+                          className={`px-2 py-0.5 rounded text-2xs font-bold border ${
+                            rule.rule_type === 'domain'
+                              ? 'bg-sky-50 text-sky-700 border-sky-200'
+                              : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                          }`}
                         >
                           {rule.rule_type.toUpperCase()}
                         </span>
                       </td>
-                      <td style={{ padding: '10px 14px', color: '#94a3b8' }}>
+                      <td className="py-2.5 px-3 text-slate-600">
                         {rule.rule_type === 'application'
                           ? `${rule.quota || 60} ${isVi ? 'phút/ngày' : 'mins/day'}`
                           : rule.reason}
                       </td>
-                      <td style={{ padding: '10px 14px' }}>
-                        <span style={{ color: rule.enabled ? '#34d399' : '#f87171', fontSize: '0.8rem', fontWeight: 600 }}>
-                          {rule.enabled ? (isVi ? 'BẬT' : 'ENABLED') : (isVi ? 'TẮT' : 'DISABLED')}
+                      <td className="py-2.5 px-3">
+                        <span
+                          className={`text-xs font-semibold ${rule.enabled ? 'text-emerald-700' : 'text-rose-700'}`}
+                        >
+                          {rule.enabled ? (isVi ? 'BẬT' : 'ENABLED') : isVi ? 'TẮT' : 'DISABLED'}
                         </span>
                       </td>
                     </tr>
@@ -998,21 +832,12 @@ export const RulesTab: React.FC<RulesTabProps> = ({
             </div>
 
             {/* Modal Actions */}
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
+            <div className="flex justify-end gap-3">
               <button
                 type="button"
                 onClick={() => setImportModalOpen(false)}
                 disabled={isImporting}
-                style={{
-                  background: 'transparent',
-                  border: '1px solid #475569',
-                  color: '#94a3b8',
-                  padding: '10px 18px',
-                  borderRadius: 10,
-                  fontSize: '0.88rem',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                }}
+                className="bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 px-4 py-2 rounded-xl text-xs font-semibold cursor-pointer shadow-xs transition-all"
               >
                 {t.import_cancel_btn}
               </button>
@@ -1021,22 +846,9 @@ export const RulesTab: React.FC<RulesTabProps> = ({
                 type="button"
                 onClick={handleConfirmImport}
                 disabled={isImporting}
-                style={{
-                  background: 'linear-gradient(135deg, #059669, #10b981)',
-                  color: '#fff',
-                  border: 'none',
-                  padding: '10px 22px',
-                  borderRadius: 10,
-                  fontSize: '0.88rem',
-                  fontWeight: 700,
-                  cursor: isImporting ? 'not-allowed' : 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  boxShadow: '0 4px 15px rgba(16, 185, 129, 0.3)',
-                }}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-xs font-semibold cursor-pointer shadow-xs flex items-center gap-1.5 transition-all border-0 disabled:opacity-60"
               >
-                <Check size={16} />
+                <Check size={14} />
                 <span>
                   {isImporting
                     ? isVi

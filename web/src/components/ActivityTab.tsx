@@ -1,27 +1,28 @@
-import React, { useState, useEffect } from 'react';
 import {
-  Clock,
-  Smartphone,
-  Globe,
-  ShieldAlert,
-  Search,
-  RefreshCw,
-  Download,
-  Filter,
-  CheckCircle,
   AlertTriangle,
-  Layers,
-  Calendar,
-  Gamepad2,
-  Tv,
-  MessageCircle,
   BookOpen,
+  Calendar,
+  CheckCircle,
+  Clock,
   Code2,
+  Download,
   ExternalLink,
+  Filter,
+  Gamepad2,
+  Globe,
+  Layers,
+  MessageCircle,
+  RefreshCw,
+  Search,
+  ShieldAlert,
+  Smartphone,
+  Tv,
 } from 'lucide-react';
-import { ActivitySummaryResponse, Language } from '../types';
-import { translations } from '../i18n';
+import type React from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { api } from '../api';
+import { translations } from '../i18n';
+import type { ActivitySummaryResponse, Language } from '../types';
 
 interface ActivityTabProps {
   lang: Language;
@@ -31,11 +32,7 @@ interface ActivityTabProps {
 
 type ViewSubTab = 'unified' | 'apps' | 'web' | 'keywords';
 
-export const ActivityTab: React.FC<ActivityTabProps> = ({
-  lang,
-  onRefresh,
-  onShowToast,
-}) => {
+export const ActivityTab: React.FC<ActivityTabProps> = ({ lang, onRefresh, onShowToast }) => {
   const t = translations[lang];
   const isVi = lang === 'vi';
 
@@ -46,26 +43,33 @@ export const ActivityTab: React.FC<ActivityTabProps> = ({
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
   const [autoRefresh, setAutoRefresh] = useState<boolean>(true);
 
-  const fetchActivity = async () => {
+  const fetchActivity = useCallback(async () => {
     try {
       setLoading(true);
       const res = await api.getActivitySummary();
       setData(res);
-    } catch (err: any) {
-      onShowToast(err.message || (isVi ? 'Lỗi tải nhật ký hoạt động' : 'Failed to load activity logs'), 'error');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      onShowToast(
+        msg || (isVi ? 'Lỗi tải nhật ký hoạt động' : 'Failed to load activity logs'),
+        'error'
+      );
     } finally {
       setLoading(false);
     }
-  };
+  }, [isVi, onShowToast]);
 
   useEffect(() => {
     fetchActivity();
-  }, []);
+  }, [fetchActivity]);
 
   useEffect(() => {
     if (!autoRefresh) return;
     const timer = setInterval(() => {
-      api.getActivitySummary().then(setData).catch(() => {});
+      api
+        .getActivitySummary()
+        .then(setData)
+        .catch(() => {});
     }, 6000);
     return () => clearInterval(timer);
   }, [autoRefresh]);
@@ -82,7 +86,10 @@ export const ActivityTab: React.FC<ActivityTabProps> = ({
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    onShowToast(isVi ? 'Đã xuất báo cáo hoạt động thành công!' : 'Activity report exported successfully!', 'success');
+    onShowToast(
+      isVi ? 'Đã xuất báo cáo hoạt động thành công!' : 'Activity report exported successfully!',
+      'success'
+    );
   };
 
   const getCategoryIcon = (category: string) => {
@@ -111,7 +118,9 @@ export const ActivityTab: React.FC<ActivityTabProps> = ({
       item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       item.subtitle.toLowerCase().includes(searchQuery.toLowerCase()) ||
       item.category.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchCat = selectedCategory === 'ALL' || item.category.toLowerCase().includes(selectedCategory.toLowerCase());
+    const matchCat =
+      selectedCategory === 'ALL' ||
+      item.category.toLowerCase().includes(selectedCategory.toLowerCase());
     return matchSearch && matchCat;
   });
 
@@ -120,7 +129,9 @@ export const ActivityTab: React.FC<ActivityTabProps> = ({
       app.app_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       app.app_title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       app.category.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchCat = selectedCategory === 'ALL' || app.category.toLowerCase().includes(selectedCategory.toLowerCase());
+    const matchCat =
+      selectedCategory === 'ALL' ||
+      app.category.toLowerCase().includes(selectedCategory.toLowerCase());
     return matchSearch && matchCat;
   });
 
@@ -129,7 +140,9 @@ export const ActivityTab: React.FC<ActivityTabProps> = ({
       web.domain.toLowerCase().includes(searchQuery.toLowerCase()) ||
       web.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
       web.source_app.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchCat = selectedCategory === 'ALL' || web.category.toLowerCase().includes(selectedCategory.toLowerCase());
+    const matchCat =
+      selectedCategory === 'ALL' ||
+      web.category.toLowerCase().includes(selectedCategory.toLowerCase());
     return matchSearch && matchCat;
   });
 
@@ -138,463 +151,255 @@ export const ActivityTab: React.FC<ActivityTabProps> = ({
       kv.keyword_matched.toLowerCase().includes(searchQuery.toLowerCase()) ||
       kv.app_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       kv.category.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchCat = selectedCategory === 'ALL' || kv.category.toLowerCase().includes(selectedCategory.toLowerCase());
+    const matchCat =
+      selectedCategory === 'ALL' ||
+      kv.category.toLowerCase().includes(selectedCategory.toLowerCase());
     return matchSearch && matchCat;
   });
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+    <div className="flex flex-col gap-6">
       {/* Header Banner */}
-      <div style={{
-        background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.9) 0%, rgba(30, 41, 59, 0.7) 100%)',
-        border: '1px solid #1e293b',
-        borderRadius: 20,
-        padding: '24px 28px',
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        flexWrap: 'wrap',
-        gap: 16,
-        boxShadow: '0 10px 30px rgba(0, 0, 0, 0.3)',
-      }}>
+      <div className="bg-white border border-slate-200/80 rounded-2xl p-6 flex justify-between items-center flex-wrap gap-4 shadow-xs">
         <div>
-          <h2 style={{ fontSize: '1.4rem', fontWeight: 800, color: '#f8fafc', display: 'flex', alignItems: 'center', gap: 12, margin: 0 }}>
-            <Clock size={26} color="#38bdf8" />
+          <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2.5">
+            <Clock size={22} className="text-sky-600" />
             {t.activity_title}
           </h2>
-          <p style={{ fontSize: '0.85rem', color: '#94a3b8', marginTop: 6, marginBottom: 0, maxWidth: 800, lineHeight: 1.5 }}>
+          <p className="text-xs text-slate-500 mt-1 max-w-3xl leading-relaxed">
             {t.activity_subtitle}
           </p>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+        <div className="flex items-center gap-2.5 flex-wrap">
           {/* Auto refresh button */}
           <button
             onClick={() => setAutoRefresh(!autoRefresh)}
-            style={{
-              background: autoRefresh ? 'rgba(52, 211, 153, 0.15)' : '#1e293b',
-              color: autoRefresh ? '#34d399' : '#94a3b8',
-              border: `1px solid ${autoRefresh ? 'rgba(52, 211, 153, 0.4)' : '#334155'}`,
-              padding: '8px 14px',
-              borderRadius: 8,
-              fontSize: '0.82rem',
-              fontWeight: 600,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-            }}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold border cursor-pointer flex items-center gap-1.5 transition-all ${
+              autoRefresh
+                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+            }`}
           >
-            <RefreshCw size={14} className={autoRefresh ? 'animate-spin' : ''} />
-            <span>{autoRefresh ? (isVi ? 'Đang tự làm mới' : 'Auto-refresh On') : (isVi ? 'Tự làm mới: Tắt' : 'Auto-refresh Off')}</span>
+            <RefreshCw size={13} className={autoRefresh ? 'animate-spin' : ''} />
+            <span>
+              {autoRefresh
+                ? isVi
+                  ? 'Tự làm mới: BẬT'
+                  : 'Auto-refresh On'
+                : isVi
+                  ? 'Tự làm mới: TẮT'
+                  : 'Auto-refresh Off'}
+            </span>
           </button>
 
           {/* Refresh Manual */}
           <button
             onClick={fetchActivity}
             disabled={loading}
-            style={{
-              background: '#1e293b',
-              color: '#38bdf8',
-              border: '1px solid #334155',
-              padding: '8px 14px',
-              borderRadius: 8,
-              fontSize: '0.82rem',
-              fontWeight: 600,
-              cursor: loading ? 'not-allowed' : 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-            }}
+            className="flex items-center gap-1.5 bg-white text-slate-700 border border-slate-200 hover:bg-slate-50 px-3 py-1.5 rounded-lg text-xs font-semibold shadow-xs cursor-pointer transition-all disabled:opacity-50"
           >
-            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+            <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
             <span>{t.btn_refresh}</span>
           </button>
 
           {/* Export Report */}
           <button
             onClick={handleExport}
-            style={{
-              background: 'linear-gradient(135deg, #0284c7, #38bdf8)',
-              color: '#070b14',
-              border: 'none',
-              padding: '8px 16px',
-              borderRadius: 8,
-              fontSize: '0.85rem',
-              fontWeight: 700,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              boxShadow: '0 4px 12px rgba(56, 189, 248, 0.3)',
-            }}
+            className="flex items-center gap-1.5 bg-sky-600 hover:bg-sky-700 text-white px-3.5 py-1.5 rounded-lg text-xs font-semibold shadow-xs cursor-pointer transition-all border-0"
           >
-            <Download size={15} />
+            <Download size={14} />
             <span>{t.btn_export_activity}</span>
           </button>
         </div>
       </div>
 
-      {/* 4 KPI Summary Cards */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
-        gap: 18,
-      }}>
+      {/* 5 KPI Summary Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         {/* Card 1: Total Screen Time */}
-        <div style={{
-          background: '#0f172a',
-          border: '1px solid #1e293b',
-          borderRadius: 16,
-          padding: 22,
-          position: 'relative',
-          overflow: 'hidden',
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
-            <span style={{ fontSize: '0.88rem', color: '#94a3b8', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Clock size={16} color="#38bdf8" />
+        <div className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-xs flex flex-col justify-between">
+          <div className="flex justify-between items-start mb-2">
+            <span className="text-xs text-slate-500 font-semibold flex items-center gap-1.5">
+              <Clock size={15} className="text-sky-600" />
               {t.stat_screen_time}
             </span>
-            <span style={{
-              background: 'rgba(56, 189, 248, 0.15)',
-              color: '#38bdf8',
-              padding: '2px 8px',
-              borderRadius: 6,
-              fontSize: '0.75rem',
-              fontWeight: 700,
-            }}>
+            <span className="bg-sky-50 text-sky-700 px-2 py-0.5 rounded text-2xs font-mono font-bold border border-sky-100">
               {data?.date || new Date().toISOString().slice(0, 10)}
             </span>
           </div>
-
-          <div style={{ fontSize: '1.9rem', fontWeight: 800, color: '#38bdf8', marginBottom: 6 }}>
+          <div className="text-2xl font-bold text-slate-900 tracking-tight my-1">
             {data?.total_screen_time_formatted || '0 phút'}
           </div>
-
-          <div style={{ fontSize: '0.8rem', color: '#64748b' }}>
-            {t.stat_screen_time_sub}
-          </div>
+          <div className="text-2xs text-slate-400">{t.stat_screen_time_sub}</div>
         </div>
 
         {/* Card 2: Applications Used */}
-        <div style={{
-          background: '#0f172a',
-          border: '1px solid #1e293b',
-          borderRadius: 16,
-          padding: 22,
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
-            <span style={{ fontSize: '0.88rem', color: '#94a3b8', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Smartphone size={16} color="#a855f7" />
+        <div className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-xs flex flex-col justify-between">
+          <div className="flex justify-between items-start mb-2">
+            <span className="text-xs text-slate-500 font-semibold flex items-center gap-1.5">
+              <Smartphone size={15} className="text-indigo-600" />
               {t.stat_apps_opened}
             </span>
-            <span style={{
-              background: 'rgba(168, 85, 247, 0.15)',
-              color: '#c084fc',
-              padding: '2px 8px',
-              borderRadius: 6,
-              fontSize: '0.75rem',
-              fontWeight: 700,
-            }}>
+            <span className="bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded text-2xs font-bold border border-indigo-100">
               {data?.active_apps_count || 0} apps
             </span>
           </div>
-
-          <div style={{ fontSize: '1.9rem', fontWeight: 800, color: '#c084fc', marginBottom: 6 }}>
+          <div className="text-2xl font-bold text-slate-900 tracking-tight my-1">
             {data?.active_apps_count || 0}
           </div>
-
-          <div style={{ fontSize: '0.8rem', color: '#64748b' }}>
-            {t.stat_apps_opened_sub}
-          </div>
+          <div className="text-2xs text-slate-400">{t.stat_apps_opened_sub}</div>
         </div>
 
         {/* Card 3: Websites Visited */}
-        <div style={{
-          background: '#0f172a',
-          border: '1px solid #1e293b',
-          borderRadius: 16,
-          padding: 22,
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
-            <span style={{ fontSize: '0.88rem', color: '#94a3b8', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Globe size={16} color="#34d399" />
+        <div className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-xs flex flex-col justify-between">
+          <div className="flex justify-between items-start mb-2">
+            <span className="text-xs text-slate-500 font-semibold flex items-center gap-1.5">
+              <Globe size={15} className="text-emerald-600" />
               {t.stat_web_visits}
             </span>
-            <span style={{
-              background: 'rgba(52, 211, 153, 0.15)',
-              color: '#34d399',
-              padding: '2px 8px',
-              borderRadius: 6,
-              fontSize: '0.75rem',
-              fontWeight: 700,
-            }}>
-              DNS Loopback
+            <span className="bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded text-2xs font-bold border border-emerald-100">
+              DNS
             </span>
           </div>
-
-          <div style={{ fontSize: '1.9rem', fontWeight: 800, color: '#34d399', marginBottom: 6 }}>
+          <div className="text-2xl font-bold text-slate-900 tracking-tight my-1">
             {data?.total_web_visits_count || 0}
           </div>
-
-          <div style={{ fontSize: '0.8rem', color: '#64748b' }}>
-            {t.stat_web_visits_sub}
-          </div>
+          <div className="text-2xs text-slate-400">{t.stat_web_visits_sub}</div>
         </div>
 
         {/* Card 4: Blocked & Monitored Violations */}
-        <div style={{
-          background: '#0f172a',
-          border: '1px solid #1e293b',
-          borderRadius: 16,
-          padding: 22,
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
-            <span style={{ fontSize: '0.88rem', color: '#94a3b8', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>
-              <ShieldAlert size={16} color="#f87171" />
+        <div className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-xs flex flex-col justify-between">
+          <div className="flex justify-between items-start mb-2">
+            <span className="text-xs text-slate-500 font-semibold flex items-center gap-1.5">
+              <ShieldAlert size={15} className="text-rose-600" />
               {t.stat_violations}
             </span>
-            <span style={{
-              background: 'rgba(248, 113, 113, 0.15)',
-              color: '#f87171',
-              padding: '2px 8px',
-              borderRadius: 6,
-              fontSize: '0.75rem',
-              fontWeight: 700,
-            }}>
+            <span className="bg-rose-50 text-rose-700 px-2 py-0.5 rounded text-2xs font-bold border border-rose-100">
               {data?.blocked_events_count || 0} Block
             </span>
           </div>
-
-          <div style={{ fontSize: '1.9rem', fontWeight: 800, color: '#f87171', marginBottom: 6 }}>
+          <div className="text-2xl font-bold text-slate-900 tracking-tight my-1">
             {(data?.blocked_events_count || 0) + (data?.monitored_events_count || 0)}
           </div>
-
-          <div style={{ fontSize: '0.8rem', color: '#64748b' }}>
-            {t.stat_violations_sub}
-          </div>
+          <div className="text-2xs text-slate-400">{t.stat_violations_sub}</div>
         </div>
 
         {/* Card 5: Sensitive Keyword Violations */}
         <div
           onClick={() => setActiveSubTab('keywords')}
-          style={{
-            background: '#0f172a',
-            border: activeSubTab === 'keywords' ? '1px solid #f59e0b' : '1px solid #1e293b',
-            borderRadius: 16,
-            padding: 22,
-            cursor: 'pointer',
-            transition: 'all 0.2s ease',
-          }}
+          className={`bg-white border rounded-2xl p-5 shadow-xs flex flex-col justify-between cursor-pointer transition-all ${
+            activeSubTab === 'keywords'
+              ? 'border-amber-400 ring-1 ring-amber-400'
+              : 'border-slate-200/80 hover:border-slate-300'
+          }`}
         >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
-            <span style={{ fontSize: '0.88rem', color: '#94a3b8', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>
-              <AlertTriangle size={16} color="#fbbf24" />
+          <div className="flex justify-between items-start mb-2">
+            <span className="text-xs text-slate-500 font-semibold flex items-center gap-1.5">
+              <AlertTriangle size={15} className="text-amber-600" />
               {t.stat_keywords}
             </span>
-            <span style={{
-              background: 'rgba(245, 158, 11, 0.15)',
-              color: '#fbbf24',
-              padding: '2px 8px',
-              borderRadius: 6,
-              fontSize: '0.75rem',
-              fontWeight: 700,
-            }}>
-              RAM Buffer
+            <span className="bg-amber-50 text-amber-700 px-2 py-0.5 rounded text-2xs font-bold border border-amber-100">
+              RAM
             </span>
           </div>
-
-          <div style={{ fontSize: '1.9rem', fontWeight: 800, color: '#fbbf24', marginBottom: 6 }}>
+          <div className="text-2xl font-bold text-slate-900 tracking-tight my-1">
             {data?.keyword_violations_count || 0}
           </div>
-
-          <div style={{ fontSize: '0.8rem', color: '#64748b' }}>
-            {t.stat_keywords_sub}
-          </div>
+          <div className="text-2xs text-slate-400">{t.stat_keywords_sub}</div>
         </div>
       </div>
 
       {/* Main Content Area */}
-      <div style={{
-        background: '#0f172a',
-        border: '1px solid #1e293b',
-        borderRadius: 20,
-        padding: 24,
-        boxShadow: '0 10px 30px rgba(0, 0, 0, 0.3)',
-      }}>
+      <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-xs flex flex-col gap-5">
         {/* Navigation Tabs for Views & Search Bar */}
-        <div style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          flexWrap: 'wrap',
-          gap: 16,
-          borderBottom: '1px solid #1e293b',
-          paddingBottom: 20,
-          marginBottom: 20,
-        }}>
+        <div className="flex justify-between items-center flex-wrap gap-3.5 border-b border-slate-100 pb-4">
           {/* Subtabs */}
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <div className="inline-flex bg-slate-100 p-1 rounded-xl border border-slate-200/80 gap-1 flex-wrap">
             <button
               onClick={() => setActiveSubTab('unified')}
-              style={{
-                background: activeSubTab === 'unified' ? 'rgba(56, 189, 248, 0.15)' : '#070b14',
-                color: activeSubTab === 'unified' ? '#38bdf8' : '#94a3b8',
-                border: `1px solid ${activeSubTab === 'unified' ? '#38bdf8' : '#1e293b'}`,
-                padding: '9px 18px',
-                borderRadius: 10,
-                fontSize: '0.88rem',
-                fontWeight: 700,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                transition: 'all 0.2s ease',
-              }}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-all ${
+                activeSubTab === 'unified'
+                  ? 'bg-white text-slate-900 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
             >
               <span>{t.tab_unified_timeline}</span>
-              <span style={{
-                background: activeSubTab === 'unified' ? '#38bdf8' : '#1e293b',
-                color: activeSubTab === 'unified' ? '#070b14' : '#cbd5e1',
-                padding: '2px 7px',
-                borderRadius: 12,
-                fontSize: '0.75rem',
-                fontWeight: 700,
-              }}>
+              <span
+                className={`px-1.5 py-0.2 rounded-full text-2xs font-bold ${activeSubTab === 'unified' ? 'bg-sky-100 text-sky-800' : 'bg-slate-200 text-slate-700'}`}
+              >
                 {filteredTimeline.length}
               </span>
             </button>
 
             <button
               onClick={() => setActiveSubTab('apps')}
-              style={{
-                background: activeSubTab === 'apps' ? 'rgba(168, 85, 247, 0.15)' : '#070b14',
-                color: activeSubTab === 'apps' ? '#c084fc' : '#94a3b8',
-                border: `1px solid ${activeSubTab === 'apps' ? '#a855f7' : '#1e293b'}`,
-                padding: '9px 18px',
-                borderRadius: 10,
-                fontSize: '0.88rem',
-                fontWeight: 700,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                transition: 'all 0.2s ease',
-              }}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-all ${
+                activeSubTab === 'apps'
+                  ? 'bg-white text-slate-900 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
             >
               <span>{t.tab_apps_timeline}</span>
-              <span style={{
-                background: activeSubTab === 'apps' ? '#a855f7' : '#1e293b',
-                color: activeSubTab === 'apps' ? '#070b14' : '#cbd5e1',
-                padding: '2px 7px',
-                borderRadius: 12,
-                fontSize: '0.75rem',
-                fontWeight: 700,
-              }}>
+              <span
+                className={`px-1.5 py-0.2 rounded-full text-2xs font-bold ${activeSubTab === 'apps' ? 'bg-indigo-100 text-indigo-800' : 'bg-slate-200 text-slate-700'}`}
+              >
                 {filteredApps.length}
               </span>
             </button>
 
             <button
               onClick={() => setActiveSubTab('web')}
-              style={{
-                background: activeSubTab === 'web' ? 'rgba(52, 211, 153, 0.15)' : '#070b14',
-                color: activeSubTab === 'web' ? '#34d399' : '#94a3b8',
-                border: `1px solid ${activeSubTab === 'web' ? '#34d399' : '#1e293b'}`,
-                padding: '9px 18px',
-                borderRadius: 10,
-                fontSize: '0.88rem',
-                fontWeight: 700,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                transition: 'all 0.2s ease',
-              }}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-all ${
+                activeSubTab === 'web'
+                  ? 'bg-white text-slate-900 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
             >
               <span>{t.tab_web_timeline}</span>
-              <span style={{
-                background: activeSubTab === 'web' ? '#34d399' : '#1e293b',
-                color: activeSubTab === 'web' ? '#070b14' : '#cbd5e1',
-                padding: '2px 7px',
-                borderRadius: 12,
-                fontSize: '0.75rem',
-                fontWeight: 700,
-              }}>
+              <span
+                className={`px-1.5 py-0.2 rounded-full text-2xs font-bold ${activeSubTab === 'web' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-700'}`}
+              >
                 {filteredWeb.length}
               </span>
             </button>
 
             <button
               onClick={() => setActiveSubTab('keywords')}
-              style={{
-                background: activeSubTab === 'keywords' ? 'rgba(245, 158, 11, 0.15)' : '#070b14',
-                color: activeSubTab === 'keywords' ? '#fbbf24' : '#94a3b8',
-                border: `1px solid ${activeSubTab === 'keywords' ? '#f59e0b' : '#1e293b'}`,
-                padding: '9px 18px',
-                borderRadius: 10,
-                fontSize: '0.88rem',
-                fontWeight: 700,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                transition: 'all 0.2s ease',
-              }}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-all ${
+                activeSubTab === 'keywords'
+                  ? 'bg-white text-slate-900 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
             >
               <span>{t.tab_keywords_timeline}</span>
-              <span style={{
-                background: activeSubTab === 'keywords' ? '#f59e0b' : '#1e293b',
-                color: activeSubTab === 'keywords' ? '#070b14' : '#cbd5e1',
-                padding: '2px 7px',
-                borderRadius: 12,
-                fontSize: '0.75rem',
-                fontWeight: 700,
-              }}>
+              <span
+                className={`px-1.5 py-0.2 rounded-full text-2xs font-bold ${activeSubTab === 'keywords' ? 'bg-amber-100 text-amber-800' : 'bg-slate-200 text-slate-700'}`}
+              >
                 {filteredKeywords.length}
               </span>
             </button>
           </div>
 
           {/* Search & Filter */}
-          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
-            <div style={{ position: 'relative', width: 280 }}>
+          <div className="flex gap-2.5 flex-wrap items-center">
+            <div className="relative w-64">
               <Search
-                size={16}
-                color="#64748b"
-                style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)' }}
+                size={14}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
               />
               <input
                 type="text"
                 placeholder={t.search_activity_placeholder}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                style={{
-                  width: '100%',
-                  background: '#070b14',
-                  border: '1px solid #1e293b',
-                  color: '#fff',
-                  padding: '9px 12px 9px 36px',
-                  borderRadius: 8,
-                  fontSize: '0.85rem',
-                  outline: 'none',
-                }}
+                className="w-full bg-white border border-slate-200 text-slate-900 pl-9 pr-3 py-1.5 rounded-lg text-xs outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 shadow-xs placeholder-slate-400"
               />
             </div>
 
             <select
               value={selectedCategory}
               onChange={(e) => setSelectedCategory(e.target.value)}
-              style={{
-                background: '#070b14',
-                border: '1px solid #1e293b',
-                color: '#cbd5e1',
-                padding: '9px 14px',
-                borderRadius: 8,
-                fontSize: '0.85rem',
-                outline: 'none',
-                cursor: 'pointer',
-              }}
+              className="bg-white border border-slate-200 text-slate-800 px-3 py-1.5 rounded-lg text-xs outline-none cursor-pointer focus:border-sky-500 shadow-xs"
             >
               <option value="ALL">{t.filter_all_cats}</option>
               <option value="Trò chơi">🎮 Trò chơi (Gaming)</option>
@@ -610,140 +415,99 @@ export const ActivityTab: React.FC<ActivityTabProps> = ({
         {activeSubTab === 'unified' && (
           <div>
             {filteredTimeline.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '40px 20px', color: '#64748b', fontSize: '0.9rem' }}>
-                {t.no_activity_found}
-              </div>
+              <div className="text-center py-10 text-slate-500 text-sm">{t.no_activity_found}</div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12, position: 'relative' }}>
+              <div className="flex flex-col gap-2.5">
                 {filteredTimeline.map((item) => {
                   const isApp = item.item_type === 'app';
                   const isKeyword = item.item_type === 'keyword';
                   const dateObj = new Date(item.timestamp);
-                  const timeFormatted = dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                  const timeFormatted = dateObj.toLocaleTimeString([], {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit',
+                  });
 
                   return (
                     <div
                       key={item.id}
-                      style={{
-                        background: '#070b14',
-                        border: isKeyword ? '1px solid rgba(245, 158, 11, 0.4)' : '1px solid #1e293b',
-                        borderRadius: 12,
-                        padding: '14px 18px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        flexWrap: 'wrap',
-                        gap: 12,
-                        transition: 'border-color 0.2s ease',
-                      }}
+                      className={`border rounded-xl p-3.5 flex items-center justify-between flex-wrap gap-3 transition-colors ${
+                        isKeyword
+                          ? 'bg-amber-50/50 border-amber-200/80 hover:bg-amber-50'
+                          : 'bg-slate-50/60 border-slate-200/80 hover:bg-slate-100/60'
+                      }`}
                     >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                        <div style={{
-                          width: 40,
-                          height: 40,
-                          borderRadius: 10,
-                          background: isKeyword
-                            ? 'rgba(245, 158, 11, 0.15)'
-                            : isApp
-                            ? 'rgba(168, 85, 247, 0.15)'
-                            : 'rgba(56, 189, 248, 0.15)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                        }}>
+                      <div className="flex items-center gap-3">
+                        <div
+                          className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+                            isKeyword
+                              ? 'bg-amber-100 text-amber-700'
+                              : isApp
+                                ? 'bg-indigo-50 text-indigo-700'
+                                : 'bg-sky-50 text-sky-700'
+                          }`}
+                        >
                           {isKeyword ? (
-                            <AlertTriangle size={20} color="#fbbf24" />
+                            <AlertTriangle size={17} />
                           ) : isApp ? (
-                            <Smartphone size={20} color="#c084fc" />
+                            <Smartphone size={17} />
                           ) : (
-                            <Globe size={20} color="#38bdf8" />
+                            <Globe size={17} />
                           )}
                         </div>
 
                         <div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-                            <span style={{ fontWeight: 700, color: isKeyword ? '#fef08a' : '#f8fafc', fontSize: '0.95rem' }}>
-                              {item.title}
-                            </span>
-                            <span style={{
-                              background: '#1e293b',
-                              color: '#94a3b8',
-                              padding: '2px 8px',
-                              borderRadius: 6,
-                              fontSize: '0.72rem',
-                              fontWeight: 600,
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 4,
-                            }}>
+                          <div className="flex items-center gap-2 mb-0.5">
+                            <span className="font-bold text-slate-900 text-sm">{item.title}</span>
+                            <span className="bg-white text-slate-600 border border-slate-200 px-2 py-0.5 rounded text-2xs font-medium inline-flex items-center gap-1 shadow-2xs">
                               {getCategoryIcon(item.category)}
                               {item.category}
                             </span>
                           </div>
 
-                          <div style={{ fontSize: '0.82rem', color: '#94a3b8' }}>
-                            {item.subtitle}
-                          </div>
+                          <div className="text-xs text-slate-500">{item.subtitle}</div>
                         </div>
                       </div>
 
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                        <div style={{ textAlign: 'right' }}>
-                          <div style={{ fontSize: '0.88rem', fontWeight: 700, color: '#cbd5e1', fontFamily: 'monospace' }}>
+                      <div className="flex items-center gap-3.5">
+                        <div className="text-right">
+                          <div className="text-xs font-mono font-bold text-slate-800">
                             {timeFormatted}
                           </div>
-                          <div style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                          <div className="text-2xs text-slate-400">
                             {dateObj.toLocaleDateString()}
                           </div>
                         </div>
 
                         {/* Action Badge */}
-                        <span style={{
-                          padding: '4px 10px',
-                          borderRadius: 6,
-                          fontSize: '0.75rem',
-                          fontWeight: 700,
-                          background:
+                        <span
+                          className={`px-2.5 py-0.5 rounded-full font-bold text-2xs border ${
                             item.action === 'VIOLATION'
-                              ? 'rgba(245, 158, 11, 0.2)'
+                              ? 'bg-amber-50 text-amber-700 border-amber-200/80'
                               : item.action === 'BLOCK'
-                              ? 'rgba(239, 68, 68, 0.15)'
-                              : item.action === 'MONITOR'
-                              ? 'rgba(245, 158, 11, 0.15)'
-                              : item.action === 'ACTIVE'
-                              ? 'rgba(168, 85, 247, 0.15)'
-                              : 'rgba(52, 211, 153, 0.15)',
-                          color:
-                            item.action === 'VIOLATION'
-                              ? '#fbbf24'
-                              : item.action === 'BLOCK'
-                              ? '#ef4444'
-                              : item.action === 'MONITOR'
-                              ? '#f59e0b'
-                              : item.action === 'ACTIVE'
-                              ? '#c084fc'
-                              : '#34d399',
-                          border: `1px solid ${
-                            item.action === 'VIOLATION'
-                              ? 'rgba(245, 158, 11, 0.4)'
-                              : item.action === 'BLOCK'
-                              ? 'rgba(239, 68, 68, 0.3)'
-                              : item.action === 'MONITOR'
-                              ? 'rgba(245, 158, 11, 0.3)'
-                              : item.action === 'ACTIVE'
-                              ? 'rgba(168, 85, 247, 0.3)'
-                              : 'rgba(52, 211, 153, 0.3)'
-                          }`,
-                        }}>
+                                ? 'bg-rose-50 text-rose-700 border-rose-200/80'
+                                : item.action === 'MONITOR'
+                                  ? 'bg-amber-50 text-amber-700 border-amber-200/80'
+                                  : item.action === 'ACTIVE'
+                                    ? 'bg-indigo-50 text-indigo-700 border-indigo-200/80'
+                                    : 'bg-emerald-50 text-emerald-700 border-emerald-200/80'
+                          }`}
+                        >
                           {item.action === 'VIOLATION'
-                            ? (isVi ? '⚠️ TỪ KHÓA VI PHẠM' : '⚠️ KEYWORD VIOLATION')
+                            ? isVi
+                              ? '⚠️ TỪ KHÓA VI PHẠM'
+                              : '⚠️ KEYWORD VIOLATION'
                             : item.action === 'BLOCK'
-                            ? t.tag_block
-                            : item.action === 'MONITOR'
-                            ? (isVi ? 'GIÁM SÁT' : 'MONITOR')
-                            : item.action === 'ACTIVE'
-                            ? (isVi ? 'ĐANG CHẠY' : 'ACTIVE')
-                            : t.tag_allow}
+                              ? t.tag_block
+                              : item.action === 'MONITOR'
+                                ? isVi
+                                  ? 'GIÁM SÁT'
+                                  : 'MONITOR'
+                                : item.action === 'ACTIVE'
+                                  ? isVi
+                                    ? 'ĐANG CHẠY'
+                                    : 'ACTIVE'
+                                  : t.tag_allow}
                         </span>
                       </div>
                     </div>
@@ -756,86 +520,84 @@ export const ActivityTab: React.FC<ActivityTabProps> = ({
 
         {/* VIEW 2: APPLICATION TIMELINE */}
         {activeSubTab === 'apps' && (
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: 650 }}>
+          <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+            <table className="w-full border-collapse text-left min-w-[650px] text-xs">
               <thead>
-                <tr style={{ borderBottom: '1px solid #1e293b' }}>
-                  <th style={{ padding: '12px 16px', color: '#64748b', fontSize: '0.8rem', fontWeight: 600 }}>{t.th_app_col}</th>
-                  <th style={{ padding: '12px 16px', color: '#64748b', fontSize: '0.8rem', fontWeight: 600 }}>{t.th_category_col}</th>
-                  <th style={{ padding: '12px 16px', color: '#64748b', fontSize: '0.8rem', fontWeight: 600 }}>{t.th_time_window}</th>
-                  <th style={{ padding: '12px 16px', color: '#64748b', fontSize: '0.8rem', fontWeight: 600 }}>{t.th_duration}</th>
-                  <th style={{ padding: '12px 16px', color: '#64748b', fontSize: '0.8rem', fontWeight: 600 }}>{t.th_status_col}</th>
+                <tr className="border-b border-slate-200 bg-slate-50 text-slate-600 font-semibold">
+                  <th className="py-2.5 px-3.5">{t.th_app_col}</th>
+                  <th className="py-2.5 px-3.5">{t.th_category_col}</th>
+                  <th className="py-2.5 px-3.5">{t.th_time_window}</th>
+                  <th className="py-2.5 px-3.5">{t.th_duration}</th>
+                  <th className="py-2.5 px-3.5">{t.th_status_col}</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredApps.length === 0 ? (
                   <tr>
-                    <td colSpan={5} style={{ textAlign: 'center', padding: '30px', color: '#64748b', fontSize: '0.88rem' }}>
+                    <td colSpan={5} className="text-center py-8 text-slate-500 text-sm">
                       {t.no_activity_found}
                     </td>
                   </tr>
                 ) : (
                   filteredApps.map((app) => {
-                    const startStr = new Date(app.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                    const endStr = new Date(app.end_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                    const startStr = new Date(app.start_time).toLocaleTimeString([], {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    });
+                    const endStr = new Date(app.end_time).toLocaleTimeString([], {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    });
 
                     return (
-                      <tr key={app.id} style={{ borderBottom: '1px solid #1e293b' }}>
-                        <td style={{ padding: '14px 16px' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                            <Smartphone size={18} color="#c084fc" />
+                      <tr
+                        key={app.id}
+                        className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors"
+                      >
+                        <td className="py-2.5 px-3.5">
+                          <div className="flex items-center gap-2.5">
+                            <Smartphone size={16} className="text-indigo-600 shrink-0" />
                             <div>
-                              <div style={{ fontWeight: 700, color: '#f8fafc', fontSize: '0.9rem' }}>{app.app_title}</div>
-                              <div style={{ fontSize: '0.75rem', color: '#64748b', fontFamily: 'monospace' }}>{app.app_name}</div>
+                              <div className="font-semibold text-slate-900">{app.app_title}</div>
+                              <div className="text-2xs text-slate-400 font-mono">
+                                {app.app_name}
+                              </div>
                             </div>
                           </div>
                         </td>
-                        <td style={{ padding: '14px 16px' }}>
-                          <span style={{
-                            background: '#1e293b',
-                            color: '#cbd5e1',
-                            padding: '3px 8px',
-                            borderRadius: 6,
-                            fontSize: '0.78rem',
-                            fontWeight: 600,
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: 6,
-                          }}>
+                        <td className="py-2.5 px-3.5">
+                          <span className="bg-slate-100 text-slate-700 border border-slate-200 px-2 py-0.5 rounded text-2xs font-medium inline-flex items-center gap-1.5">
                             {getCategoryIcon(app.category)}
                             {app.category}
                           </span>
                         </td>
-                        <td style={{ padding: '14px 16px', color: '#cbd5e1', fontSize: '0.85rem', fontFamily: 'monospace' }}>
+                        <td className="py-2.5 px-3.5 text-slate-600 font-mono">
                           {startStr} &rarr; {endStr}
                         </td>
-                        <td style={{ padding: '14px 16px', color: '#38bdf8', fontSize: '0.9rem', fontWeight: 700 }}>
+                        <td className="py-2.5 px-3.5 text-sky-700 font-bold font-mono">
                           {app.duration_formatted}
                         </td>
-                        <td style={{ padding: '14px 16px' }}>
-                          <span style={{
-                            padding: '3px 8px',
-                            borderRadius: 6,
-                            fontSize: '0.75rem',
-                            fontWeight: 700,
-                            background:
+                        <td className="py-2.5 px-3.5">
+                          <span
+                            className={`px-2 py-0.5 rounded-full font-bold text-2xs border ${
                               app.status === 'Active'
-                                ? 'rgba(52, 211, 153, 0.15)'
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                                 : app.status === 'QuotaWarning'
-                                ? 'rgba(245, 158, 11, 0.15)'
-                                : 'rgba(56, 189, 248, 0.15)',
-                            color:
-                              app.status === 'Active'
-                                ? '#34d399'
-                                : app.status === 'QuotaWarning'
-                                ? '#f59e0b'
-                                : '#38bdf8',
-                          }}>
+                                  ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                  : 'bg-slate-100 text-slate-700 border-slate-200'
+                            }`}
+                          >
                             {app.status === 'Active'
-                              ? (isVi ? 'Đang chạy' : 'Active')
+                              ? isVi
+                                ? 'Đang chạy'
+                                : 'Active'
                               : app.status === 'QuotaWarning'
-                              ? (isVi ? 'Cảnh báo hạn mức' : 'Quota Warning')
-                              : (isVi ? 'Bình thường' : 'Normal')}
+                                ? isVi
+                                  ? 'Cảnh báo hạn mức'
+                                  : 'Quota Warning'
+                                : isVi
+                                  ? 'Bình thường'
+                                  : 'Normal'}
                           </span>
                         </td>
                       </tr>
@@ -849,92 +611,77 @@ export const ActivityTab: React.FC<ActivityTabProps> = ({
 
         {/* VIEW 3: WEB & DOMAIN HISTORY */}
         {activeSubTab === 'web' && (
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: 650 }}>
+          <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+            <table className="w-full border-collapse text-left min-w-[650px] text-xs">
               <thead>
-                <tr style={{ borderBottom: '1px solid #1e293b' }}>
-                  <th style={{ padding: '12px 16px', color: '#64748b', fontSize: '0.8rem', fontWeight: 600 }}>{t.th_time}</th>
-                  <th style={{ padding: '12px 16px', color: '#64748b', fontSize: '0.8rem', fontWeight: 600 }}>{t.th_domain_col}</th>
-                  <th style={{ padding: '12px 16px', color: '#64748b', fontSize: '0.8rem', fontWeight: 600 }}>{t.th_category_col}</th>
-                  <th style={{ padding: '12px 16px', color: '#64748b', fontSize: '0.8rem', fontWeight: 600 }}>{t.th_source_app}</th>
-                  <th style={{ padding: '12px 16px', color: '#64748b', fontSize: '0.8rem', fontWeight: 600 }}>{t.th_action_col}</th>
+                <tr className="border-b border-slate-200 bg-slate-50 text-slate-600 font-semibold">
+                  <th className="py-2.5 px-3.5">{t.th_time}</th>
+                  <th className="py-2.5 px-3.5">{t.th_domain_col}</th>
+                  <th className="py-2.5 px-3.5">{t.th_category_col}</th>
+                  <th className="py-2.5 px-3.5">{t.th_source_app}</th>
+                  <th className="py-2.5 px-3.5">{t.th_action_col}</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredWeb.length === 0 ? (
                   <tr>
-                    <td colSpan={5} style={{ textAlign: 'center', padding: '30px', color: '#64748b', fontSize: '0.88rem' }}>
+                    <td colSpan={5} className="text-center py-8 text-slate-500 text-sm">
                       {t.no_activity_found}
                     </td>
                   </tr>
                 ) : (
                   filteredWeb.map((web) => {
-                    const timeStr = new Date(web.occurred_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                    const timeStr = new Date(web.occurred_at).toLocaleTimeString([], {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      second: '2-digit',
+                    });
 
                     return (
-                      <tr key={web.id} style={{ borderBottom: '1px solid #1e293b' }}>
-                        <td style={{ padding: '14px 16px', color: '#94a3b8', fontSize: '0.82rem', fontFamily: 'monospace' }}>
+                      <tr
+                        key={web.id}
+                        className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors"
+                      >
+                        <td className="py-2.5 px-3.5 text-slate-500 font-mono text-xs">
                           {timeStr}
                         </td>
-                        <td style={{ padding: '14px 16px' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <Globe size={15} color="#38bdf8" />
-                            <span style={{ fontWeight: 700, color: '#f8fafc', fontSize: '0.88rem' }}>{web.domain}</span>
+                        <td className="py-2.5 px-3.5">
+                          <div className="flex items-center gap-2">
+                            <Globe size={14} className="text-sky-600 shrink-0" />
+                            <span className="font-semibold text-slate-900 break-all">
+                              {web.domain}
+                            </span>
                           </div>
                           {web.reason && (
-                            <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: 2 }}>{web.reason}</div>
+                            <div className="text-2xs text-slate-500 mt-0.5">{web.reason}</div>
                           )}
                         </td>
-                        <td style={{ padding: '14px 16px' }}>
-                          <span style={{
-                            background: '#1e293b',
-                            color: '#cbd5e1',
-                            padding: '3px 8px',
-                            borderRadius: 6,
-                            fontSize: '0.75rem',
-                            fontWeight: 600,
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: 6,
-                          }}>
+                        <td className="py-2.5 px-3.5">
+                          <span className="bg-slate-100 text-slate-700 border border-slate-200 px-2 py-0.5 rounded text-2xs font-medium inline-flex items-center gap-1.5">
                             {getCategoryIcon(web.category)}
                             {web.category}
                           </span>
                         </td>
-                        <td style={{ padding: '14px 16px', color: '#94a3b8', fontSize: '0.82rem', fontFamily: 'monospace' }}>
+                        <td className="py-2.5 px-3.5 text-slate-500 font-mono text-xs">
                           {web.source_app}
                         </td>
-                        <td style={{ padding: '14px 16px' }}>
-                          <span style={{
-                            padding: '3px 8px',
-                            borderRadius: 6,
-                            fontSize: '0.75rem',
-                            fontWeight: 700,
-                            background:
+                        <td className="py-2.5 px-3.5">
+                          <span
+                            className={`px-2 py-0.5 rounded-full font-bold text-2xs border ${
                               web.action === 'BLOCK'
-                                ? 'rgba(239, 68, 68, 0.15)'
+                                ? 'bg-rose-50 text-rose-700 border-rose-200'
                                 : web.action === 'MONITOR'
-                                ? 'rgba(245, 158, 11, 0.15)'
-                                : 'rgba(52, 211, 153, 0.15)',
-                            color:
-                              web.action === 'BLOCK'
-                                ? '#ef4444'
-                                : web.action === 'MONITOR'
-                                ? '#f59e0b'
-                                : '#34d399',
-                            border: `1px solid ${
-                              web.action === 'BLOCK'
-                                ? 'rgba(239, 68, 68, 0.3)'
-                                : web.action === 'MONITOR'
-                                ? 'rgba(245, 158, 11, 0.3)'
-                                : 'rgba(52, 211, 153, 0.3)'
-                            }`,
-                          }}>
+                                  ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                  : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            }`}
+                          >
                             {web.action === 'BLOCK'
                               ? t.tag_block
                               : web.action === 'MONITOR'
-                              ? (isVi ? 'GIÁM SÁT' : 'MONITOR')
-                              : t.tag_allow}
+                                ? isVi
+                                  ? 'GIÁM SÁT'
+                                  : 'MONITOR'
+                                : t.tag_allow}
                           </span>
                         </td>
                       </tr>
@@ -950,59 +697,56 @@ export const ActivityTab: React.FC<ActivityTabProps> = ({
         {activeSubTab === 'keywords' && (
           <div>
             {filteredKeywords.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '40px 20px', color: '#64748b', fontSize: '0.9rem' }}>
+              <div className="text-center py-10 text-slate-500 text-sm">
                 {isVi ? 'Không phát hiện từ khóa vi phạm nào.' : 'No keyword violations recorded.'}
               </div>
             ) : (
-              <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.88rem' }}>
+              <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+                <table className="w-full border-collapse text-left text-xs">
                   <thead>
-                    <tr style={{ borderBottom: '1px solid #1e293b', color: '#64748b', fontSize: '0.78rem', textTransform: 'uppercase' }}>
-                      <th style={{ padding: '12px 16px' }}>{t.th_time}</th>
-                      <th style={{ padding: '12px 16px' }}>{t.th_kw_pattern}</th>
-                      <th style={{ padding: '12px 16px' }}>{t.th_kw_category}</th>
-                      <th style={{ padding: '12px 16px' }}>{t.th_kw_severity}</th>
-                      <th style={{ padding: '12px 16px' }}>{t.th_kw_app}</th>
-                      <th style={{ padding: '12px 16px' }}>{t.th_kw_snippet}</th>
+                    <tr className="border-b border-slate-200 bg-slate-50 text-slate-600 font-semibold uppercase text-2xs">
+                      <th className="py-2.5 px-3.5">{t.th_time}</th>
+                      <th className="py-2.5 px-3.5">{t.th_kw_pattern}</th>
+                      <th className="py-2.5 px-3.5">{t.th_kw_category}</th>
+                      <th className="py-2.5 px-3.5">{t.th_kw_severity}</th>
+                      <th className="py-2.5 px-3.5">{t.th_kw_app}</th>
+                      <th className="py-2.5 px-3.5">{t.th_kw_snippet}</th>
                     </tr>
                   </thead>
                   <tbody>
                     {filteredKeywords.map((kv) => (
-                      <tr key={kv.id} style={{ borderBottom: '1px solid rgba(30, 41, 59, 0.6)' }}>
-                        <td style={{ padding: '14px 16px', color: '#94a3b8', fontFamily: 'monospace' }}>
-                          {new Date(kv.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                      <tr
+                        key={kv.id}
+                        className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors"
+                      >
+                        <td className="py-2.5 px-3.5 text-slate-500 font-mono">
+                          {new Date(kv.timestamp).toLocaleTimeString([], {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            second: '2-digit',
+                          })}
                         </td>
-                        <td style={{ padding: '14px 16px', fontWeight: 700, color: '#f87171' }}>
+                        <td className="py-2.5 px-3.5 font-bold text-rose-600">
                           "{kv.keyword_matched}"
                         </td>
-                        <td style={{ padding: '14px 16px', color: '#e2e8f0' }}>
-                          <span style={{
-                            background: '#1e293b',
-                            padding: '3px 8px',
-                            borderRadius: 6,
-                            fontSize: '0.75rem',
-                          }}>
+                        <td className="py-2.5 px-3.5">
+                          <span className="bg-slate-100 text-slate-700 border border-slate-200 px-2 py-0.5 rounded text-2xs font-medium">
                             {kv.category}
                           </span>
                         </td>
-                        <td style={{ padding: '14px 16px' }}>
-                          <span style={{
-                            padding: '3px 8px',
-                            borderRadius: 6,
-                            fontSize: '0.72rem',
-                            fontWeight: 700,
-                            textTransform: 'uppercase',
-                            background: kv.severity === 'critical' ? 'rgba(239, 68, 68, 0.2)' : 'rgba(245, 158, 11, 0.2)',
-                            color: kv.severity === 'critical' ? '#ef4444' : '#fbbf24',
-                            border: `1px solid ${kv.severity === 'critical' ? 'rgba(239, 68, 68, 0.4)' : 'rgba(245, 158, 11, 0.4)'}`,
-                          }}>
+                        <td className="py-2.5 px-3.5">
+                          <span
+                            className={`px-2 py-0.5 rounded text-2xs font-bold uppercase border ${
+                              kv.severity === 'critical'
+                                ? 'bg-rose-50 text-rose-700 border-rose-200'
+                                : 'bg-amber-50 text-amber-700 border-amber-200'
+                            }`}
+                          >
                             {kv.severity}
                           </span>
                         </td>
-                        <td style={{ padding: '14px 16px', color: '#c084fc', fontWeight: 600 }}>
-                          {kv.app_name}
-                        </td>
-                        <td style={{ padding: '14px 16px', color: '#94a3b8', fontStyle: 'italic', fontFamily: 'monospace' }}>
+                        <td className="py-2.5 px-3.5 text-indigo-700 font-medium">{kv.app_name}</td>
+                        <td className="py-2.5 px-3.5 text-slate-600 italic font-mono text-2xs">
                           {kv.snippet_masked}
                         </td>
                       </tr>

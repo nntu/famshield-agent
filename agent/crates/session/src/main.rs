@@ -83,22 +83,88 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     });
 
-    // 4. Periodic foreground and idle tracking loop (every 1 second)
+    // 4. Periodic foreground, idle tracking & IPC heartbeat loop (every 1 second)
     let km_for_tracker = keyboard_monitor.clone();
     tokio::spawn(async move {
         let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(1));
+        let session_id = famshield_session::keyboard_monitor::get_current_session_id();
+        let mut last_heartbeat = std::time::Instant::now();
+
         loop {
             interval.tick().await;
             let idle_ms = ForegroundTracker::get_system_idle_millis();
             let is_idle = idle_ms >= 180_000; // 3 minutes
 
+            let mut current_proc = "unknown".to_string();
             if let Some(proc_name) = ForegroundTracker::get_foreground_process_name() {
                 if let Ok(exe) = famshield_core::domain::ExecutableName::parse(&proc_name) {
                     tracker.switch_active_window(exe, std::time::Instant::now());
                     km_for_tracker.set_active_app(&proc_name);
+                    current_proc = proc_name;
                 }
             }
             tracker.tick_usage(1, is_idle);
+
+            // Send IPC heartbeat every 2 seconds and process any capture triggers (e.g. web block)
+            if last_heartbeat.elapsed().as_secs() >= 2 {
+                last_heartbeat = std::time::Instant::now();
+                match famshield_session::keyboard_monitor::send_heartbeat_via_ipc(
+                    session_id,
+                    current_proc,
+                    is_idle,
+                    idle_ms.into(),
+                )
+                .await
+                {
+                    Ok(Some(famshield_service::ipc::IpcMessage::CaptureEvidenceCommand {
+                        event_id,
+                        trigger,
+                    })) => {
+                        info!(
+                            "Received CaptureEvidenceCommand from service for trigger: '{}'",
+                            trigger
+                        );
+
+                        // 1. Show notification toast to user
+                        let tray_hwnd = SystemTray::get_tray_hwnd();
+                        famshield_session::FriendlyToast::notify_content_blocked(tray_hwnd, &trigger);
+
+                        // 2. Capture blurred screenshot in RAM and submit to service
+                        tokio::spawn(async move {
+                            let verifier = famshield_session::SmartVisualVerifier::new(15);
+                            let capture_res = tokio::task::spawn_blocking(move || {
+                                verifier.capture_blurred_frame()
+                            })
+                            .await;
+
+                            match capture_res {
+                                Ok(Ok(jpeg_bytes)) => {
+                                    if let Err(e) =
+                                        famshield_session::keyboard_monitor::send_visual_evidence_via_ipc(
+                                            event_id,
+                                            trigger,
+                                            jpeg_bytes,
+                                        )
+                                        .await
+                                    {
+                                        tracing::warn!("Failed to submit web block visual evidence: {}", e);
+                                    }
+                                }
+                                Ok(Err(e)) => {
+                                    tracing::warn!("Failed to capture web block evidence frame: {}", e);
+                                }
+                                Err(e) => {
+                                    tracing::warn!("Spawn blocking error: {}", e);
+                                }
+                            }
+                        });
+                    }
+                    Ok(_) => {}
+                    Err(e) => {
+                        tracing::debug!("Heartbeat IPC: {}", e);
+                    }
+                }
+            }
         }
     });
 

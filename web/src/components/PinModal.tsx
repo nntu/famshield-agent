@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
-import { ShieldAlert, KeyRound, ShieldCheck, ArrowLeft } from 'lucide-react';
-import { Language } from '../types';
-import { translations } from '../i18n';
+import { ArrowLeft, KeyRound, ShieldAlert, ShieldCheck } from 'lucide-react';
+import type React from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api } from '../api';
+import { translations } from '../i18n';
+import type { Language } from '../types';
 
 interface PinModalProps {
   isOpen: boolean;
@@ -27,6 +28,7 @@ export const PinModal: React.FC<PinModalProps> = ({ isOpen, lang, onSuccess }) =
   const [error, setError] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [isShaking, setIsShaking] = useState<boolean>(false);
+  const dialogRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!isOpen) {
@@ -59,11 +61,45 @@ export const PinModal: React.FC<PinModalProps> = ({ isOpen, lang, onSuccess }) =
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, pin, step, otpCode]);
 
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+    const dialog = dialogRef.current;
+    const focusableSelector =
+      'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+    const focusFirst = () => dialog?.querySelector<HTMLElement>(focusableSelector)?.focus();
+    const frame = window.requestAnimationFrame(focusFirst);
+
+    const trapFocus = (event: KeyboardEvent) => {
+      if (event.key !== 'Tab' || !dialog) return;
+      const focusable = Array.from(dialog.querySelectorAll<HTMLElement>(focusableSelector));
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener('keydown', trapFocus);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      document.removeEventListener('keydown', trapFocus);
+      previouslyFocused?.focus();
+    };
+  }, [isOpen, step]);
+
   if (!isOpen) return null;
 
   const handlePressDigit = (digit: string) => {
     const nextPin = [...pin];
-    const emptyIndex = nextPin.findIndex((d) => d === '');
+    const emptyIndex = nextPin.indexOf('');
     if (emptyIndex !== -1) {
       nextPin[emptyIndex] = digit;
       setPin(nextPin);
@@ -106,8 +142,9 @@ export const PinModal: React.FC<PinModalProps> = ({ isOpen, lang, onSuccess }) =
       } else {
         triggerShake(res.error || t.modal_pin_error);
       }
-    } catch (e: any) {
-      triggerShake(e.message || t.modal_pin_error);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      triggerShake(msg || t.modal_pin_error);
     } finally {
       setIsSubmitting(false);
     }
@@ -123,10 +160,13 @@ export const PinModal: React.FC<PinModalProps> = ({ isOpen, lang, onSuccess }) =
       if (res.success) {
         onSuccess();
       } else {
-        triggerShake(res.error || (isVi ? 'Mã xác thực không hợp lệ' : 'Invalid verification code'));
+        triggerShake(
+          res.error || (isVi ? 'Mã xác thực không hợp lệ' : 'Invalid verification code')
+        );
       }
-    } catch (e: any) {
-      triggerShake(e.message || (isVi ? 'Lỗi xác thực 2FA' : '2FA authentication error'));
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      triggerShake(msg || (isVi ? 'Lỗi xác thực 2FA' : '2FA authentication error'));
     } finally {
       setIsSubmitting(false);
     }
@@ -144,6 +184,11 @@ export const PinModal: React.FC<PinModalProps> = ({ isOpen, lang, onSuccess }) =
   return (
     <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
       <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="pin-modal-title"
+        aria-describedby="pin-modal-description"
         className={`bg-white border border-slate-200 rounded-3xl p-8 sm:p-9 w-full max-w-md text-center shadow-2xl transition-transform duration-100 ${
           isShaking ? '-translate-x-2' : ''
         }`}
@@ -155,18 +200,26 @@ export const PinModal: React.FC<PinModalProps> = ({ isOpen, lang, onSuccess }) =
               <KeyRound size={28} />
             </div>
 
-            <h2 className="text-xl font-bold text-slate-900 mb-1">
+            <h2 id="pin-modal-title" className="text-xl font-bold text-slate-900 mb-1">
               {t.modal_pin_title}
             </h2>
-            <p className="text-sm text-slate-500 mb-6 font-medium">
+            <p id="pin-modal-description" className="text-sm text-slate-500 mb-6 font-medium">
               {t.modal_pin_sub}
             </p>
 
             {/* 6 PIN Slots */}
-            <div className="flex justify-center gap-2.5 mb-6">
+            <div
+              className="flex justify-center gap-2.5 mb-6"
+              role="status"
+              aria-label={
+                isVi
+                  ? `Đã nhập ${pin.filter(Boolean).length} trên 6 chữ số`
+                  : `${pin.filter(Boolean).length} of 6 digits entered`
+              }
+            >
               {pin.map((digit, idx) => (
                 <div
-                  key={idx}
+                  key={`pin-slot-${idx}`}
                   className={`w-11 h-13 rounded-xl flex items-center justify-center text-2xl font-bold transition-all ${
                     digit
                       ? 'bg-sky-50 border-2 border-sky-500 text-sky-600 shadow-xs'
@@ -181,7 +234,10 @@ export const PinModal: React.FC<PinModalProps> = ({ isOpen, lang, onSuccess }) =
             {/* Error alert */}
             <div className="min-h-[24px] mb-4">
               {error && (
-                <div className="flex items-center justify-center gap-1.5 text-red-600 text-xs font-semibold">
+                <div
+                  role="alert"
+                  className="flex items-center justify-center gap-1.5 text-red-600 text-xs font-semibold"
+                >
                   <ShieldAlert size={15} />
                   <span>{error}</span>
                 </div>
@@ -196,6 +252,8 @@ export const PinModal: React.FC<PinModalProps> = ({ isOpen, lang, onSuccess }) =
               {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((n) => (
                 <button
                   key={n}
+                  type="button"
+                  aria-label={isVi ? `Số ${n}` : `Digit ${n}`}
                   onClick={() => handlePressDigit(n)}
                   disabled={isSubmitting}
                   className="bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200/80 text-xl font-semibold py-3 rounded-xl cursor-pointer active:scale-95 transition-all shadow-2xs"
@@ -204,6 +262,8 @@ export const PinModal: React.FC<PinModalProps> = ({ isOpen, lang, onSuccess }) =
                 </button>
               ))}
               <button
+                type="button"
+                aria-label={isVi ? 'Xóa toàn bộ mã PIN' : 'Clear PIN'}
                 onClick={handleClear}
                 disabled={isSubmitting}
                 className="bg-slate-100 hover:bg-slate-200 text-slate-500 border border-slate-200/80 text-base font-semibold py-3 rounded-xl cursor-pointer active:scale-95 transition-all"
@@ -211,6 +271,8 @@ export const PinModal: React.FC<PinModalProps> = ({ isOpen, lang, onSuccess }) =
                 C
               </button>
               <button
+                type="button"
+                aria-label={isVi ? 'Số 0' : 'Digit 0'}
                 onClick={() => handlePressDigit('0')}
                 disabled={isSubmitting}
                 className="bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200/80 text-xl font-semibold py-3 rounded-xl cursor-pointer active:scale-95 transition-all shadow-2xs"
@@ -218,6 +280,8 @@ export const PinModal: React.FC<PinModalProps> = ({ isOpen, lang, onSuccess }) =
                 0
               </button>
               <button
+                type="button"
+                aria-label={isVi ? 'Xóa chữ số cuối' : 'Delete last digit'}
                 onClick={handleBackspace}
                 disabled={isSubmitting}
                 className="bg-slate-100 hover:bg-slate-200 text-slate-500 border border-slate-200/80 text-lg font-semibold py-3 rounded-xl cursor-pointer active:scale-95 transition-all"
@@ -233,10 +297,13 @@ export const PinModal: React.FC<PinModalProps> = ({ isOpen, lang, onSuccess }) =
               <ShieldCheck size={32} />
             </div>
 
-            <h2 className="text-xl font-bold text-slate-900 mb-1">
+            <h2 id="pin-modal-title" className="text-xl font-bold text-slate-900 mb-1">
               {isVi ? 'Xác Thực 2 Lớp (2FA)' : 'Two-Factor Authentication'}
             </h2>
-            <p className="text-sm text-slate-500 mb-6 font-medium leading-relaxed">
+            <p
+              id="pin-modal-description"
+              className="text-sm text-slate-500 mb-6 font-medium leading-relaxed"
+            >
               {isVi
                 ? 'Nhập mã 6 chữ số từ ứng dụng Authenticator hoặc một mã dự phòng khẩn cấp.'
                 : 'Enter the 6-digit code from your Authenticator app or an emergency backup code.'}
@@ -249,7 +316,11 @@ export const PinModal: React.FC<PinModalProps> = ({ isOpen, lang, onSuccess }) =
               }}
             >
               <div className="mb-5">
+                <label htmlFor="totp-code" className="sr-only">
+                  {isVi ? 'Mã xác thực hoặc mã dự phòng' : 'Verification or backup code'}
+                </label>
                 <input
+                  id="totp-code"
                   type="text"
                   autoFocus
                   value={otpCode}
@@ -265,7 +336,10 @@ export const PinModal: React.FC<PinModalProps> = ({ isOpen, lang, onSuccess }) =
               {/* Error display */}
               <div className="min-h-[24px] mb-4">
                 {error && (
-                  <div className="flex items-center justify-center gap-1.5 text-red-600 text-xs font-semibold">
+                  <div
+                    role="alert"
+                    className="flex items-center justify-center gap-1.5 text-red-600 text-xs font-semibold"
+                  >
                     <ShieldAlert size={15} />
                     <span>{error}</span>
                   </div>

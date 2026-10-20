@@ -9,14 +9,39 @@ Tất cả các thay đổi quan trọng của dự án **FamShield Windows Agen
 ## [Unreleased]
 
 ### Added
+- **Tích Hợp Bộ Công Cụ Biome (`@biomejs/biome`) & Quản Lý Gói Độc Lập `pnpm` v12.x Cho Phân Hệ Web Admin (`web`)**:
+  - Thiết lập Biome linter, formatter và import organizer siêu tốc cho toàn bộ mã nguồn TypeScript/React trong `web`, tích hợp các npm script `lint`, `lint:fix`, `format` và tệp cấu hình chuẩn `biome.json`.
+  - Chuyển đổi và chuẩn hóa trình quản lý gói sang `pnpm` standalone (v12.x), sinh `pnpm-lock.yaml`, tối ưu hóa thời gian phân giải gói và lưu trữ hard link.
+  - Cập nhật script `build.ps1` tự động nhận diện và ưu tiên thực thi `pnpm run build` cho Web Admin trước khi đóng gói nhị phân.
+- **Kích Hoạt & Hoàn Thiện Cơ Chế Tự Động Chụp Ảnh Màn Hình Làm Bằng Chứng (Smart Visual Verification) Khi Vi Phạm Từ Khóa Hoặc Web Độc Hại (`famshield-session`, `famshield-service`)**:
+  - **Tự động chụp khi vi phạm từ khóa nhạy cảm**: Khi `KeyboardMonitor` phát hiện từ khóa xấu trong bất kỳ ứng dụng nào, hệ thống lập tức kích hoạt luồng chụp khung hình ngầm (`spawn_blocking`), làm mờ bảo vệ riêng tư (Gaussian Blur 3-pass trong RAM, bán kính 15px), nén JPEG 480p (<25 KiB) và gửi gói tin IPC `VisualEvidenceSubmission` về dịch vụ `famshield-service` để lưu trữ SQLite với thời hạn tự hủy 48 giờ.
+  - **Tự động chụp khi phát hiện truy cập trang web độc hại / bị chặn**: Khi `DnsProxy` chặn truy vấn DNS độc hại (phishing, malware, nội dung người lớn), dịch vụ nền Session 0 điều phối lệnh `CaptureEvidenceCommand` qua luồng heartbeat IPC tới trợ lý phiên người dùng `famshield-session` để chụp màn hình tương tác thực tế, đồng thời hiển thị thông báo an toàn (Toast Notification) nhắc nhở người dùng.
+  - **Cơ chế chống nghẽn & chống spam ảnh (Throttling & Dedup)**: Tích hợp bộ lọc giới hạn tối đa 1 ảnh chụp mỗi 10 giây cho cùng một trigger, chống tràn bộ nhớ và chống cạn kiệt hạn mức đĩa 10 MiB khi trình duyệt truy vấn liên tiếp nhiều tài nguyên của một trang web độc hại.
+- **Cẩm Nang Tính Năng & Hướng Dẫn Sử Dụng Toàn Diện (`HUONG-DAN-SU-DUNG-VA-TINH-NANG.md`)**:
+  - Biên soạn tài liệu hợp nhất tổng hợp toàn bộ năng lực hệ thống, danh mục tính năng (DNS/WFP, App Limits, Smart Evidence, DPAPI/2FA TOTP, Dual-Mode) và cẩm nang hướng dẫn sử dụng chi tiết từng bước cho phụ huynh và quản trị viên.
 - **Tích Hợp Tailwind CSS v4 Cho Phân Hệ Web Admin (`web`)**:
   - Tích hợp `@tailwindcss/vite` và `tailwindcss` v4 vào cấu hình `vite.config.ts` và luồng biên dịch frontend Vite.
   - Bổ sung cấu trúc style trung tâm `web/src/index.css` áp dụng `@import "tailwindcss";` cùng hệ thống CSS design tokens hiện đại.
 
 ### Changed
-- **Chuyển Đổi Toàn Diện Giao Diện Sang Tone Sáng (Light Theme Modernization)**:
-  - Nâng cấp toàn bộ giao diện Web Admin sang tone màu sáng hiện đại, trang nhã và thân thiện với gia đình (nền `slate-50`, các khối card trắng nổi viền `slate-200`, màu chữ `slate-900`/`slate-600`, điểm nhấn màu `sky-600`).
+- **Chuyển Đổi Toàn Diện Giao Diện Sang Tone Sáng (Light Theme Modernization & Taste-Skill Harmonization)**:
+  - Nâng cấp toàn bộ giao diện Web Admin theo bộ quy chuẩn `taste-skill`: bảng màu đơn sắc slate/zinc thanh lịch, loại bỏ hoàn toàn các màu sắc đối lập chói gắt, thống nhất bán kính góc cong card (`rounded-xl` 12px) và độ nổi bóng mờ tinh tế.
+  - **Khắc phục triệt để lỗi vỡ khung & cắt xén mép trái**: Chuẩn hóa container trung tâm `max-w-[1440px] w-full mx-auto` kèm padding `px-4 sm:px-6 lg:px-8`, loại bỏ `overflow-x: hidden` trên body, bổ sung `min-w-0` chống vỡ grid trên 4 thẻ KPI.
+  - **Hỗ trợ nạp Web Dist từ ProgramData (`famshield-local-admin`)**: Bổ sung đường dẫn ưu tiên `C:\ProgramData\FamShield\web\dist` giúp cập nhật giao diện trực tiếp mà không bị chặn quyền Administrator đối với `C:\Program Files`.
   - Chuẩn hóa các thành phần UI chủ chốt (`Navbar`, `DashboardTab`, `DataTable`, `PinModal`, `EvidenceTab`, `SetupWizard`, `App`) với layout sắc nét, phân cấp thông tin rõ ràng và hiệu ứng chuyển đổi mượt mà.
+
+### Fixed
+- **Tối Ưu Hiệu Năng & Khắc Phục Lỗi Mã Nguồn React Web Admin (`web`)**:
+  - **Tải dữ liệu song song (Concurrent Data Fetching)**: Tối ưu hàm `refreshAllData` trong `App.tsx` sử dụng `Promise.allSettled` chạy song song 4 yêu cầu API (status, rules, logs, evidence) thay vì gọi tuần tự `await` từng endpoint, giảm ~75% độ trễ mạng khi nạp trang.
+  - **Sửa cảnh báo Stale Closure & React Hooks Dependencies**: Bọc `refreshAllData` và `fetchActivity` bằng `useCallback`, khắc phục hoàn toàn cảnh báo `useExhaustiveDependencies` trong `App.tsx` và `ActivityTab.tsx`.
+  - **Khắc phục lỗi React Key**: Thay thế toàn bộ các `key={idx}` trong bảng và danh sách (`DashboardTab`, `RulesTab`, `PinModal`, `SecurityTab`) bằng định danh duy nhất (`log.domain-timestamp`, `rule.rule_id`, backup code), ngăn ngừa lỗi render và giật lag khi dữ liệu thay đổi.
+  - **Chuẩn hóa Type-Safe Error Handling**: Chuyển đổi toàn bộ khối `catch (e: any)` sang `catch (e: unknown)` với cơ chế trích xuất thông điệp an toàn, tránh bypass kiểm tra kiểu của TypeScript.
+  - **Tối ưu thuật toán xử lý PIN**: Chuyển đổi tìm ô PIN trống trong `PinModal` từ `findIndex` sang `indexOf('')`.
+- **Khả năng truy cập, tương phản và hiệu năng Web Admin (`web`)**:
+  - Bổ sung semantics cho hộp thoại xác thực và bằng chứng, quản lý focus bàn phím, trạng thái live-region, tab navigation và bảng có thể sắp xếp bằng bàn phím.
+  - Sửa tương phản cảnh báo và Recovery Key trong Setup Wizard, chuyển bố cục nhập PIN về một cột trên màn hình hẹp và dùng chiều cao viewport động `100dvh`.
+  - Đồng bộ thuộc tính ngôn ngữ tài liệu theo lựa chọn Việt/Anh, loại bỏ chuỗi tiếng Việt cố định trong modal bằng chứng và liên kết label với các trường nhập quan trọng.
+  - Chuyển thư viện xử lý Excel `xlsx` sang dynamic import để không tải vào bundle khởi động của bảng điều khiển.
 
 
 ---

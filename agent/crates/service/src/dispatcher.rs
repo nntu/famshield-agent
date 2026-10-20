@@ -1,4 +1,7 @@
 use chrono::Utc;
+use std::collections::{HashMap, VecDeque};
+use std::sync::{Arc, Mutex};
+use std::time::Instant;
 use tracing::{debug, error, info};
 
 use crate::ipc::IpcMessage;
@@ -6,11 +9,50 @@ use famshield_storage::{StorageEngine, VisualEvidenceRecord};
 
 pub struct IpcDispatcher {
     storage: StorageEngine,
+    pending_captures: Arc<Mutex<VecDeque<(String, String)>>>,
+    recent_triggers: Arc<Mutex<HashMap<String, Instant>>>,
 }
 
 impl IpcDispatcher {
     pub fn new(storage: StorageEngine) -> Self {
-        Self { storage }
+        Self {
+            storage,
+            pending_captures: Arc::new(Mutex::new(VecDeque::new())),
+            recent_triggers: Arc::new(Mutex::new(HashMap::new())),
+        }
+    }
+
+    /// Queues a visual evidence capture trigger (e.g. from malicious DNS block) with throttling.
+    pub fn queue_capture_trigger(&self, event_id: String, trigger: String) -> bool {
+        let now = Instant::now();
+        let mut recents = match self.recent_triggers.lock() {
+            Ok(g) => g,
+            Err(p) => p.into_inner(),
+        };
+
+        // Purge entries older than 30 seconds
+        recents.retain(|_, time| now.duration_since(*time).as_secs() < 30);
+
+        // Throttle identical trigger within 10 seconds to avoid capture spam
+        if let Some(prev) = recents.get(&trigger) {
+            if now.duration_since(*prev).as_secs() < 10 {
+                return false;
+            }
+        }
+        recents.insert(trigger.clone(), now);
+
+        let mut queue = match self.pending_captures.lock() {
+            Ok(g) => g,
+            Err(p) => p.into_inner(),
+        };
+
+        if queue.len() < 5 {
+            info!("Queued visual evidence capture trigger: '{}'", trigger);
+            queue.push_back((event_id, trigger));
+            true
+        } else {
+            false
+        }
     }
 
     /// Dispatches an incoming parsed IPC message from an authenticated session.
@@ -40,11 +82,28 @@ impl IpcDispatcher {
                     "Session {} foreground: exe='{}', idle={}",
                     session_id, executable_name, is_idle
                 );
-                // Record telemetry and track monotonic usage
-                IpcMessage::Response {
-                    request_id: "heartbeat".into(),
-                    success: true,
-                    message: "Acknowledged".into(),
+
+                // Check if any visual evidence capture command is pending for the session
+                let next_capture = {
+                    let mut queue = match self.pending_captures.lock() {
+                        Ok(g) => g,
+                        Err(p) => p.into_inner(),
+                    };
+                    queue.pop_front()
+                };
+
+                if let Some((event_id, trigger)) = next_capture {
+                    info!(
+                        "Dispatching CaptureEvidenceCommand to session helper for trigger: '{}'",
+                        trigger
+                    );
+                    IpcMessage::CaptureEvidenceCommand { event_id, trigger }
+                } else {
+                    IpcMessage::Response {
+                        request_id: "heartbeat".into(),
+                        success: true,
+                        message: "Acknowledged".into(),
+                    }
                 }
             }
             IpcMessage::VisualEvidenceSubmission {
@@ -188,6 +247,11 @@ impl IpcDispatcher {
                 request_id: "none".into(),
                 success: false,
                 message: "Unexpected response message received".into(),
+            },
+            IpcMessage::CaptureEvidenceCommand { .. } => IpcMessage::Response {
+                request_id: "none".into(),
+                success: false,
+                message: "CaptureEvidenceCommand is outbound only".into(),
             },
             IpcMessage::Response { .. } => IpcMessage::Response {
                 request_id: "none".into(),

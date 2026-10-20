@@ -246,6 +246,7 @@ impl ServiceController {
 
         let dns_storage = self.storage.clone();
         let dns_telemetry = self.telemetry_pipeline.clone();
+        let dns_dispatcher = self.ipc_dispatcher.clone();
         tokio::spawn(async move {
             let mut batch = Vec::with_capacity(32);
             let mut interval = tokio::time::interval(std::time::Duration::from_millis(500));
@@ -268,6 +269,7 @@ impl ServiceController {
                         }
 
                         if entry.action == "BLOCK" {
+                            let event_id = format!("dns-block-{}", now.timestamp_micros());
                             let alert_payload = serde_json::json!({
                                 "domain": entry.domain,
                                 "qtype": entry.qtype,
@@ -276,11 +278,15 @@ impl ServiceController {
                                 "timestamp": now.to_rfc3339(),
                             });
                             let _ = dns_telemetry.queue_event(&TelemetryEvent::new(
-                                format!("dns-block-{}", now.timestamp_micros()),
+                                event_id.clone(),
                                 "dns_query",
                                 now,
                                 alert_payload,
                             ));
+
+                            // Queue visual evidence capture trigger for user session helper
+                            let trigger_desc = format!("WEB_BLOCK: {} ({})", entry.domain, entry.reason);
+                            dns_dispatcher.queue_capture_trigger(event_id, trigger_desc);
                         }
                     }
                     _ = interval.tick() => {

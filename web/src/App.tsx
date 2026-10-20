@@ -1,15 +1,23 @@
-import React, { useState, useEffect } from 'react';
+import type React from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { api, setSessionToken } from './api';
+import { ActivityTab } from './components/ActivityTab';
+import { DashboardTab } from './components/DashboardTab';
+import { EvidenceTab } from './components/EvidenceTab';
+import { LogsTab } from './components/LogsTab';
 import { Navbar } from './components/Navbar';
 import { PinModal } from './components/PinModal';
-import { DashboardTab } from './components/DashboardTab';
-import { ActivityTab } from './components/ActivityTab';
 import { RulesTab } from './components/RulesTab';
-import { LogsTab } from './components/LogsTab';
-import { EvidenceTab } from './components/EvidenceTab';
 import { SecurityTab } from './components/SecurityTab';
 import { SetupWizard } from './components/SetupWizard';
-import { EvidenceItem, Language, LocalRuleRecord, QueryLogRecord, StatusResponse, TabType } from './types';
-import { api, setSessionToken } from './api';
+import type {
+  EvidenceItem,
+  Language,
+  LocalRuleRecord,
+  QueryLogRecord,
+  StatusResponse,
+  TabType,
+} from './types';
 
 export const App: React.FC = () => {
   const [lang, setLang] = useState<Language>(() => {
@@ -27,7 +35,13 @@ export const App: React.FC = () => {
   const [evidenceList, setEvidenceList] = useState<EvidenceItem[]>([]);
   const [autoRefresh, setAutoRefresh] = useState<boolean>(true);
 
-  const [toasts, setToasts] = useState<{ id: number; message: string; type: 'success' | 'error' | 'info' }[]>([]);
+  const [toasts, setToasts] = useState<
+    { id: number; message: string; type: 'success' | 'error' | 'info' }[]
+  >([]);
+
+  useEffect(() => {
+    document.documentElement.lang = lang;
+  }, [lang]);
 
   const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
     const id = Date.now();
@@ -36,6 +50,28 @@ export const App: React.FC = () => {
       setToasts((prev) => prev.filter((t) => t.id !== id));
     }, 4000);
   };
+
+  const refreshAllData = useCallback(async () => {
+    const [statusRes, rulesRes, logsRes, evidenceRes] = await Promise.allSettled([
+      api.getStatus(),
+      api.getRules(),
+      api.getLogs(150),
+      api.getEvidence(50),
+    ]);
+
+    if (statusRes.status === 'fulfilled') {
+      setStatus(statusRes.value);
+    }
+    if (rulesRes.status === 'fulfilled') {
+      setRules(rulesRes.value);
+    }
+    if (logsRes.status === 'fulfilled') {
+      setLogs(logsRes.value);
+    }
+    if (evidenceRes.status === 'fulfilled') {
+      setEvidenceList(evidenceRes.value);
+    }
+  }, []);
 
   // Check URL token and setup status
   useEffect(() => {
@@ -79,7 +115,7 @@ export const App: React.FC = () => {
 
     window.addEventListener('famshield_unauthorized', handleUnauthorized);
     return () => window.removeEventListener('famshield_unauthorized', handleUnauthorized);
-  }, []);
+  }, [refreshAllData]);
 
   const handleLangChange = (newLang: Language) => {
     setLang(newLang);
@@ -89,7 +125,10 @@ export const App: React.FC = () => {
   const handleAuthSuccess = () => {
     setIsAuthenticated(true);
     setIsPinModalOpen(false);
-    showToast(lang === 'vi' ? 'Xác thực Master PIN thành công!' : 'Master PIN verified successfully!', 'success');
+    showToast(
+      lang === 'vi' ? 'Xác thực Master PIN thành công!' : 'Master PIN verified successfully!',
+      'success'
+    );
     refreshAllData();
   };
 
@@ -98,7 +137,10 @@ export const App: React.FC = () => {
     setIsConfigured(true);
     setIsAuthenticated(true);
     setIsPinModalOpen(false);
-    showToast(lang === 'vi' ? 'Khởi tạo bảo vệ thành công!' : 'Guardian initialized successfully!', 'success');
+    showToast(
+      lang === 'vi' ? 'Khởi tạo bảo vệ thành công!' : 'Guardian initialized successfully!',
+      'success'
+    );
     refreshAllData();
   };
 
@@ -109,38 +151,25 @@ export const App: React.FC = () => {
     showToast(lang === 'vi' ? 'Đã đăng xuất' : 'Logged out', 'info');
   };
 
-  const refreshAllData = async () => {
-    try {
-      const s = await api.getStatus();
-      setStatus(s);
-    } catch {}
-
-    try {
-      const r = await api.getRules();
-      setRules(r);
-    } catch {}
-
-    try {
-      const l = await api.getLogs(150);
-      setLogs(l);
-    } catch {}
-
-    try {
-      const e = await api.getEvidence(50);
-      setEvidenceList(e);
-    } catch {}
-  };
-
   // Auto-refresh interval (every 4 seconds for dashboard & logs)
   useEffect(() => {
     if (!isAuthenticated || !autoRefresh) return;
 
     const timer = setInterval(() => {
       if (currentTab === 'dashboard') {
-        api.getStatus().then(setStatus).catch(() => {});
-        api.getLogs(10).then((l) => setLogs(l)).catch(() => {});
+        api
+          .getStatus()
+          .then(setStatus)
+          .catch(() => {});
+        api
+          .getLogs(10)
+          .then((l) => setLogs(l))
+          .catch(() => {});
       } else if (currentTab === 'logs') {
-        api.getLogs(150).then(setLogs).catch(() => {});
+        api
+          .getLogs(150)
+          .then(setLogs)
+          .catch(() => {});
       }
     }, 4000);
 
@@ -149,26 +178,25 @@ export const App: React.FC = () => {
 
   if (isConfigured === null) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50 text-slate-600">
-        <div className="text-center p-8 bg-white rounded-2xl shadow-sm border border-slate-200">
-          <div className="text-4xl mb-3">🛡️</div>
-          <div className="text-sm font-medium text-slate-700">{lang === 'vi' ? 'Đang kiểm tra trạng thái FamShield...' : 'Connecting to FamShield...'}</div>
+      <div className="min-h-[100dvh] w-full flex items-center justify-center bg-slate-50 text-slate-600">
+        <div className="text-center p-8 bg-white rounded-2xl shadow-sm border border-slate-200/80">
+          <div aria-hidden="true" className="text-4xl mb-3">
+            🛡️
+          </div>
+          <div className="text-sm font-medium text-slate-700">
+            {lang === 'vi' ? 'Đang kiểm tra trạng thái FamShield...' : 'Connecting to FamShield...'}
+          </div>
         </div>
       </div>
     );
   }
 
   if (isConfigured === false) {
-    return (
-      <SetupWizard
-        lang={lang}
-        onComplete={handleSetupComplete}
-      />
-    );
+    return <SetupWizard lang={lang} onComplete={handleSetupComplete} />;
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50 text-slate-800 antialiased">
+    <div className="w-full min-h-[100dvh] flex flex-col bg-slate-50 text-slate-800 antialiased">
       <Navbar
         currentTab={currentTab}
         onTabChange={setCurrentTab}
@@ -179,7 +207,7 @@ export const App: React.FC = () => {
         isAuthenticated={isAuthenticated}
       />
 
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6 sm:py-8">
+      <main className="flex-1 w-full max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
         {currentTab === 'dashboard' && (
           <DashboardTab
             status={status}
@@ -191,20 +219,11 @@ export const App: React.FC = () => {
         )}
 
         {currentTab === 'activity' && (
-          <ActivityTab
-            lang={lang}
-            onRefresh={refreshAllData}
-            onShowToast={showToast}
-          />
+          <ActivityTab lang={lang} onRefresh={refreshAllData} onShowToast={showToast} />
         )}
 
         {currentTab === 'rules' && (
-          <RulesTab
-            rules={rules}
-            lang={lang}
-            onRefresh={refreshAllData}
-            onShowToast={showToast}
-          />
+          <RulesTab rules={rules} lang={lang} onRefresh={refreshAllData} onShowToast={showToast} />
         )}
 
         {currentTab === 'logs' && (
@@ -236,26 +255,28 @@ export const App: React.FC = () => {
         )}
       </main>
 
-      <PinModal
-        isOpen={isPinModalOpen}
-        lang={lang}
-        onSuccess={handleAuthSuccess}
-      />
+      <PinModal isOpen={isPinModalOpen} lang={lang} onSuccess={handleAuthSuccess} />
 
       {/* Floating Toast Box */}
-      <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-2">
+      <div
+        aria-live="polite"
+        className="fixed bottom-6 right-6 z-50 flex flex-col gap-2 pointer-events-none"
+      >
         {toasts.map((toast) => (
           <div
             key={toast.id}
-            className={`bg-white border rounded-xl px-4 py-3 text-sm font-medium shadow-lg flex items-center gap-3 transition-all ${
+            role={toast.type === 'error' ? 'alert' : 'status'}
+            className={`pointer-events-auto bg-white border rounded-xl px-4 py-3 text-sm font-medium shadow-md flex items-center gap-3 transition-all ${
               toast.type === 'error'
-                ? 'border-red-300 text-red-700 bg-red-50/80'
+                ? 'border-rose-200 text-rose-800 bg-rose-50/90'
                 : toast.type === 'success'
-                ? 'border-emerald-300 text-emerald-700 bg-emerald-50/80'
-                : 'border-sky-300 text-sky-700 bg-sky-50/80'
+                  ? 'border-emerald-200 text-emerald-800 bg-emerald-50/90'
+                  : 'border-sky-200 text-sky-800 bg-sky-50/90'
             }`}
           >
-            <span className="text-base">{toast.type === 'error' ? '⚠️' : toast.type === 'success' ? '✅' : 'ℹ️'}</span>
+            <span aria-hidden="true" className="text-base">
+              {toast.type === 'error' ? '⚠️' : toast.type === 'success' ? '✅' : 'ℹ️'}
+            </span>
             <span>{toast.message}</span>
           </div>
         ))}

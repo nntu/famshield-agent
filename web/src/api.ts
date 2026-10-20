@@ -1,4 +1,4 @@
-import {
+import type {
   ActivitySummaryResponse,
   BackupPayload,
   DnsConfigResponse,
@@ -138,12 +138,14 @@ export const api = {
     });
   },
 
-  async createRulesBulk(rules: {
-    rule_id: string;
-    rule_type: 'domain' | 'application';
-    payload_json: string;
-    enabled: boolean;
-  }[]): Promise<{ success: boolean; imported: number }> {
+  async createRulesBulk(
+    rules: {
+      rule_id: string;
+      rule_type: 'domain' | 'application';
+      payload_json: string;
+      enabled: boolean;
+    }[]
+  ): Promise<{ success: boolean; imported: number }> {
     return apiRequest<{ success: boolean; imported: number }>('/api/rules/bulk', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -157,7 +159,11 @@ export const api = {
     });
   },
 
-  async syncRulesToCloud(): Promise<{ success: boolean; synced_domains_count: number; message: string }> {
+  async syncRulesToCloud(): Promise<{
+    success: boolean;
+    synced_domains_count: number;
+    message: string;
+  }> {
     return apiRequest<{ success: boolean; synced_domains_count: number; message: string }>(
       '/api/rules/sync-to-cloud',
       { method: 'POST' }
@@ -191,12 +197,17 @@ export const api = {
     });
   },
 
-  async enrollCloud(code: string): Promise<{ success: boolean; operating_mode: string; device_id: string }> {
-    return apiRequest<{ success: boolean; operating_mode: string; device_id: string }>('/api/cloud/enroll', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ enrollment_code: code }),
-    });
+  async enrollCloud(
+    code: string
+  ): Promise<{ success: boolean; operating_mode: string; device_id: string }> {
+    return apiRequest<{ success: boolean; operating_mode: string; device_id: string }>(
+      '/api/cloud/enroll',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enrollment_code: code }),
+      }
+    );
   },
 
   async disenrollCloud(): Promise<{ success: boolean; operating_mode: string }> {
@@ -285,7 +296,11 @@ export const api = {
     return apiRequest<KeywordConfigResponse>('/api/keywords');
   },
 
-  async addCustomKeyword(pattern: string, category?: string, severity?: string): Promise<KeywordRule> {
+  async addCustomKeyword(
+    pattern: string,
+    category?: string,
+    severity?: string
+  ): Promise<KeywordRule> {
     return apiRequest<KeywordRule>('/api/keywords', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -307,7 +322,9 @@ export const api = {
     });
   },
 
-  async toggleKeyboardMonitoring(enabled: boolean): Promise<{ success: boolean; enabled: boolean }> {
+  async toggleKeyboardMonitoring(
+    enabled: boolean
+  ): Promise<{ success: boolean; enabled: boolean }> {
     return apiRequest<{ success: boolean; enabled: boolean }>('/api/keywords/monitoring', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -315,18 +332,32 @@ export const api = {
     });
   },
 
-  async restartSessionHelper(): Promise<{ success: boolean; launched: boolean; running: boolean; message: string }> {
-    return apiRequest<{ success: boolean; launched: boolean; running: boolean; message: string }>('/api/system/session-helper/start', {
-      method: 'POST',
-    });
+  async restartSessionHelper(): Promise<{
+    success: boolean;
+    launched: boolean;
+    running: boolean;
+    message: string;
+  }> {
+    return apiRequest<{ success: boolean; launched: boolean; running: boolean; message: string }>(
+      '/api/system/session-helper/start',
+      {
+        method: 'POST',
+      }
+    );
   },
 
-  async uninstallSystem(masterPin: string, otpCode?: string): Promise<{ success: boolean; message: string; requires_otp?: boolean }> {
-    return apiRequest<{ success: boolean; message: string; requires_otp?: boolean }>('/api/system/uninstall', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ master_pin: masterPin, otp_code: otpCode }),
-    });
+  async uninstallSystem(
+    masterPin: string,
+    otpCode?: string
+  ): Promise<{ success: boolean; message: string; requires_otp?: boolean }> {
+    return apiRequest<{ success: boolean; message: string; requires_otp?: boolean }>(
+      '/api/system/uninstall',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ master_pin: masterPin, otp_code: otpCode }),
+      }
+    );
   },
 
   async getTotpStatus(): Promise<TotpStatusResponse> {
@@ -377,7 +408,10 @@ export const api = {
     return apiRequest<DnsRetentionConfig>('/api/settings/dns-retention');
   },
 
-  async setDnsRetention(retentionDays: number, autoPrune: boolean): Promise<{ success: boolean; message: string }> {
+  async setDnsRetention(
+    retentionDays: number,
+    autoPrune: boolean
+  ): Promise<{ success: boolean; message: string }> {
     return apiRequest<{ success: boolean; message: string }>('/api/settings/dns-retention', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -385,9 +419,16 @@ export const api = {
     });
   },
 
-  async pruneDnsLogsNow(): Promise<{ success: boolean; deleted_raw_logs: number; message: string }> {
-    return apiRequest<{ success: boolean; deleted_raw_logs: number; message: string }>('/api/settings/dns-retention/prune-now', {
-      method: 'POST',
-    });
+  async pruneDnsLogsNow(): Promise<{
+    success: boolean;
+    deleted_raw_logs: number;
+    message: string;
+  }> {
+    return apiRequest<{ success: boolean; deleted_raw_logs: number; message: string }>(
+      '/api/settings/dns-retention/prune-now',
+      {
+        method: 'POST',
+      }
+    );
   },
 };

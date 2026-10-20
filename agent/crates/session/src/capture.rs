@@ -50,7 +50,7 @@ impl SmartVisualVerifier {
 
         // Compress to JPEG (<150 KiB quota)
         let mut jpeg = Vec::with_capacity(32 * 1024);
-        let encoder = Encoder::new(&mut jpeg, 75);
+        let encoder = Encoder::new(&mut jpeg, 60);
         encoder
             .encode(&rgb, target_w as u16, target_h as u16, ColorType::Rgb)
             .map_err(|e| SessionError::ScreenCapture(format!("JPEG encoding failed: {e}")))?;

@@ -45,6 +45,49 @@ async fn test_ipc_dispatcher_visual_evidence_storage() {
 }
 
 #[tokio::test]
+async fn test_ipc_dispatcher_capture_command_on_heartbeat() {
+    let storage = StorageEngine::in_memory().unwrap();
+    let dispatcher = IpcDispatcher::new(storage);
+
+    // 1. Initial heartbeat when no capture is pending -> regular Ack
+    let heartbeat = IpcMessage::ForegroundHeartbeat {
+        session_id: 1,
+        executable_name: "chrome.exe".into(),
+        is_idle: false,
+        idle_duration_ms: 0,
+    };
+    let reply1 = dispatcher.dispatch(heartbeat.clone()).await;
+    match reply1 {
+        IpcMessage::Response { success, .. } => assert!(success),
+        _ => panic!("Expected Response message"),
+    }
+
+    // 2. Queue a visual evidence capture trigger (e.g. from malicious DNS block)
+    let queued = dispatcher.queue_capture_trigger(
+        "dns-block-123".into(),
+        "WEB_BLOCK: malware.test (Category: MALWARE)".into(),
+    );
+    assert!(queued);
+
+    // 3. Next heartbeat should receive CaptureEvidenceCommand
+    let reply2 = dispatcher.dispatch(heartbeat.clone()).await;
+    match reply2 {
+        IpcMessage::CaptureEvidenceCommand { event_id, trigger } => {
+            assert_eq!(event_id, "dns-block-123");
+            assert!(trigger.contains("malware.test"));
+        }
+        _ => panic!("Expected CaptureEvidenceCommand"),
+    }
+
+    // 4. Subsequent heartbeat should return back to normal Ack
+    let reply3 = dispatcher.dispatch(heartbeat).await;
+    match reply3 {
+        IpcMessage::Response { success, .. } => assert!(success),
+        _ => panic!("Expected Response message"),
+    }
+}
+
+#[tokio::test]
 async fn test_ipc_message_framing_roundtrip() {
     use famshield_service::{read_framed_message, write_framed_message};
     use std::io::Cursor;
