@@ -3,6 +3,7 @@ import { ColumnDef } from '@tanstack/react-table';
 import {
   Ban,
   CheckCircle,
+  Database,
   Eye,
   Globe,
   Layers,
@@ -10,9 +11,10 @@ import {
   RefreshCw,
   ShieldAlert,
   ShieldCheck,
+  Trash2,
   X,
 } from 'lucide-react';
-import { DomainQuerySummary, Language, QueryLogRecord } from '../types';
+import { DnsRetentionConfig, DomainQuerySummary, Language, QueryLogRecord } from '../types';
 import { translations } from '../i18n';
 import { DataTable } from './DataTable';
 import { api } from '../api';
@@ -50,6 +52,57 @@ export const LogsTab: React.FC<LogsTabProps> = ({
   const [domainLogs, setDomainLogs] = useState<QueryLogRecord[]>([]);
   const [isLoadingDetails, setIsLoadingDetails] = useState<boolean>(false);
   const [isBlocking, setIsBlocking] = useState<boolean>(false);
+
+  // Retention & Pruning State
+  const [retentionConfig, setRetentionConfig] = useState<DnsRetentionConfig | null>(null);
+  const [showRetentionSettings, setShowRetentionSettings] = useState<boolean>(false);
+  const [selectedRetentionDays, setSelectedRetentionDays] = useState<number>(7);
+  const [autoPruneEnabled, setAutoPruneEnabled] = useState<boolean>(true);
+  const [isSavingRetention, setIsSavingRetention] = useState<boolean>(false);
+  const [isPruningNow, setIsPruningNow] = useState<boolean>(false);
+
+  const fetchRetentionConfig = async () => {
+    try {
+      const cfg = await api.getDnsRetention();
+      setRetentionConfig(cfg);
+      setSelectedRetentionDays(cfg.retention_days);
+      setAutoPruneEnabled(cfg.auto_prune);
+    } catch {
+      // ignore
+    }
+  };
+
+  useEffect(() => {
+    fetchRetentionConfig();
+  }, []);
+
+  const handleSaveRetention = async (days: number, auto: boolean) => {
+    setIsSavingRetention(true);
+    try {
+      const res = await api.setDnsRetention(days, auto);
+      onShowToast?.(res.message, 'success');
+      await fetchRetentionConfig();
+    } catch (e: any) {
+      onShowToast?.(e.message || (isVi ? 'Lỗi lưu cấu hình lưu trữ' : 'Failed to save retention'), 'error');
+    } finally {
+      setIsSavingRetention(false);
+    }
+  };
+
+  const handlePruneNow = async () => {
+    setIsPruningNow(true);
+    try {
+      const res = await api.pruneDnsLogsNow();
+      onShowToast?.(res.message, 'success');
+      await fetchRetentionConfig();
+      fetchSummaries();
+      onRefresh();
+    } catch (e: any) {
+      onShowToast?.(e.message || (isVi ? 'Lỗi dọn dẹp nhật ký' : 'Failed to prune logs'), 'error');
+    } finally {
+      setIsPruningNow(false);
+    }
+  };
 
   // Fetch domain summaries
   const fetchSummaries = async () => {
@@ -658,8 +711,136 @@ export const LogsTab: React.FC<LogsTabProps> = ({
             <RefreshCw size={14} className={isLoadingSummaries ? 'animate-spin' : ''} />
             <span>{t.btn_refresh}</span>
           </button>
+
+          {/* Storage Retention & Optimization Toggle */}
+          <button
+            onClick={() => setShowRetentionSettings(!showRetentionSettings)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              background: showRetentionSettings ? 'rgba(56, 189, 248, 0.2)' : '#1e293b',
+              color: showRetentionSettings ? '#38bdf8' : '#94a3b8',
+              border: `1px solid ${showRetentionSettings ? '#38bdf8' : '#334155'}`,
+              padding: '7px 12px',
+              borderRadius: 8,
+              fontSize: '0.82rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+            }}
+            title={isVi ? 'Cấu hình thời gian lưu trữ & dọn dẹp dung lượng' : 'Storage retention & cleanup'}
+          >
+            <Database size={14} />
+            <span>{isVi ? 'Tối Ưu Lưu Trữ' : 'Storage Optimization'}</span>
+          </button>
         </div>
       </div>
+
+      {/* Storage Optimization & Retention Banner */}
+      {showRetentionSettings && (
+        <div
+          style={{
+            background: 'rgba(15, 23, 42, 0.7)',
+            border: '1px solid rgba(56, 189, 248, 0.3)',
+            borderRadius: 12,
+            padding: '16px 20px',
+            marginTop: 14,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: 16,
+          }}
+        >
+          <div style={{ maxWidth: 600 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+              <Database size={16} color="#38bdf8" />
+              <span style={{ fontSize: '0.95rem', fontWeight: 700, color: '#f8fafc' }}>
+                {isVi ? 'Cơ Chế Nén & Tối Ưu Dung Lượng Nhật Ký DNS' : 'DNS Query Logs Compression & Retention'}
+              </span>
+            </div>
+            <p style={{ fontSize: '0.82rem', color: '#94a3b8', margin: 0, lineHeight: 1.5 }}>
+              {isVi
+                ? 'Để tiết kiệm ổ cứng, hệ thống tự động tổng hợp số liệu của từng tên miền vào bảng thống kê vĩnh viễn và dọn dẹp các dòng log chi tiết từng giây đã quá hạn. Dữ liệu tổng hợp (Tổng truy vấn, Cho phép, Chặn) luôn được bảo toàn 100%.'
+                : 'To minimize disk space, raw second-by-second queries are rolled up into persistent domain aggregates and pruned when expired. Domain totals are always preserved 100%.'}
+            </p>
+            <div style={{ display: 'flex', gap: 16, marginTop: 8, fontSize: '0.8rem', color: '#cbd5e1' }}>
+              <span>
+                {isVi ? 'Bản ghi chi tiết:' : 'Raw queries:'}{' '}
+                <strong style={{ color: '#38bdf8' }}>{retentionConfig?.raw_query_logs_count ?? 0}</strong>
+              </span>
+              <span>
+                {isVi ? 'Tên miền tổng hợp vĩnh viễn:' : 'Aggregated domains:'}{' '}
+                <strong style={{ color: '#34d399' }}>{retentionConfig?.aggregated_domains_count ?? 0}</strong>
+              </span>
+              {retentionConfig?.last_pruned_at && (
+                <span style={{ color: '#94a3b8' }}>
+                  {isVi ? 'Dọn dẹp gần nhất:' : 'Last pruned:'}{' '}
+                  {new Date(retentionConfig.last_pruned_at).toLocaleTimeString()}
+                </span>
+              )}
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <label style={{ fontSize: '0.82rem', color: '#94a3b8', fontWeight: 600 }}>
+                {isVi ? 'Lưu chi tiết:' : 'Retain raw:'}
+              </label>
+              <select
+                value={selectedRetentionDays}
+                onChange={(e) => {
+                  const days = parseInt(e.target.value, 10);
+                  setSelectedRetentionDays(days);
+                  handleSaveRetention(days, autoPruneEnabled);
+                }}
+                disabled={isSavingRetention}
+                style={{
+                  background: '#070b14',
+                  border: '1px solid #334155',
+                  color: '#f8fafc',
+                  padding: '6px 10px',
+                  borderRadius: 6,
+                  fontSize: '0.82rem',
+                  cursor: 'pointer',
+                  outline: 'none',
+                }}
+              >
+                <option value={1}>{isVi ? '1 ngày (Tiết kiệm tối đa)' : '1 day (Max savings)'}</option>
+                <option value={3}>{isVi ? '3 ngày' : '3 days'}</option>
+                <option value={7}>{isVi ? '7 ngày (Khuyên dùng)' : '7 days (Recommended)'}</option>
+                <option value={14}>{isVi ? '14 ngày' : '14 days'}</option>
+                <option value={30}>{isVi ? '30 ngày' : '30 days'}</option>
+                <option value={90}>{isVi ? '90 ngày' : '90 days'}</option>
+              </select>
+            </div>
+
+            <button
+              type="button"
+              onClick={handlePruneNow}
+              disabled={isPruningNow}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                background: '#0284c7',
+                color: '#ffffff',
+                border: 'none',
+                padding: '7px 14px',
+                borderRadius: 6,
+                fontSize: '0.82rem',
+                fontWeight: 600,
+                cursor: isPruningNow ? 'not-allowed' : 'pointer',
+              }}
+            >
+              <Trash2 size={13} className={isPruningNow ? 'animate-spin' : ''} />
+              {isPruningNow
+                ? (isVi ? 'Đang dọn dẹp...' : 'Pruning...')
+                : (isVi ? 'Thu Gọn & Dọn Dẹp Ngay' : 'Prune Now')}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Main Table: Summary or Stream */}
       {viewMode === 'summary' ? (

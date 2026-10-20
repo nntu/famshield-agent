@@ -2482,17 +2482,13 @@ async fn handle_set_dns_retention(
         ));
     }
 
-    let _ = state
-        .service
-        .storage()
-        .set_meta("dns_log_retention_days", &payload.retention_days.to_string());
+    let _ = state.service.storage().set_meta(
+        "dns_log_retention_days",
+        &payload.retention_days.to_string(),
+    );
     let _ = state.service.storage().set_meta(
         "dns_auto_prune_enabled",
-        if payload.auto_prune {
-            "true"
-        } else {
-            "false"
-        },
+        if payload.auto_prune { "true" } else { "false" },
     );
 
     Ok(Json(serde_json::json!({

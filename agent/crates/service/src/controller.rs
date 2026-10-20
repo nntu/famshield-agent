@@ -324,7 +324,51 @@ impl ServiceController {
             watchdog.run(watchdog_shutdown_rx).await;
         });
 
-        // 7. Periodic Process Monitoring Task (every 5 seconds)
+        // 7. Periodic Storage Maintenance Task: Evidence Purge & DNS Log Retention Rollup (every 6 hours)
+        let storage_maint = self.storage.clone();
+        tokio::spawn(async move {
+            let mut maint_interval =
+                tokio::time::interval(std::time::Duration::from_secs(6 * 3600));
+            maint_interval.tick().await;
+            tokio::time::sleep(std::time::Duration::from_secs(30)).await;
+            loop {
+                let now = chrono::Utc::now();
+                let _ = storage_maint.purge_expired_evidence(now);
+
+                let auto_prune = storage_maint
+                    .get_meta("dns_auto_prune_enabled")
+                    .ok()
+                    .flatten()
+                    .map(|v| v != "false")
+                    .unwrap_or(true);
+
+                if auto_prune {
+                    let retention_days: i64 = storage_maint
+                        .get_meta("dns_log_retention_days")
+                        .ok()
+                        .flatten()
+                        .and_then(|v| v.parse().ok())
+                        .unwrap_or(7);
+
+                    let cutoff = now - chrono::Duration::days(retention_days);
+                    if let Ok(deleted) = storage_maint.rollup_and_prune_query_logs(cutoff) {
+                        if deleted > 0 {
+                            tracing::info!(
+                                "DNS Retention: Rolled up and pruned {} detailed raw query logs older than {} days",
+                                deleted,
+                                retention_days
+                            );
+                            let _ =
+                                storage_maint.set_meta("dns_log_last_pruned_at", &now.to_rfc3339());
+                        }
+                    }
+                }
+
+                maint_interval.tick().await;
+            }
+        });
+
+        // 8. Periodic Process Monitoring Task (every 5 seconds)
         let proc_monitor = self.process_monitor.clone();
         let nats = self.nats_dispatcher.clone();
         let storage = self.storage.clone();

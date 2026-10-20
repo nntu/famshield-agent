@@ -368,7 +368,10 @@ fn test_rollup_and_prune_query_logs() {
     assert_eq!(summaries.len(), 2);
 
     // youtube.com should have TOTAL 5 queries (3 old + 2 recent), 4 ALLOW, 1 BLOCK
-    let yt = summaries.iter().find(|s| s.domain == "youtube.com").unwrap();
+    let yt = summaries
+        .iter()
+        .find(|s| s.domain == "youtube.com")
+        .unwrap();
     assert_eq!(yt.total_queries, 5);
     assert_eq!(yt.allowed_count, 4);
     assert_eq!(yt.blocked_count, 1);

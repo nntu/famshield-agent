@@ -261,3 +261,11 @@ export interface TotpSetupResponse {
   qr_base64: string;
   backup_codes: string[];
 }
+
+export interface DnsRetentionConfig {
+  retention_days: number;
+  auto_prune: boolean;
+  raw_query_logs_count: number;
+  aggregated_domains_count: number;
+  last_pruned_at: string | null;
+}

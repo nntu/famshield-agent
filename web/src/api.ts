@@ -2,6 +2,7 @@ import {
   ActivitySummaryResponse,
   BackupPayload,
   DnsConfigResponse,
+  DnsRetentionConfig,
   DomainQuerySummary,
   EvidenceItem,
   InitializeSetupRequest,
@@ -368,6 +369,24 @@ export const api = {
 
   async flushDnsCache(): Promise<{ success: boolean; message: string }> {
     return apiRequest<{ success: boolean; message: string }>('/api/dns/cache/flush', {
+      method: 'POST',
+    });
+  },
+
+  async getDnsRetention(): Promise<DnsRetentionConfig> {
+    return apiRequest<DnsRetentionConfig>('/api/settings/dns-retention');
+  },
+
+  async setDnsRetention(retentionDays: number, autoPrune: boolean): Promise<{ success: boolean; message: string }> {
+    return apiRequest<{ success: boolean; message: string }>('/api/settings/dns-retention', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ retention_days: retentionDays, auto_prune: autoPrune }),
+    });
+  },
+
+  async pruneDnsLogsNow(): Promise<{ success: boolean; deleted_raw_logs: number; message: string }> {
+    return apiRequest<{ success: boolean; deleted_raw_logs: number; message: string }>('/api/settings/dns-retention/prune-now', {
       method: 'POST',
     });
   },

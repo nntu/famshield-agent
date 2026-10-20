@@ -396,16 +396,12 @@ impl StorageEngine {
     /// Get count of raw detailed logs and count of aggregated domains.
     pub fn get_query_logs_storage_stats(&self) -> Result<(usize, usize), StorageError> {
         let conn = self.conn.lock().unwrap();
-        let raw_count: i64 = conn.query_row(
-            "SELECT COUNT(*) FROM query_logs",
-            [],
-            |row| row.get(0),
-        )?;
-        let agg_count: i64 = conn.query_row(
-            "SELECT COUNT(*) FROM domain_query_aggregates",
-            [],
-            |row| row.get(0),
-        )?;
+        let raw_count: i64 =
+            conn.query_row("SELECT COUNT(*) FROM query_logs", [], |row| row.get(0))?;
+        let agg_count: i64 =
+            conn.query_row("SELECT COUNT(*) FROM domain_query_aggregates", [], |row| {
+                row.get(0)
+            })?;
         Ok((raw_count.max(0) as usize, agg_count.max(0) as usize))
     }
 
