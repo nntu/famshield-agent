@@ -24,6 +24,11 @@ Tất cả các thay đổi quan trọng của dự án **FamShield Windows Agen
   - Bổ sung cấu trúc style trung tâm `web/src/index.css` áp dụng `@import "tailwindcss";` cùng hệ thống CSS design tokens hiện đại.
 
 ### Changed
+- **Bỏ Chế Độ Làm Mờ Mặc Định Cho Bằng Chứng Thị Giác & Bổ Sung Nút Bật/Tắt Làm Mờ Tùy Chọn (`famshield-session`, `web`, `famshield-service`)**:
+  - **Chụp ảnh rõ nét nguyên bản (Clear Evidence Capture)**: Cấu hình `SmartVisualVerifier` mặc định `blur_radius = 0` (loại bỏ hoàn toàn thuật toán Gaussian blur làm mờ đặc ảnh), lưu trữ khung hình sắc nét chuẩn 480p giúp phụ huynh nhận diện chính xác giao diện, đường dẫn web và nội dung vi phạm thực tế.
+  - **Loại bỏ hiệu ứng CSS blur cố định trên Web UI**: Xóa bỏ thuộc tính `blur-[3px]` trên thẻ ảnh và modal phóng to trong `EvidenceTab.tsx`.
+  - **Bổ sung nút bật/tắt làm mờ theo yêu cầu (On-Demand Privacy Blur)**: Trong modal xem chi tiết, phụ huynh có thể chủ động bấm "🔒 Làm mờ" hoặc "👁️ Xem rõ ảnh" linh hoạt khi cần che nội dung nhạy cảm trước mặt người khác.
+  - **Nâng trần kích thước IPC (`MAX_IPC_MESSAGE_SIZE`) lên 512 KiB**: Đảm bảo truyền tải mượt mà và an toàn các frame JPEG rõ nét qua Named Pipe.
 - **Chuyển Đổi Toàn Diện Giao Diện Sang Tone Sáng (Light Theme Modernization & Taste-Skill Harmonization)**:
   - Nâng cấp toàn bộ giao diện Web Admin theo bộ quy chuẩn `taste-skill`: bảng màu đơn sắc slate/zinc thanh lịch, loại bỏ hoàn toàn các màu sắc đối lập chói gắt, thống nhất bán kính góc cong card (`rounded-xl` 12px) và độ nổi bóng mờ tinh tế.
   - **Khắc phục triệt để lỗi vỡ khung & cắt xén mép trái**: Chuẩn hóa container trung tâm `max-w-[1440px] w-full mx-auto` kèm padding `px-4 sm:px-6 lg:px-8`, loại bỏ `overflow-x: hidden` trên body, bổ sung `min-w-0` chống vỡ grid trên 4 thẻ KPI.

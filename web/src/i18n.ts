@@ -98,16 +98,18 @@ export const translations = {
     domain_not_blocked: 'Domain này đang được cho phép',
 
     // Evidence
-    privacy_title: 'Quyền Riêng Tư Tuyệt Đối (Privacy-by-Design)',
+    privacy_title: 'Lưu Trữ Bằng Chứng An Toàn (Smart Visual Verification)',
     privacy_desc:
-      'Toàn bộ ảnh chụp sự kiện vi phạm được làm mờ Gaussian trực tiếp trong RAM trước khi lưu xuống đĩa. Không bao giờ lưu ảnh sắc nét. Tự động xóa vĩnh viễn sau 48 giờ.',
+      'Ảnh chụp màn hình khi vi phạm được lưu trữ cục bộ bảo mật và tự động xóa vĩnh viễn sau 48 giờ. Phụ huynh có thể xem rõ ảnh thực tế hoặc bật/tắt chế độ làm mờ khi cần.',
     evidence_title: 'Thư Viện Bằng Chứng Thị Giác (Smart Visual Verification)',
     no_evidence: 'Chưa có bằng chứng vi phạm nào được ghi nhận.',
     btn_view_detail: 'Xem chi tiết',
     evidence_purge_countdown: 'Tự hủy sau: {hours}h',
-    evidence_modal_title: 'Bằng Chứng Chụp Màn Hình Đã Làm Mờ',
+    evidence_modal_title: 'Bằng Chứng Chụp Màn Hình Vi Phạm',
     evidence_modal_notice:
-      'Ảnh 480p đã được xóa mờ các ký tự văn bản riêng tư trong RAM trước khi lưu đĩa.',
+      'Ảnh chụp độ phân giải 480p được lưu trữ an toàn trong cơ sở dữ liệu cục bộ và tự hủy sau 48 giờ.',
+    btn_toggle_blur: 'Làm mờ',
+    btn_toggle_unblur: 'Xem rõ ảnh',
 
     // Security & Cloud
     title_change_pin: 'Đổi Mã Master PIN',
@@ -351,15 +353,17 @@ export const translations = {
     domain_not_blocked: 'This domain is currently allowed',
 
     // Evidence
-    privacy_title: 'Privacy-by-Design Paramount',
+    privacy_title: 'Secure Evidence Storage (Smart Visual Verification)',
     privacy_desc:
-      'All violation screenshots are Gaussian blurred in RAM before persisting to disk. Raw captures are never stored. Automatically purged after 48h.',
+      'Violation screenshots are stored securely and automatically purged after 48 hours. Parents can inspect clear captures or toggle privacy blur on demand.',
     evidence_title: 'Smart Visual Verification Gallery',
     no_evidence: 'No visual violation captures recorded.',
     btn_view_detail: 'View Detail',
     evidence_purge_countdown: 'Purged in: {hours}h',
-    evidence_modal_title: 'Blurred Visual Verification Frame',
-    evidence_modal_notice: 'Standard 480p frame with sensitive text erased in volatile memory.',
+    evidence_modal_title: 'Visual Verification Snapshot',
+    evidence_modal_notice: 'Standard 480p capture stored locally in SQLite and automatically purged after 48 hours.',
+    btn_toggle_blur: 'Blur',
+    btn_toggle_unblur: 'Show Clear',
 
     // Security & Cloud
     title_change_pin: 'Change Master PIN',

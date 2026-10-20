@@ -7,7 +7,7 @@ use tracing::{debug, info, warn};
 use crate::dispatcher::IpcDispatcher;
 
 pub const IPC_PIPE_NAME: &str = r"\\.\pipe\FamShieldService";
-pub const MAX_IPC_MESSAGE_SIZE: usize = 256 * 1024; // 256 KiB max frame size
+pub const MAX_IPC_MESSAGE_SIZE: usize = 512 * 1024; // 512 KiB max frame size (allows sharp 480p snapshots)
 pub const IPC_PIPE_SDDL: &str = "D:(A;;GRGW;;;AU)(A;;GA;;;SY)(A;;GA;;;BA)";
 
 /// Strongly-typed, versioned IPC messages between Session Helper and Windows Service.
@@ -33,10 +33,7 @@ pub enum IpcMessage {
         image_jpeg_bytes: Vec<u8>,
     },
     /// Request session helper to capture blurred evidence frame (e.g. upon malicious DNS block).
-    CaptureEvidenceCommand {
-        event_id: String,
-        trigger: String,
-    },
+    CaptureEvidenceCommand { event_id: String, trigger: String },
     /// Child requests additional time or rule exception.
     TimeExtensionRequest {
         session_id: u32,

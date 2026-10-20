@@ -481,9 +481,10 @@ pub async fn send_visual_evidence_via_ipc(
         write_framed_message(&mut client, &message).await?;
         match read_framed_message(&mut client).await? {
             Some(IpcMessage::Response { success: true, .. }) => Ok(()),
-            Some(IpcMessage::Response { message, .. }) => {
-                Err(std::io::Error::other(format!("Visual evidence rejected by service: {message}")).into())
-            }
+            Some(IpcMessage::Response { message, .. }) => Err(std::io::Error::other(format!(
+                "Visual evidence rejected by service: {message}"
+            ))
+            .into()),
             _ => Err(std::io::Error::new(
                 std::io::ErrorKind::InvalidData,
                 "Unexpected response for visual evidence submission",
@@ -632,8 +633,8 @@ pub fn start_keyboard_monitor_hook(monitor: Arc<KeyboardMonitor>) {
                                 tracing::warn!("Failed to dispatch keyword violation IPC: {}", e);
                             }
 
-                            // Capture trigger frame with privacy Gaussian blur (radius=15, 480p JPEG)
-                            let verifier = crate::capture::SmartVisualVerifier::new(15);
+                            // Capture clear trigger frame (radius=0 for clear evidence, 480p JPEG)
+                            let verifier = crate::capture::SmartVisualVerifier::new(0);
                             let capture_res = tokio::task::spawn_blocking(move || {
                                 verifier.capture_blurred_frame()
                             })
@@ -646,16 +647,29 @@ pub fn start_keyboard_monitor_hook(monitor: Arc<KeyboardMonitor>) {
                                         .unwrap_or_default()
                                         .as_micros();
                                     let event_id = format!("kw-ev-{}", now_micros);
-                                    let trigger = format!("KEYWORD: {} ({}) in {}", v_pat, v_cat, v_app);
-                                    if let Err(e) = send_visual_evidence_via_ipc(event_id, trigger, jpeg_bytes).await {
-                                        tracing::warn!("Failed to dispatch keyword visual evidence IPC: {}", e);
+                                    let trigger =
+                                        format!("KEYWORD: {} ({}) in {}", v_pat, v_cat, v_app);
+                                    if let Err(e) =
+                                        send_visual_evidence_via_ipc(event_id, trigger, jpeg_bytes)
+                                            .await
+                                    {
+                                        tracing::warn!(
+                                            "Failed to dispatch keyword visual evidence IPC: {}",
+                                            e
+                                        );
                                     }
                                 }
                                 Ok(Err(e)) => {
-                                    tracing::warn!("Failed to capture keyword evidence frame: {}", e);
+                                    tracing::warn!(
+                                        "Failed to capture keyword evidence frame: {}",
+                                        e
+                                    );
                                 }
                                 Err(e) => {
-                                    tracing::warn!("Spawn blocking error during screen capture: {}", e);
+                                    tracing::warn!(
+                                        "Spawn blocking error during screen capture: {}",
+                                        e
+                                    );
                                 }
                             }
                         });

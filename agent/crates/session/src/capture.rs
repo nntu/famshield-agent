@@ -17,18 +17,21 @@ pub struct SmartVisualVerifier {
     blur_radius: u32,
 }
 
+impl Default for SmartVisualVerifier {
+    fn default() -> Self {
+        Self::new(0) // Default to 0: clean, sharp capture without blur
+    }
+}
+
 impl SmartVisualVerifier {
     pub fn new(blur_radius: u32) -> Self {
         Self { blur_radius }
     }
 
     /// Captures the interactive display via Win32 GDI BitBlt, scales down to 480p,
-    /// applies in-RAM Gaussian/box blur for privacy, and encodes as compressed JPEG.
-    pub fn capture_blurred_frame(&self) -> Result<Vec<u8>, SessionError> {
-        info!(
-            "Capturing trigger frame with privacy blur (radius={})",
-            self.blur_radius
-        );
+    /// applies in-RAM Gaussian/box blur if blur_radius > 0, and encodes as compressed JPEG.
+    pub fn capture_frame(&self) -> Result<Vec<u8>, SessionError> {
+        info!("Capturing trigger frame (blur_radius={})", self.blur_radius);
 
         let (src_w, src_h, bgra_pixels) = Self::capture_screen_pixels()?;
 
@@ -38,7 +41,7 @@ impl SmartVisualVerifier {
         let mut rgb =
             Self::downscale_and_convert_to_rgb(&bgra_pixels, src_w, src_h, target_w, target_h);
 
-        // Apply fast 3-pass box blur (converges to Gaussian blur in RAM)
+        // Apply fast 3-pass box blur only if configured
         if self.blur_radius > 0 {
             Self::apply_gaussian_blur(
                 &mut rgb,
@@ -50,19 +53,24 @@ impl SmartVisualVerifier {
 
         // Compress to JPEG (<150 KiB quota)
         let mut jpeg = Vec::with_capacity(32 * 1024);
-        let encoder = Encoder::new(&mut jpeg, 60);
+        let encoder = Encoder::new(&mut jpeg, 65);
         encoder
             .encode(&rgb, target_w as u16, target_h as u16, ColorType::Rgb)
             .map_err(|e| SessionError::ScreenCapture(format!("JPEG encoding failed: {e}")))?;
 
         info!(
-            "Generated blurred frame: {}x{}, {} bytes",
+            "Generated frame: {}x{}, {} bytes",
             target_w,
             target_h,
             jpeg.len()
         );
 
         Ok(jpeg)
+    }
+
+    /// Legacy alias for capture_frame
+    pub fn capture_blurred_frame(&self) -> Result<Vec<u8>, SessionError> {
+        self.capture_frame()
     }
 
     #[cfg(windows)]

@@ -127,11 +127,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                         // 1. Show notification toast to user
                         let tray_hwnd = SystemTray::get_tray_hwnd();
-                        famshield_session::FriendlyToast::notify_content_blocked(tray_hwnd, &trigger);
+                        famshield_session::FriendlyToast::notify_content_blocked(
+                            tray_hwnd, &trigger,
+                        );
 
-                        // 2. Capture blurred screenshot in RAM and submit to service
+                        // 2. Capture clear screenshot in RAM and submit to service
                         tokio::spawn(async move {
-                            let verifier = famshield_session::SmartVisualVerifier::new(15);
+                            let verifier = famshield_session::SmartVisualVerifier::new(0);
                             let capture_res = tokio::task::spawn_blocking(move || {
                                 verifier.capture_blurred_frame()
                             })

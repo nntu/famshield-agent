@@ -13,6 +13,7 @@ interface EvidenceTabProps {
 export const EvidenceTab: React.FC<EvidenceTabProps> = ({ evidenceList, lang }) => {
   const t = translations[lang];
   const [selectedEvidence, setSelectedEvidence] = useState<EvidenceItem | null>(null);
+  const [isBlurred, setIsBlurred] = useState(false);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
@@ -72,10 +73,10 @@ export const EvidenceTab: React.FC<EvidenceTabProps> = ({ evidenceList, lang }) 
                   <img
                     src={item.thumbnail_url}
                     alt="Violation Capture"
-                    className="w-full h-full object-cover blur-[3px] group-hover:blur-[2px] transition-all"
+                    className="w-full h-full object-cover transition-all"
                   />
-                  <div className="absolute top-2.5 right-2.5 bg-slate-900/80 backdrop-blur-xs text-amber-300 px-2 py-0.5 rounded-md text-2xs font-bold border border-amber-300/30">
-                    🔒 Blurred 480p
+                  <div className="absolute top-2.5 right-2.5 bg-slate-900/80 backdrop-blur-xs text-sky-300 px-2 py-0.5 rounded-md text-2xs font-bold border border-sky-300/30">
+                    📸 480p
                   </div>
                 </button>
 
@@ -145,12 +146,21 @@ export const EvidenceTab: React.FC<EvidenceTabProps> = ({ evidenceList, lang }) 
                 <img
                   src={selectedEvidence.thumbnail_url}
                   alt="Enlarged Visual Evidence"
-                  className="max-w-full max-h-[420px] object-contain blur-[3px]"
+                  className={`max-w-full max-h-[480px] object-contain transition-all duration-200 ${
+                    isBlurred ? 'blur-md' : 'blur-none'
+                  }`}
                 />
               </div>
 
-              <div className="mt-3.5 text-xs text-slate-500 text-center">
-                🔒 {t.evidence_modal_notice}
+              <div className="mt-3.5 flex items-center justify-between text-xs text-slate-500">
+                <span>🔒 {t.evidence_modal_notice}</span>
+                <button
+                  type="button"
+                  onClick={() => setIsBlurred(!isBlurred)}
+                  className="px-3 py-1 rounded-lg border border-slate-200 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold cursor-pointer transition-colors"
+                >
+                  {isBlurred ? `👁️ ${t.btn_toggle_unblur}` : `🔒 ${t.btn_toggle_blur}`}
+                </button>
               </div>
             </div>
           </div>
