@@ -34,6 +34,16 @@ export interface QueryLogRecord {
   occurred_at: string;
 }
 
+export interface DomainQuerySummary {
+  domain: string;
+  total_queries: number;
+  allowed_count: number;
+  blocked_count: number;
+  monitored_count: number;
+  error_count: number;
+  last_seen_at: string;
+}
+
 export interface EvidenceItem {
   evidence_id: string;
   event_id: string;

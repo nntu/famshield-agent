@@ -211,9 +211,10 @@ export const App: React.FC = () => {
           <LogsTab
             logs={logs}
             lang={lang}
-            onRefresh={() => api.getLogs(150).then(setLogs)}
+            onRefresh={refreshAllData}
             autoRefresh={autoRefresh}
             onToggleAutoRefresh={() => setAutoRefresh(!autoRefresh)}
+            onShowToast={showToast}
           />
         )}
 

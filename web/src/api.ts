@@ -1,6 +1,7 @@
 import {
   ActivitySummaryResponse,
   BackupPayload,
+  DomainQuerySummary,
   EvidenceItem,
   InitializeSetupRequest,
   InitializeSetupResponse,
@@ -133,8 +134,15 @@ export const api = {
     });
   },
 
-  async getLogs(limit: number = 100): Promise<QueryLogRecord[]> {
-    return apiRequest<QueryLogRecord[]>(`/api/logs/dns?limit=${limit}`);
+  async getDnsSummary(limit: number = 200): Promise<DomainQuerySummary[]> {
+    return apiRequest<DomainQuerySummary[]>(`/api/logs/dns/summary?limit=${limit}`);
+  },
+
+  async getLogs(limit: number = 100, domain?: string): Promise<QueryLogRecord[]> {
+    const url = domain
+      ? `/api/logs/dns?limit=${limit}&domain=${encodeURIComponent(domain)}`
+      : `/api/logs/dns?limit=${limit}`;
+    return apiRequest<QueryLogRecord[]>(url);
   },
 
   async getEvidence(limit: number = 50): Promise<EvidenceItem[]> {

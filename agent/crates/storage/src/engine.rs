@@ -22,6 +22,17 @@ pub struct QueryLogRecord {
     pub occurred_at: DateTime<Utc>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DomainQuerySummary {
+    pub domain: String,
+    pub total_queries: usize,
+    pub allowed_count: usize,
+    pub blocked_count: usize,
+    pub monitored_count: usize,
+    pub error_count: usize,
+    pub last_seen_at: DateTime<Utc>,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct LocalRuleRecord {
     pub rule_id: String,
@@ -263,6 +274,80 @@ impl StorageEngine {
                 occurred_at: DateTime::parse_from_rfc3339(&occ_str)
                     .unwrap()
                     .with_timezone(&Utc),
+            })
+        })?;
+
+        let mut logs = Vec::new();
+        for r in rows {
+            logs.push(r?);
+        }
+        Ok(logs)
+    }
+
+    pub fn get_domain_query_summaries(
+        &self,
+        limit: usize,
+    ) -> Result<Vec<DomainQuerySummary>, StorageError> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT domain,
+                    COUNT(*) as total_queries,
+                    SUM(CASE WHEN action = 'ALLOW' THEN 1 ELSE 0 END) as allowed_count,
+                    SUM(CASE WHEN action = 'BLOCK' THEN 1 ELSE 0 END) as blocked_count,
+                    SUM(CASE WHEN action = 'MONITOR' THEN 1 ELSE 0 END) as monitored_count,
+                    SUM(CASE WHEN action = 'ERROR' THEN 1 ELSE 0 END) as error_count,
+                    MAX(occurred_at) as last_seen_at
+             FROM query_logs
+             GROUP BY domain
+             ORDER BY total_queries DESC, last_seen_at DESC
+             LIMIT ?1",
+        )?;
+        let rows = stmt.query_map(params![limit as i64], |row| {
+            let occ_str: String = row.get(6)?;
+            let last_seen_at = DateTime::parse_from_rfc3339(&occ_str)
+                .map(|dt| dt.with_timezone(&Utc))
+                .unwrap_or_else(|_| Utc::now());
+            Ok(DomainQuerySummary {
+                domain: row.get(0)?,
+                total_queries: row.get::<_, i64>(1)? as usize,
+                allowed_count: row.get::<_, i64>(2)? as usize,
+                blocked_count: row.get::<_, i64>(3)? as usize,
+                monitored_count: row.get::<_, i64>(4)? as usize,
+                error_count: row.get::<_, i64>(5)? as usize,
+                last_seen_at,
+            })
+        })?;
+
+        let mut summaries = Vec::new();
+        for r in rows {
+            summaries.push(r?);
+        }
+        Ok(summaries)
+    }
+
+    pub fn list_query_logs_for_domain(
+        &self,
+        domain: &str,
+        limit: usize,
+    ) -> Result<Vec<QueryLogRecord>, StorageError> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT domain, qtype, action, reason, rule_id, occurred_at 
+             FROM query_logs 
+             WHERE domain = ?1 
+             ORDER BY id DESC LIMIT ?2",
+        )?;
+        let rows = stmt.query_map(params![domain, limit as i64], |row| {
+            let occ_str: String = row.get(5)?;
+            Ok(QueryLogRecord {
+                domain: row.get(0)?,
+                qtype: row.get(1)?,
+                action: row.get(2)?,
+                reason: row.get(3)?,
+                rule_id: row.get(4)?,
+                occurred_at: DateTime::parse_from_rfc3339(&occ_str)
+                    .map(|dt| dt.with_timezone(&Utc))
+                    .unwrap_or_else(|_| Utc::now()),
             })
         })?;
 

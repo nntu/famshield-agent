@@ -227,3 +227,60 @@ fn test_outbox_lifecycle_and_retry_backoff() {
     storage.dequeue_outbox(&["evt-01".to_string()]).unwrap();
     assert_eq!(storage.count_outbox().unwrap(), 0);
 }
+
+#[test]
+fn test_domain_query_summaries_and_drilldown() {
+    let storage = StorageEngine::in_memory().unwrap();
+    let now = Utc::now();
+
+    let logs = vec![
+        QueryLogRecord {
+            domain: "tiktok.com".into(),
+            qtype: "A".into(),
+            action: "BLOCK".into(),
+            reason: "local_domain_rule".into(),
+            rule_id: Some("tiktok.com".into()),
+            occurred_at: now - chrono::Duration::seconds(10),
+        },
+        QueryLogRecord {
+            domain: "tiktok.com".into(),
+            qtype: "AAAA".into(),
+            action: "BLOCK".into(),
+            reason: "local_domain_rule".into(),
+            rule_id: Some("tiktok.com".into()),
+            occurred_at: now - chrono::Duration::seconds(5),
+        },
+        QueryLogRecord {
+            domain: "google.com".into(),
+            qtype: "A".into(),
+            action: "ALLOW".into(),
+            reason: "upstream".into(),
+            rule_id: None,
+            occurred_at: now,
+        },
+    ];
+
+    storage.insert_query_logs_batch(&logs).unwrap();
+
+    let summaries = storage.get_domain_query_summaries(10).unwrap();
+    assert_eq!(summaries.len(), 2);
+    // tiktok.com has 2 queries, should be first
+    assert_eq!(summaries[0].domain, "tiktok.com");
+    assert_eq!(summaries[0].total_queries, 2);
+    assert_eq!(summaries[0].blocked_count, 2);
+    assert_eq!(summaries[0].allowed_count, 0);
+
+    // google.com has 1 query
+    assert_eq!(summaries[1].domain, "google.com");
+    assert_eq!(summaries[1].total_queries, 1);
+    assert_eq!(summaries[1].allowed_count, 1);
+    assert_eq!(summaries[1].blocked_count, 0);
+
+    // Drill-down for tiktok.com
+    let tiktok_logs = storage
+        .list_query_logs_for_domain("tiktok.com", 10)
+        .unwrap();
+    assert_eq!(tiktok_logs.len(), 2);
+    assert_eq!(tiktok_logs[0].domain, "tiktok.com");
+    assert_eq!(tiktok_logs[1].domain, "tiktok.com");
+}

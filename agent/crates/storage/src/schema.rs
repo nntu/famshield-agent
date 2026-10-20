@@ -2,7 +2,7 @@ use crate::error::StorageError;
 use rusqlite::Connection;
 use rusqlite_migration::{Migrations, M};
 
-pub const CURRENT_SCHEMA_VERSION: usize = 3;
+pub const CURRENT_SCHEMA_VERSION: usize = 4;
 
 const V1_SQL: &str = r#"
 -- Agent metadata
@@ -130,8 +130,18 @@ CREATE TABLE IF NOT EXISTS custom_keywords (
 );
 "#;
 
+const V4_SQL: &str = r#"
+-- Optimize domain query summary and domain drill-down queries
+CREATE INDEX IF NOT EXISTS idx_query_logs_domain ON query_logs(domain);
+"#;
+
 pub fn migrations() -> Migrations<'static> {
-    Migrations::new(vec![M::up(V1_SQL), M::up(V2_SQL), M::up(V3_SQL)])
+    Migrations::new(vec![
+        M::up(V1_SQL),
+        M::up(V2_SQL),
+        M::up(V3_SQL),
+        M::up(V4_SQL),
+    ])
 }
 
 pub fn initialize_database(conn: &mut Connection) -> Result<(), StorageError> {

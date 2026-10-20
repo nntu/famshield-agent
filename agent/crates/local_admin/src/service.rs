@@ -413,6 +413,31 @@ impl LocalAdminService {
         Ok(logs)
     }
 
+    /// Query aggregated DNS summaries grouped by domain.
+    pub fn get_domain_query_summaries(
+        &self,
+        limit: usize,
+    ) -> Result<Vec<famshield_storage::DomainQuerySummary>, LocalAdminError> {
+        let summaries = self.storage.get_domain_query_summaries(limit)?;
+        Ok(summaries)
+    }
+
+    /// Query DNS logs with optional domain filtering.
+    pub fn list_query_logs_filtered(
+        &self,
+        domain: Option<&str>,
+        limit: usize,
+    ) -> Result<Vec<famshield_storage::QueryLogRecord>, LocalAdminError> {
+        if let Some(d) = domain {
+            let trimmed = d.trim();
+            if !trimmed.is_empty() {
+                let logs = self.storage.list_query_logs_for_domain(trimmed, limit)?;
+                return Ok(logs);
+            }
+        }
+        self.list_query_logs(limit)
+    }
+
     /// Query visual evidence gallery for local guardian review.
     pub fn list_visual_evidence(
         &self,

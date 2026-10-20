@@ -21,7 +21,7 @@ use crate::service::{
 use crate::ui::LOCAL_DASHBOARD_HTML;
 use famshield_dns::blocklist::BlocklistStore;
 use famshield_storage::{
-    KeywordViolationRecord, LocalRuleRecord, QueryLogRecord, UsageSegmentRecord,
+    DomainQuerySummary, KeywordViolationRecord, LocalRuleRecord, QueryLogRecord, UsageSegmentRecord,
 };
 
 #[derive(Clone)]
@@ -140,6 +140,7 @@ pub struct InitializeSetupResponse {
 pub struct QueryParams {
     pub limit: Option<usize>,
     pub token: Option<String>,
+    pub domain: Option<String>,
 }
 
 pub struct LocalAdminServer {
@@ -213,6 +214,7 @@ impl LocalAdminServer {
             .route("/api/rules/bulk", post(handle_bulk_create_rules))
             .route("/api/rules/:rule_id", delete(handle_delete_rule))
             .route("/api/logs/dns", get(handle_list_logs))
+            .route("/api/logs/dns/summary", get(handle_get_dns_summary))
             .route("/api/evidence", get(handle_list_evidence))
             .route(
                 "/api/evidence/:evidence_id/thumbnail",
@@ -716,10 +718,32 @@ async fn handle_list_logs(
     }
 
     let limit = query.limit.unwrap_or(100).min(500);
-    match state.service.list_query_logs(limit) {
+    match state
+        .service
+        .list_query_logs_filtered(query.domain.as_deref(), limit)
+    {
         Ok(logs) => Ok(Json(logs)),
         Err(e) => {
             warn!("Failed to query DNS logs: {}", e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+
+async fn handle_get_dns_summary(
+    State(state): State<ServerState>,
+    headers: HeaderMap,
+    Query(query): Query<QueryParams>,
+) -> Result<Json<Vec<DomainQuerySummary>>, StatusCode> {
+    if !check_auth(&state, &headers, query.token.as_deref()).await {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+
+    let limit = query.limit.unwrap_or(200).min(1000);
+    match state.service.get_domain_query_summaries(limit) {
+        Ok(summaries) => Ok(Json(summaries)),
+        Err(e) => {
+            warn!("Failed to query domain DNS summaries: {}", e);
             Err(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }

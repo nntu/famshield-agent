@@ -303,7 +303,11 @@ pub const LOCAL_DASHBOARD_HTML: &str = r#"<!DOCTYPE html>
                         <p class="card-sub" data-i18n="dns_logs_desc">Ghi nhận mọi yêu cầu phân giải tên miền từ các ứng dụng trên thiết bị</p>
                     </div>
                     <div class="filter-group">
-                        <input type="text" id="logs-search" placeholder="🔍 Tìm tên miền..." oninput="filterLogs()" style="width: 200px;">
+                        <div style="display:inline-flex; background:#070b14; border-radius:8px; padding:2px; border:1px solid var(--border);">
+                            <button class="filter-btn active" id="btn-mode-summary" onclick="setDnsViewMode('summary')">📊 Tổng hợp Domain</button>
+                            <button class="filter-btn" id="btn-mode-stream" onclick="setDnsViewMode('stream')">📋 Toàn bộ chi tiết</button>
+                        </div>
+                        <input type="text" id="logs-search" placeholder="🔍 Tìm tên miền..." oninput="filterLogs()" style="width: 180px;">
                         <button class="filter-btn active" id="btn-filter-all" onclick="setLogFilter('all')" data-i18n="filter_all">Tất cả</button>
                         <button class="filter-btn" id="btn-filter-block" onclick="setLogFilter('block')" data-i18n="filter_block">Chỉ chặn</button>
                         <button class="filter-btn" id="btn-filter-allow" onclick="setLogFilter('allow')" data-i18n="filter_allow">Cho phép</button>
@@ -312,13 +316,13 @@ pub const LOCAL_DASHBOARD_HTML: &str = r#"<!DOCTYPE html>
                 </div>
 
                 <table>
-                    <thead>
+                    <thead id="logs-table-head">
                         <tr>
-                            <th data-i18n="th_time">Thời gian</th>
-                            <th data-i18n="th_domain">Tên miền</th>
-                            <th data-i18n="th_type">Loại</th>
-                            <th data-i18n="th_action">Hành động</th>
-                            <th data-i18n="th_reason">Lý do</th>
+                            <th>Tên miền</th>
+                            <th>Tổng truy vấn</th>
+                            <th>Phân loại kết quả</th>
+                            <th>Lần truy vấn cuối</th>
+                            <th>Thao tác</th>
                         </tr>
                     </thead>
                     <tbody id="logs-table-body">
@@ -406,6 +410,37 @@ pub const LOCAL_DASHBOARD_HTML: &str = r#"<!DOCTYPE html>
             </div>
         </section>
     </main>
+
+    <!-- Domain Query Drill-down Modal -->
+    <div class="modal-overlay" id="domain-detail-modal" style="display:none;" onclick="closeDomainDetailModal()">
+        <div class="pin-modal" style="max-width: 780px; width: 92%; text-align: left;" onclick="event.stopPropagation()">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; border-bottom: 1px solid var(--border); padding-bottom: 12px;">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <span style="font-size: 1.3rem;">🌐</span>
+                    <div>
+                        <h3 id="modal-domain-title" style="color: var(--accent); font-size: 1.15rem; margin: 0;">Domain</h3>
+                        <p style="font-size: 0.8rem; color: var(--text-muted); margin: 0;">Chi tiết các lượt phân giải tên miền gần nhất</p>
+                    </div>
+                </div>
+                <button class="btn-secondary" onclick="closeDomainDetailModal()" style="padding: 5px 12px; font-size: 0.82rem;">✕ Đóng</button>
+            </div>
+            <div style="max-height: 420px; overflow-y: auto;">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Thời gian</th>
+                            <th>Loại</th>
+                            <th>Hành động</th>
+                            <th>Lý do</th>
+                        </tr>
+                    </thead>
+                    <tbody id="modal-domain-tbody">
+                        <tr><td colspan="4" style="text-align: center; color: var(--text-muted);">Đang tải dữ liệu chi tiết...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
 
     <!-- Master PIN Login Modal -->
     <div class="modal-overlay" id="login-modal" style="display:none;">
@@ -950,10 +985,44 @@ pub const LOCAL_DASHBOARD_HTML: &str = r#"<!DOCTYPE html>
             }
         }
 
+        let dnsViewMode = 'summary'; // 'summary' (default) or 'stream'
+        let domainSummaries = [];
+        let allLogs = [];
+
+        function setDnsViewMode(mode) {
+            dnsViewMode = mode;
+            document.getElementById('btn-mode-summary').classList.toggle('active', mode === 'summary');
+            document.getElementById('btn-mode-stream').classList.toggle('active', mode === 'stream');
+            const thead = document.getElementById('logs-table-head');
+            if (mode === 'summary') {
+                thead.innerHTML = `<tr>
+                    <th>Tên miền</th>
+                    <th>Tổng truy vấn</th>
+                    <th>Phân loại kết quả</th>
+                    <th>Lần truy vấn cuối</th>
+                    <th>Thao tác</th>
+                </tr>`;
+            } else {
+                thead.innerHTML = `<tr>
+                    <th>Thời gian</th>
+                    <th>Tên miền</th>
+                    <th>Loại</th>
+                    <th>Hành động</th>
+                    <th>Lý do</th>
+                </tr>`;
+            }
+            fetchLogs();
+        }
+
         async function fetchLogs() {
             try {
-                const res = await api('/api/logs/dns?limit=150');
-                allLogs = await res.json();
+                if (dnsViewMode === 'summary') {
+                    const res = await api('/api/logs/dns/summary?limit=300');
+                    domainSummaries = await res.json();
+                } else {
+                    const res = await api('/api/logs/dns?limit=150');
+                    allLogs = await res.json();
+                }
                 renderLogs();
             } catch (e) {}
         }
@@ -974,29 +1043,94 @@ pub const LOCAL_DASHBOARD_HTML: &str = r#"<!DOCTYPE html>
             const query = (document.getElementById('logs-search').value || '').trim().toLowerCase();
             const tbody = document.getElementById('logs-table-body');
 
-            let filtered = allLogs.filter(l => {
-                if (logFilter === 'block' && l.action !== 'BLOCK') return false;
-                if (logFilter === 'allow' && l.action !== 'ALLOW') return false;
-                if (query && !l.domain.toLowerCase().includes(query)) return false;
-                return true;
-            });
+            if (dnsViewMode === 'summary') {
+                let filtered = domainSummaries.filter(s => {
+                    if (logFilter === 'block' && s.blocked_count === 0) return false;
+                    if (logFilter === 'allow' && s.allowed_count === 0) return false;
+                    if (query && !s.domain.toLowerCase().includes(query)) return false;
+                    return true;
+                });
 
-            if (filtered.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--text-muted);">${currentLang === 'vi' ? 'Không tìm thấy nhật ký phù hợp' : 'No matching logs found'}</td></tr>`;
-                return;
+                if (filtered.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--text-muted);">${currentLang === 'vi' ? 'Không tìm thấy tên miền phù hợp' : 'No matching domains found'}</td></tr>`;
+                    return;
+                }
+
+                tbody.innerHTML = filtered.map(s => {
+                    const timeStr = new Date(s.last_seen_at).toLocaleTimeString();
+                    const breakdown = [];
+                    if (s.blocked_count > 0) breakdown.push(`<span class="tag-block">${s.blocked_count} BLOCK</span>`);
+                    if (s.allowed_count > 0) breakdown.push(`<span class="tag-allow">${s.allowed_count} ALLOW</span>`);
+                    if (s.monitored_count > 0) breakdown.push(`<span style="background:rgba(251,191,36,0.15); color:#fbbf24; padding:2px 7px; border-radius:4px; font-size:0.75rem; font-weight:700;">${s.monitored_count} MONITOR</span>`);
+                    if (s.error_count > 0) breakdown.push(`<span style="background:rgba(148,163,184,0.15); color:#94a3b8; padding:2px 7px; border-radius:4px; font-size:0.75rem; font-weight:700;">${s.error_count} ERROR</span>`);
+
+                    return `<tr>
+                        <td><strong style="color:var(--text-main);">${s.domain}</strong></td>
+                        <td><span style="background:#1e293b; color:var(--accent); padding:2px 8px; border-radius:4px; font-weight:700;">${s.total_queries}</span></td>
+                        <td><div style="display:flex; gap:6px; flex-wrap:wrap;">${breakdown.join('')}</div></td>
+                        <td style="color:var(--text-muted); font-size:0.82rem;">${timeStr}</td>
+                        <td>
+                            <button class="btn-secondary" onclick="openDomainDetailModal('${s.domain}')" style="padding:4px 10px; font-size:0.78rem;">
+                                👁️ Chi tiết
+                            </button>
+                        </td>
+                    </tr>`;
+                }).join('');
+            } else {
+                let filtered = allLogs.filter(l => {
+                    if (logFilter === 'block' && l.action !== 'BLOCK') return false;
+                    if (logFilter === 'allow' && l.action !== 'ALLOW') return false;
+                    if (query && !l.domain.toLowerCase().includes(query)) return false;
+                    return true;
+                });
+
+                if (filtered.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--text-muted);">${currentLang === 'vi' ? 'Không tìm thấy nhật ký phù hợp' : 'No matching logs found'}</td></tr>`;
+                    return;
+                }
+
+                tbody.innerHTML = filtered.map(l => {
+                    const isBlock = l.action === 'BLOCK';
+                    const timeStr = new Date(l.occurred_at).toLocaleTimeString();
+                    return `<tr>
+                        <td>${timeStr}</td>
+                        <td><strong>${l.domain}</strong></td>
+                        <td><span class="tag-gray">${l.qtype}</span></td>
+                        <td><span class="${isBlock ? 'tag-block' : 'tag-allow'}">${l.action}</span></td>
+                        <td style="color:var(--text-muted); font-size:0.82rem;">${l.reason}</td>
+                    </tr>`;
+                }).join('');
             }
+        }
 
-            tbody.innerHTML = filtered.map(l => {
-                const isBlock = l.action === 'BLOCK';
-                const timeStr = new Date(l.occurred_at).toLocaleTimeString();
-                return `<tr>
-                    <td>${timeStr}</td>
-                    <td><strong>${l.domain}</strong></td>
-                    <td><span class="tag-gray">${l.qtype}</span></td>
-                    <td><span class="${isBlock ? 'tag-block' : 'tag-allow'}">${l.action}</span></td>
-                    <td style="color:var(--text-muted); font-size:0.82rem;">${l.reason}</td>
-                </tr>`;
-            }).join('');
+        async function openDomainDetailModal(domain) {
+            document.getElementById('domain-detail-modal').style.display = 'flex';
+            document.getElementById('modal-domain-title').textContent = domain;
+            document.getElementById('modal-domain-tbody').innerHTML = '<tr><td colspan="4" style="text-align:center; color:var(--text-muted);">Đang truy xuất chi tiết các truy vấn...</td></tr>';
+            try {
+                const res = await api('/api/logs/dns?limit=100&domain=' + encodeURIComponent(domain));
+                const list = await res.json();
+                if (list.length === 0) {
+                    document.getElementById('modal-domain-tbody').innerHTML = '<tr><td colspan="4" style="text-align:center; color:var(--text-muted);">Không có dữ liệu truy vấn</td></tr>';
+                    return;
+                }
+                document.getElementById('modal-domain-tbody').innerHTML = list.map(l => {
+                    const isBlock = l.action === 'BLOCK';
+                    const timeStr = new Date(l.occurred_at).toLocaleTimeString();
+                    return `<tr>
+                        <td>${timeStr}</td>
+                        <td><span class="tag-gray">${l.qtype}</span></td>
+                        <td><span class="${isBlock ? 'tag-block' : 'tag-allow'}">${l.action}</span></td>
+                        <td style="color:var(--text-muted); font-size:0.82rem;">${l.reason}</td>
+                    </tr>`;
+                }).join('');
+            } catch (e) {
+                document.getElementById('modal-domain-tbody').innerHTML = '<tr><td colspan="4" style="text-align:center; color:var(--accent-red);">Không thể tải chi tiết</td></tr>';
+            }
+        }
+
+        function closeDomainDetailModal() {
+            document.getElementById('domain-detail-modal').style.display = 'none';
         }
 
         async function fetchEvidence() {
