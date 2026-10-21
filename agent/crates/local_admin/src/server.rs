@@ -310,6 +310,7 @@ impl LocalAdminServer {
                 post(handle_start_session_helper),
             )
             .route("/api/system/uninstall", post(handle_system_uninstall))
+            .route("/api/system/update/check", get(handle_check_update))
             .route(
                 "/api/dns/config",
                 get(handle_get_dns_config).post(handle_set_dns_config),
@@ -2155,6 +2156,74 @@ async fn handle_start_session_helper(
             "message": format!("Không thể khởi chạy Trợ lý phiên: {}", e)
         }))),
     }
+}
+
+async fn handle_check_update(State(state): State<ServerState>) -> impl IntoResponse {
+    let current_version = env!("CARGO_PKG_VERSION").to_string();
+
+    // 1. Check if Cloud Heartbeat sync already provided an update in storage
+    if let Ok(Some(cached_json)) = state.service.storage().get_meta("available_release_json") {
+        if let Ok(val) = serde_json::from_str::<serde_json::Value>(&cached_json) {
+            let rel_ver = val.get("version").and_then(|v| v.as_str()).unwrap_or("");
+            if !rel_ver.is_empty() && rel_ver != current_version {
+                return (
+                    StatusCode::OK,
+                    Json(serde_json::json!({
+                        "current_version": current_version,
+                        "latest_version": rel_ver,
+                        "update_available": true,
+                        "release_date": val.get("release_date").and_then(|v| v.as_str()).unwrap_or("2026-10-21"),
+                        "changelog": val.get("changelog").cloned().unwrap_or_else(|| serde_json::json!([])),
+                        "download_url": val.get("installer_url")
+                            .or_else(|| val.get("service_binary_url"))
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("https://famshield.ttcantho.io.vn/download/latest"),
+                    })),
+                );
+            }
+        }
+    }
+
+    // 2. Fallback for Standalone mode: Query the Cloudflare Edge Worker directly
+    let worker_url = "https://famshield.ttcantho.io.vn/version.json";
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(4))
+        .build()
+        .unwrap_or_default();
+
+    if let Ok(resp) = client.get(worker_url).send().await {
+        if resp.status().is_success() {
+            if let Ok(body) = resp.json::<serde_json::Value>().await {
+                let latest_ver = body
+                    .get("version")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or(&current_version);
+                let update_available = latest_ver != current_version;
+                return (
+                    StatusCode::OK,
+                    Json(serde_json::json!({
+                        "current_version": current_version,
+                        "latest_version": latest_ver,
+                        "update_available": update_available,
+                        "release_date": body.get("release_date").and_then(|v| v.as_str()).unwrap_or(""),
+                        "changelog": body.get("changelog").cloned().unwrap_or_else(|| serde_json::json!([])),
+                        "download_url": body.get("installer_url").and_then(|v| v.as_str()).unwrap_or("https://famshield.ttcantho.io.vn/download/latest"),
+                    })),
+                );
+            }
+        }
+    }
+
+    // 3. Fallback: already latest version or server offline
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({
+            "current_version": current_version,
+            "latest_version": current_version,
+            "update_available": false,
+            "message": "Hệ thống đang chạy phiên bản mới nhất.",
+        })),
+    )
 }
 
 #[derive(serde::Deserialize)]

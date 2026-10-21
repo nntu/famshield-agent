@@ -360,6 +360,18 @@ export const api = {
     );
   },
 
+  async checkSoftwareUpdate(): Promise<{
+    current_version: string;
+    latest_version: string;
+    update_available: boolean;
+    release_date?: string;
+    changelog?: string[];
+    download_url?: string;
+    message?: string;
+  }> {
+    return apiRequest('/api/system/update/check');
+  },
+
   async getTotpStatus(): Promise<TotpStatusResponse> {
     return apiRequest<TotpStatusResponse>('/api/auth/totp/status');
   },

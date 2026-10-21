@@ -1,0 +1,34 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "famshield-version-checker",
+  "main": "src/index.ts",
+  "compatibility_date": "2024-09-25",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "routes": [
+    {
+      "pattern": "famshield.ttcantho.io.vn/version.json",
+      "zone_name": "ttcantho.io.vn"
+    },
+    {
+      "pattern": "famshield.ttcantho.io.vn/v1/release/*",
+      "zone_name": "ttcantho.io.vn"
+    },
+    {
+      "pattern": "famshield.ttcantho.io.vn/download/*",
+      "zone_name": "ttcantho.io.vn"
+    }
+  ],
+ "kv_namespaces": [
+    {
+      "binding": "FAMSHIELD_VERSION_STORE",
+      "id": "d02af22f4bfb4fcb8e048a42341e25e0"
+    }
+  ]
+  ,
+  "vars": {
+    "ENVIRONMENT": "production",
+    "GITHUB_REPO": "nntu/famshield-agent"
+  }
+}

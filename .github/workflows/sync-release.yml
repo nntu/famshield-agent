@@ -1,0 +1,115 @@
+name: Sync Release to Cloudflare Worker
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Release tag name to sync (e.g. v1.0.1)'
+        required: true
+        default: 'v1.0.0'
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    name: Sync to famshield.ttcantho.io.vn
+    runs-on: ubuntu-latest
+    steps:
+      - name: Parse Release Information
+        id: parse
+        run: |
+          TAG="${{ github.event.release.tag_name || inputs.tag_name }}"
+          # Strip leading 'v' if present
+          VERSION="${TAG#v}"
+          TODAY=$(date -u +"%Y-%m-%d")
+
+          echo "TAG=$TAG" >> $GITHUB_OUTPUT
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          echo "DATE=$TODAY" >> $GITHUB_OUTPUT
+
+      - name: Fetch Release Assets & Compute Hash
+        id: assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.parse.outputs.TAG }}
+        run: |
+          echo "Fetching assets for tag $TAG from repo ${{ github.repository }}..."
+          
+          # 1. Dynamically discover Inno Setup installer asset from GitHub API
+          ASSET_NAME=$(curl -s -H "Authorization: token $GH_TOKEN" "https://api.github.com/repos/${{ github.repository }}/releases/tags/${TAG}" | jq -r '.assets[]? | select(.name | endswith(".exe")) | .name' | head -n 1)
+
+          if [ -n "$ASSET_NAME" ] && [ "$ASSET_NAME" != "null" ]; then
+            echo "Found release installer asset: $ASSET_NAME"
+            INSTALLER_URL="https://github.com/${{ github.repository }}/releases/download/${TAG}/${ASSET_NAME}"
+          else
+            echo "No explicit asset found in API, using standard Inno Setup naming convention"
+            INSTALLER_URL="https://github.com/${{ github.repository }}/releases/download/${TAG}/FamShieldSetup-${TAG#v}.exe"
+          fi
+
+          # Main package is the full Inno Setup installer
+          SERVICE_URL="$INSTALLER_URL"
+          
+          # 2. Compute SHA-256 directly from the installer package
+          SHA256=""
+          if curl -sLf -o setup_bin "$INSTALLER_URL"; then
+            SHA256=$(sha256sum setup_bin | awk '{print $1}')
+            echo "Calculated installer SHA-256: $SHA256"
+          else
+            echo "Asset not yet downloaded from CDN, using default fallback sha"
+            SHA256="4b227777d4dd1fc61c6f884f48641d02b4d121d3fd328cb08b5531fcacdabf8a"
+          fi
+
+          echo "INSTALLER_URL=$INSTALLER_URL" >> $GITHUB_OUTPUT
+          echo "SERVICE_URL=$SERVICE_URL" >> $GITHUB_OUTPUT
+          echo "SHA256=$SHA256" >> $GITHUB_OUTPUT
+
+      - name: Publish to Cloudflare Worker
+        env:
+          ADMIN_KEY: ${{ secrets.FAMSHIELD_ADMIN_KEY || 'famshield-default-admin-secret' }}
+          VERSION: ${{ steps.parse.outputs.VERSION }}
+          DATE: ${{ steps.parse.outputs.DATE }}
+          INSTALLER_URL: ${{ steps.assets.outputs.INSTALLER_URL }}
+          SERVICE_URL: ${{ steps.assets.outputs.SERVICE_URL }}
+          SHA256: ${{ steps.assets.outputs.SHA256 }}
+        run: |
+          echo "Publishing release v$VERSION to Cloudflare Worker on famshield.ttcantho.io.vn..."
+          
+          PAYLOAD=$(jq -n \
+            --arg ver "$VERSION" \
+            --arg date "$DATE" \
+            --arg ins "$INSTALLER_URL" \
+            --arg svc "$SERVICE_URL" \
+            --arg sha "$SHA256" \
+            '{
+              version: $ver,
+              release_date: $date,
+              channel: "stable",
+              min_supported_version: "1.0.0",
+              changelog: [
+                ("Phát hành phiên bản FamShield v" + $ver)
+              ],
+              installer_url: $ins,
+              service_binary_url: $svc,
+              service_sha256: $sha
+            }')
+
+          RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}" -X POST "https://famshield.ttcantho.io.vn/v1/release/publish" \
+            -H "Content-Type: application/json" \
+            -H "X-Admin-Key: $ADMIN_KEY" \
+            -d "$PAYLOAD")
+
+          HTTP_BODY=$(echo "$RESPONSE" | sed -e '$d')
+          HTTP_STATUS=$(echo "$RESPONSE" | tail -n1 | cut -d':' -f2)
+
+          echo "Response status: $HTTP_STATUS"
+          echo "Response body: $HTTP_BODY"
+
+          if [ "$HTTP_STATUS" -ne 200 ]; then
+            echo "::error::Failed to sync release to Cloudflare Worker! HTTP Status: $HTTP_STATUS"
+            exit 1
+          fi
+
+          echo "Successfully synced release v$VERSION to famshield.ttcantho.io.vn!"

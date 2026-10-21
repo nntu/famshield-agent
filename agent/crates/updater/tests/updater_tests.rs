@@ -369,3 +369,101 @@ fn test_offline_update_tampered_payload_rejected() {
 
     let _ = fs::remove_dir_all(&temp_root);
 }
+
+#[test]
+fn test_watchdog_health_verification_and_auto_rollback() {
+    use famshield_updater::WatchdogStatus;
+    use sha2::{Digest, Sha256};
+
+    let temp_root =
+        std::env::temp_dir().join(format!("famshield_watchdog_test_{}", std::process::id()));
+    let app_data = temp_root.join("app_data");
+    let install_dir = temp_root.join("install");
+    fs::create_dir_all(&app_data).unwrap();
+    fs::create_dir_all(&install_dir).unwrap();
+
+    let binary_name = "famshield-service.exe";
+    let active_bin = install_dir.join(binary_name);
+    fs::write(&active_bin, b"ORIGINAL_V1.0.0_STABLE_BINARY").unwrap();
+
+    let updater = WindowsAtomicUpdater::new("1.0.0", &app_data, &install_dir);
+
+    // Initial state: normal
+    assert_eq!(
+        updater.check_and_recover_health().unwrap(),
+        WatchdogStatus::Normal
+    );
+
+    // 1. Stage and swap to a new buggy v1.0.1 binary
+    let v101_payload = b"BUGGY_V1.0.1_BINARY_THAT_WILL_CRASH";
+    let mut hasher = Sha256::new();
+    hasher.update(v101_payload);
+    let sha256 = format!("{:x}", hasher.finalize());
+
+    updater
+        .stage_binary(binary_name, v101_payload, &sha256)
+        .unwrap();
+    updater.atomic_swap(binary_name).unwrap();
+    updater.record_pending_update(binary_name, "1.0.1").unwrap();
+
+    // Verify active binary is now v1.0.1
+    assert_eq!(fs::read(&active_bin).unwrap(), v101_payload);
+
+    // 2. First boot: Watchdog begins observation window (boot_attempts = 1)
+    let boot1 = updater.check_and_recover_health().unwrap();
+    assert_eq!(
+        boot1,
+        WatchdogStatus::PendingVerification {
+            target_version: "1.0.1".into(),
+            boot_attempts: 1,
+        }
+    );
+
+    // 3. Simulating crash during observation: Service restarts without calling confirm_update_healthy()
+    // Second boot: Watchdog detects crash and triggers automated rollback!
+    let boot2 = updater.check_and_recover_health().unwrap();
+    assert_eq!(
+        boot2,
+        WatchdogStatus::RolledBack {
+            failed_version: "1.0.1".into(),
+            restored_version: "1.0.0".into(),
+        }
+    );
+
+    // Active binary MUST have been restored back to v1.0.0 stable binary!
+    let restored_content = fs::read(&active_bin).unwrap();
+    assert_eq!(restored_content, b"ORIGINAL_V1.0.0_STABLE_BINARY");
+
+    // 4. Third boot: should now be back to Normal
+    let boot3 = updater.check_and_recover_health().unwrap();
+    assert_eq!(boot3, WatchdogStatus::Normal);
+
+    // 5. Happy Path: stage new healthy v1.0.2 binary and confirm healthy
+    let v102_payload = b"HEALTHY_V1.0.2_BINARY";
+    let mut hasher = Sha256::new();
+    hasher.update(v102_payload);
+    let sha256_v102 = format!("{:x}", hasher.finalize());
+
+    updater
+        .stage_binary(binary_name, v102_payload, &sha256_v102)
+        .unwrap();
+    updater.atomic_swap(binary_name).unwrap();
+    updater.record_pending_update(binary_name, "1.0.2").unwrap();
+
+    assert_eq!(
+        updater.check_and_recover_health().unwrap(),
+        WatchdogStatus::PendingVerification {
+            target_version: "1.0.2".into(),
+            boot_attempts: 1,
+        }
+    );
+
+    // Service confirms health after observation window
+    updater.confirm_update_healthy().unwrap();
+    assert_eq!(
+        updater.check_and_recover_health().unwrap(),
+        WatchdogStatus::Normal
+    );
+
+    let _ = fs::remove_dir_all(&temp_root);
+}

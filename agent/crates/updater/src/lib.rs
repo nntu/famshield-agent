@@ -5,7 +5,7 @@ pub mod online;
 pub mod staged;
 pub mod verifier;
 
-pub use atomic_swap::WindowsAtomicUpdater;
+pub use atomic_swap::{UpdateWatchdogState, WatchdogStatus, WindowsAtomicUpdater};
 pub use error::UpdateError;
 pub use offline::{OfflineUpdateEngine, OfflineUpdateReport};
 pub use online::OnlineUpdateClient;

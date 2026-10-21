@@ -174,6 +174,66 @@ impl ServiceController {
     pub async fn run(&self, mut shutdown_rx: broadcast::Receiver<()>) {
         info!("Starting FamShield Windows Service subsystems...");
 
+        // 0. Update Watchdog check: ensure we didn't crash on previous boot following an update
+        let app_data = std::env::var("ProgramData")
+            .map(std::path::PathBuf::from)
+            .unwrap_or_else(|_| std::path::PathBuf::from("."))
+            .join("FamShield");
+        let install_dir = std::env::current_exe()
+            .ok()
+            .and_then(|p| p.parent().map(|p| p.to_path_buf()))
+            .unwrap_or_else(|| std::path::PathBuf::from(r"C:\Program Files\FamShield"));
+
+        let atomic_updater = famshield_updater::WindowsAtomicUpdater::new(
+            env!("CARGO_PKG_VERSION"),
+            &app_data,
+            &install_dir,
+        );
+
+        match atomic_updater.check_and_recover_health() {
+            Ok(famshield_updater::WatchdogStatus::PendingVerification {
+                target_version,
+                boot_attempts,
+            }) => {
+                tracing::warn!(
+                    "WATCHDOG: Newly updated v{} running in observation window (attempt {}). 60s timer started.",
+                    target_version, boot_attempts
+                );
+                let updater_for_confirm = famshield_updater::WindowsAtomicUpdater::new(
+                    env!("CARGO_PKG_VERSION"),
+                    &app_data,
+                    &install_dir,
+                );
+                tokio::spawn(async move {
+                    tokio::time::sleep(std::time::Duration::from_secs(60)).await;
+                    if let Err(e) = updater_for_confirm.confirm_update_healthy() {
+                        tracing::error!("Watchdog: Failed to confirm update health: {}", e);
+                    } else {
+                        tracing::info!(
+                            "WATCHDOG: Update v{} confirmed healthy! Observation window closed.",
+                            target_version
+                        );
+                    }
+                });
+            }
+            Ok(famshield_updater::WatchdogStatus::RolledBack {
+                failed_version,
+                restored_version,
+            }) => {
+                tracing::error!(
+                    "WATCHDOG: Previous boot crashed after updating to v{}! Automated rollback restored v{}.",
+                    failed_version, restored_version
+                );
+            }
+            Ok(famshield_updater::WatchdogStatus::Normal)
+            | Ok(famshield_updater::WatchdogStatus::Verified) => {
+                tracing::debug!("Watchdog status: Healthy/Normal");
+            }
+            Err(e) => {
+                tracing::warn!("Watchdog check encountered error: {}", e);
+            }
+        }
+
         // Resolve initial upstream DNS servers: user-configured upstream + detected system DNS
         let configured_upstream = self
             .storage

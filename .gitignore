@@ -12,6 +12,7 @@ node_modules/
 dist/
 build/
 .npm/
+.wrangler/
 
 # Operating System & IDEs
 .DS_Store

@@ -223,6 +223,10 @@ impl TelemetrySyncWorker {
                             "New FamShield agent update available: v{} (current: v{}). Channel: {}",
                             rel.version, agent_version, rel.channel
                         );
+                        if let Ok(json) = serde_json::to_string(&rel) {
+                            let _ = self.storage.set_meta("available_release_json", &json);
+                            let _ = self.storage.set_meta("available_release_ver", &rel.version);
+                        }
                     }
                 }
             }
