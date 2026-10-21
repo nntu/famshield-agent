@@ -8,6 +8,8 @@ Tất cả các thay đổi quan trọng của dự án **FamShield Windows Agen
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-10-21
+
 ### Added
 - Chuẩn hóa giấy phép MIT cho repository: bổ sung `LICENSE`, đồng bộ metadata Cargo/npm và ghi rõ phạm vi giấy phép trong README cùng tài liệu đóng góp.
 - **Tích Hợp Bộ Công Cụ Biome (`@biomejs/biome`) & Quản Lý Gói Độc Lập `pnpm` v12.x Cho Phân Hệ Web Admin (`web`)**:
@@ -49,6 +51,9 @@ Tất cả các thay đổi quan trọng của dự án **FamShield Windows Agen
   - Sửa tương phản cảnh báo và Recovery Key trong Setup Wizard, chuyển bố cục nhập PIN về một cột trên màn hình hẹp và dùng chiều cao viewport động `100dvh`.
   - Đồng bộ thuộc tính ngôn ngữ tài liệu theo lựa chọn Việt/Anh, loại bỏ chuỗi tiếng Việt cố định trong modal bằng chứng và liên kết label với các trường nhập quan trọng.
   - Chuyển thư viện xử lý Excel `xlsx` sang dynamic import để không tải vào bundle khởi động của bảng điều khiển.
+
+### Security
+- Không đóng gói hoặc tự cài chứng thư root self-signed dùng cho phát triển; installer 1.0.1 chưa được ký Authenticode bằng chứng thư CA.
 
 
 ---

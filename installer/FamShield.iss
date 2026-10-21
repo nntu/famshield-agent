@@ -5,7 +5,7 @@
 ; ==============================================================================
 
 #define MyAppName "FamShield"
-#define MyAppVersion "1.0.0"
+#define MyAppVersion "1.0.1"
 #define MyAppPublisher "FamShield Security Team"
 #define MyAppURL "https://famshield.cloud"
 #define MyAppExeName "famshield-service.exe"
@@ -27,7 +27,7 @@ CreateUninstallRegKey=no
 UpdateUninstallLogAppName=no
 CloseApplications=no
 RestartApplications=no
-LicenseFile=..\README.md
+LicenseFile=..\LICENSE
 PrivilegesRequired=admin
 OutputBaseFilename=FamShieldSetup-{#MyAppVersion}
 Compression=lzma
@@ -46,7 +46,6 @@ Source: "..\target\release\famshield-service.exe"; DestDir: "{app}"; Flags: igno
 Source: "..\target\release\famshield-session.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\web\dist\*"; DestDir: "{app}\web\dist"; Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist
 Source: "..\assets\famshield.ico"; DestDir: "{app}"; Flags: ignoreversion
-Source: "certs\FamShieldRoot.cer"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
 
 [Icons]
 Name: "{autoprograms}\FamShield Security"; Filename: "{app}\famshield-session.exe"; IconFilename: "{app}\famshield.ico"
@@ -76,9 +75,6 @@ Root: HKLM; Subkey: "SOFTWARE\Policies\Google\Chrome"; ValueType: string; ValueN
 Root: HKLM; Subkey: "SOFTWARE\Policies\Microsoft\Edge"; ValueType: string; ValueName: "DnsOverHttpsMode"; ValueData: "off"; Flags: uninsdeletevalue
 
 [Run]
-; Auto-trust development Code Signing certificate on client machine
-Filename: "{sys}\certutil.exe"; Parameters: "-addstore -f Root ""{app}\FamShieldRoot.cer"""; Flags: runhidden; Check: FileExists(ExpandConstant('{app}\FamShieldRoot.cer'))
-Filename: "{sys}\certutil.exe"; Parameters: "-addstore -f TrustedPublisher ""{app}\FamShieldRoot.cer"""; Flags: runhidden; Check: FileExists(ExpandConstant('{app}\FamShieldRoot.cer'))
 ; Install and start Windows Service automatically under LocalSystem
 Filename: "{sys}\sc.exe"; Parameters: "create FamShieldService binPath= ""{app}\famshield-service.exe"" start= auto obj= LocalSystem DisplayName= ""FamShield Security Platform"""; Flags: runhidden
 Filename: "{sys}\sc.exe"; Parameters: "config FamShieldService binPath= ""{app}\famshield-service.exe"" start= auto obj= LocalSystem DisplayName= ""FamShield Security Platform"""; Flags: runhidden
@@ -150,4 +146,3 @@ begin
     end;
   end;
 end;
-

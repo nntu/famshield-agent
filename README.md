@@ -60,7 +60,7 @@ Workspace Rust được chia thành các crate theo trách nhiệm:
 
 ### Cài đặt bằng bộ cài
 
-1. Tải `FamShieldSetup-1.0.0.exe` từ [GitHub Releases](https://github.com/nntu/famshield-agent/releases). Nếu chưa có bản phát hành, xem mục [Tự đóng gói bộ cài](#tự-đóng-gói-bộ-cài) bên dưới.
+1. Tải `FamShieldSetup-1.0.1.exe` từ [GitHub Releases](https://github.com/nntu/famshield-agent/releases). Nếu chưa có bản phát hành, xem mục [Tự đóng gói bộ cài](#tự-đóng-gói-bộ-cài) bên dưới.
 2. Nhấp phải vào file cài đặt, chọn **Run as administrator**, rồi xác nhận yêu cầu UAC.
 3. Làm theo hướng dẫn trên màn hình. Trình cài đặt đăng ký Windows Service, cấu hình DNS cho agent và khởi chạy giao diện thiết lập ban đầu.
 4. Tạo Master PIN và hoàn tất cấu hình trong Web Admin.
@@ -90,7 +90,7 @@ Cài Rust, Node.js và Inno Setup 6, sau đó chạy trong PowerShell tại thư
 .\build.ps1 package
 ```
 
-Bộ cài được tạo tại `installer\Output\FamShieldSetup-1.0.0.exe`.
+Bộ cài được tạo tại `installer\Output\FamShieldSetup-1.0.1.exe`.
 
 ## Phát triển và kiểm thử
 

@@ -108,15 +108,15 @@ Phương án chuẩn cho việc phân phối rộng rãi tới phụ huynh (B2C)
    ```powershell
    & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer\FamShield.iss
    ```
-3. File setup được sinh ra tại: `installer\Output\FamShieldSetup-1.0.0.exe`.
+3. File setup được sinh ra tại: `installer\Output\FamShieldSetup-1.0.1.exe`.
 
 #### Kịch bản cài đặt tương tác (GUI):
-- Phụ huynh chạy `FamShieldSetup-1.0.0.exe` -> Nhấp "Install" -> Trình cài đặt tự động nạp binary, thiết lập Service và NRPT trong vòng 3 giây mà không yêu cầu khởi động lại máy.
+- Phụ huynh chạy `FamShieldSetup-1.0.1.exe` -> Nhấp "Install" -> Trình cài đặt tự động nạp binary, thiết lập Service và NRPT trong vòng 3 giây mà không yêu cầu khởi động lại máy.
 
 #### Kịch bản cài đặt im lặng (Silent Install):
 Dành cho IT Helpdesk hoặc phân phối từ xa:
 ```cmd
-FamShieldSetup-1.0.0.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
+FamShieldSetup-1.0.1.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
 ```
 
 ---
@@ -126,12 +126,12 @@ FamShieldSetup-1.0.0.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
 Áp dụng cho trường học, thư viện, hoặc gia đình có Active Directory Domain / Microsoft Intune.
 
 #### Triển khai qua Active Directory Group Policy (GPO):
-1. **Chia sẻ gói cài đặt:** Đặt `FamShieldSetup-1.0.0.exe` vào thư mục chia sẻ mạng `\\domain.local\netlogon\FamShield\`.
+1. **Chia sẻ gói cài đặt:** Đặt `FamShieldSetup-1.0.1.exe` vào thư mục chia sẻ mạng `\\domain.local\netlogon\FamShield\`.
 2. **Tạo GPO Startup Script (`install-famshield.bat`):**
    ```cmd
    @echo off
    if exist "C:\Program Files\FamShield\famshield-service.exe" goto END
-   \\domain.local\netlogon\FamShield\FamShieldSetup-1.0.0.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
+   \\domain.local\netlogon\FamShield\FamShieldSetup-1.0.1.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
    :END
    ```
 3. **Cấu hình Policy Enrollment (Tự động gán vào Cloud Tenant):**

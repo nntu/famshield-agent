@@ -60,7 +60,7 @@ The Rust workspace is split into crates by responsibility:
 
 ### Install with the setup program
 
-1. Download `FamShieldSetup-1.0.0.exe` from [GitHub Releases](https://github.com/nntu/famshield-agent/releases). If a release is not available yet, see [Build the installer](#build-the-installer) below.
+1. Download `FamShieldSetup-1.0.1.exe` from [GitHub Releases](https://github.com/nntu/famshield-agent/releases). If a release is not available yet, see [Build the installer](#build-the-installer) below.
 2. Right-click the setup program, select **Run as administrator**, and approve the UAC prompt.
 3. Follow the setup wizard. It registers the Windows Service, configures DNS for the agent, and launches the initial setup experience.
 4. Create a Master PIN and complete the setup in Web Admin.
@@ -90,7 +90,7 @@ Install Rust, Node.js, and Inno Setup 6, then run this from PowerShell in the re
 .\build.ps1 package
 ```
 
-The installer is generated at `installer\Output\FamShieldSetup-1.0.0.exe`.
+The installer is generated at `installer\Output\FamShieldSetup-1.0.1.exe`.
 
 ## Development and testing
 

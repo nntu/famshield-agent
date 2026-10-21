@@ -68,7 +68,7 @@ Chạy lệnh biên dịch script `installer/FamShield.iss`:
 & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer/FamShield.iss
 ```
 File cài đặt hoàn chỉnh sẽ được tạo tại:
-`installer/Output/FamShieldSetup-1.0.0.exe` (hoặc phiên bản tương ứng).
+`installer/Output/FamShieldSetup-1.0.1.exe` (hoặc phiên bản tương ứng).
 
 ---
 
