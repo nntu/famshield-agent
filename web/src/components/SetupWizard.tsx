@@ -127,7 +127,7 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ lang, onComplete }) =>
                 style={{
                   fontSize: '1.25rem',
                   fontWeight: 800,
-                  background: 'linear-gradient(135deg, #38bdf8, #818cf8)',
+                  background: 'linear-gradient(135deg, var(--accent), #38bdf8)',
                   WebkitBackgroundClip: 'text',
                   WebkitTextFillColor: 'transparent',
                 }}
@@ -251,7 +251,7 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ lang, onComplete }) =>
                 <span
                   style={{
                     fontSize: '1.8rem',
-                    background: '#0d9488',
+                    background: 'var(--accent)',
                     color: '#fff',
                     width: 44,
                     height: 44,
@@ -298,7 +298,7 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ lang, onComplete }) =>
                 <span
                   style={{
                     fontSize: '1.8rem',
-                    background: '#6366f1',
+                    background: 'var(--accent)',
                     color: '#fff',
                     width: 44,
                     height: 44,
@@ -605,7 +605,7 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ lang, onComplete }) =>
                 }}
                 style={{
                   background: presetProfile === 'strict' ? '#eef2ff' : '#f8fafc',
-                  border: `2px solid ${presetProfile === 'strict' ? '#6366f1' : '#cbd5e1'}`,
+                  border: `2px solid ${presetProfile === 'strict' ? 'var(--accent)' : 'var(--border-strong)'}`,
                   borderRadius: 16,
                   padding: '16px 20px',
                   cursor: 'pointer',
@@ -812,7 +812,7 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ lang, onComplete }) =>
                 }}
                 style={{
                   background: operatingMode === 'OnlineManaged' ? '#eef2ff' : '#f8fafc',
-                  border: `2px solid ${operatingMode === 'OnlineManaged' ? '#6366f1' : '#cbd5e1'}`,
+                  border: `2px solid ${operatingMode === 'OnlineManaged' ? 'var(--accent)' : 'var(--border-strong)'}`,
                   borderRadius: 16,
                   padding: '18px 20px',
                   cursor: 'pointer',

@@ -236,7 +236,7 @@ export const PinModal: React.FC<PinModalProps> = ({ isOpen, lang, onSuccess }) =
               {error && (
                 <div
                   role="alert"
-                  className="flex items-center justify-center gap-1.5 text-red-600 text-xs font-semibold"
+                  className="flex items-center justify-center gap-1.5 text-rose-700 text-xs font-semibold"
                 >
                   <ShieldAlert size={15} />
                   <span>{error}</span>
@@ -338,7 +338,7 @@ export const PinModal: React.FC<PinModalProps> = ({ isOpen, lang, onSuccess }) =
                 {error && (
                   <div
                     role="alert"
-                    className="flex items-center justify-center gap-1.5 text-red-600 text-xs font-semibold"
+                    className="flex items-center justify-center gap-1.5 text-rose-700 text-xs font-semibold"
                   >
                     <ShieldAlert size={15} />
                     <span>{error}</span>

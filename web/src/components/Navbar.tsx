@@ -52,12 +52,12 @@ export const Navbar: React.FC<NavbarProps> = ({
             className={`px-2.5 py-0.5 rounded-full text-xs font-semibold flex items-center gap-1.5 border ml-1.5 ${
               operatingMode === 'StandaloneFree'
                 ? 'bg-sky-50 text-sky-700 border-sky-200/80'
-                : 'bg-indigo-50 text-indigo-700 border-indigo-200/80'
+                : 'bg-sky-100 text-sky-800 border-sky-200/80'
             }`}
           >
             <span
               className={`w-1.5 h-1.5 rounded-full ${
-                operatingMode === 'StandaloneFree' ? 'bg-sky-500' : 'bg-indigo-500'
+                operatingMode === 'StandaloneFree' ? 'bg-sky-500' : 'bg-sky-700'
               }`}
             />
             {operatingMode}

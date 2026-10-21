@@ -25,6 +25,7 @@ Tất cả các thay đổi quan trọng của dự án **FamShield Windows Agen
   - Bổ sung cấu trúc style trung tâm `web/src/index.css` áp dụng `@import "tailwindcss";` cùng hệ thống CSS design tokens hiện đại.
 
 ### Changed
+- **Đồng bộ hệ màu Web Admin (`web`)**: Chuẩn hóa token giao diện theo nền Slate và accent Sky duy nhất; đưa các màu Indigo/Purple/Teal dùng cho điều hướng, danh mục và thao tác chính về cùng accent, đồng thời giữ Emerald/Amber/Rose riêng cho trạng thái thành công, cảnh báo và lỗi. Đồng bộ màu tại Activity, Navbar, PIN modal, Setup Wizard và Security settings để giảm xung đột giữa Tailwind và style inline cũ.
 - **Bỏ Chế Độ Làm Mờ Mặc Định Cho Bằng Chứng Thị Giác & Bổ Sung Nút Bật/Tắt Làm Mờ Tùy Chọn (`famshield-session`, `web`, `famshield-service`)**:
   - **Chụp ảnh rõ nét nguyên bản (Clear Evidence Capture)**: Cấu hình `SmartVisualVerifier` mặc định `blur_radius = 0` (loại bỏ hoàn toàn thuật toán Gaussian blur làm mờ đặc ảnh), lưu trữ khung hình sắc nét chuẩn 480p giúp phụ huynh nhận diện chính xác giao diện, đường dẫn web và nội dung vi phạm thực tế.
   - **Loại bỏ hiệu ứng CSS blur cố định trên Web UI**: Xóa bỏ thuộc tính `blur-[3px]` trên thẻ ảnh và modal phóng to trong `EvidenceTab.tsx`.

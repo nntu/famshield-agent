@@ -700,9 +700,9 @@ export const SecurityTab: React.FC<SecurityTabProps> = ({
             display: 'inline-flex',
             alignItems: 'center',
             gap: 6,
-            background: 'rgba(56, 189, 248, 0.1)',
-            border: '1px solid rgba(56, 189, 248, 0.3)',
-            color: '#38bdf8',
+            background: 'var(--accent-tint)',
+            border: '1px solid var(--accent-border)',
+            color: 'var(--accent)',
             padding: '6px 14px',
             borderRadius: 8,
             fontSize: '0.82rem',
@@ -722,9 +722,9 @@ export const SecurityTab: React.FC<SecurityTabProps> = ({
             display: 'inline-flex',
             alignItems: 'center',
             gap: 6,
-            background: 'rgba(129, 140, 248, 0.1)',
-            border: '1px solid rgba(129, 140, 248, 0.3)',
-            color: '#818cf8',
+            background: 'var(--accent-tint)',
+            border: '1px solid var(--accent-border)',
+            color: 'var(--accent)',
             padding: '6px 14px',
             borderRadius: 8,
             fontSize: '0.82rem',
@@ -744,9 +744,9 @@ export const SecurityTab: React.FC<SecurityTabProps> = ({
             display: 'inline-flex',
             alignItems: 'center',
             gap: 6,
-            background: 'rgba(168, 85, 247, 0.1)',
-            border: '1px solid rgba(168, 85, 247, 0.3)',
-            color: '#c084fc',
+            background: 'var(--accent-tint)',
+            border: '1px solid var(--accent-border)',
+            color: 'var(--accent)',
             padding: '6px 14px',
             borderRadius: 8,
             fontSize: '0.82rem',
@@ -768,9 +768,9 @@ export const SecurityTab: React.FC<SecurityTabProps> = ({
             display: 'inline-flex',
             alignItems: 'center',
             gap: 6,
-            background: 'rgba(244, 63, 94, 0.1)',
-            border: '1px solid rgba(244, 63, 94, 0.3)',
-            color: '#fb7185',
+            background: 'var(--accent-tint)',
+            border: '1px solid var(--accent-border)',
+            color: 'var(--accent)',
             padding: '6px 14px',
             borderRadius: 8,
             fontSize: '0.82rem',
@@ -931,7 +931,7 @@ export const SecurityTab: React.FC<SecurityTabProps> = ({
                 gap: 12,
               }}
             >
-              <Server size={24} color="#818cf8" />
+              <Server size={24} color="var(--accent)" />
               {t.title_central_server}
             </h2>
             <p style={{ fontSize: '0.88rem', color: '#94a3b8', marginTop: 6, lineHeight: 1.5 }}>
@@ -1069,7 +1069,9 @@ export const SecurityTab: React.FC<SecurityTabProps> = ({
             >
               {t.metric_policy_ver}
             </div>
-            <div style={{ fontSize: '0.95rem', fontWeight: 700, color: '#a855f7', marginTop: 4 }}>
+            <div
+              style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--accent)', marginTop: 4 }}
+            >
               v{serverConfig?.policy_version || 1}
             </div>
           </div>
@@ -1395,7 +1397,7 @@ export const SecurityTab: React.FC<SecurityTabProps> = ({
               type="checkbox"
               checked={tlsVerify}
               onChange={(e) => setTlsVerify(e.target.checked)}
-              style={{ width: 18, height: 18, accentColor: '#818cf8', cursor: 'pointer' }}
+              style={{ width: 18, height: 18, accentColor: 'var(--accent)', cursor: 'pointer' }}
             />
           </div>
 
@@ -1406,7 +1408,7 @@ export const SecurityTab: React.FC<SecurityTabProps> = ({
               disabled={isSavingServer}
               style={{
                 flex: 2,
-                background: 'linear-gradient(135deg, #6366f1, #818cf8)',
+                background: 'linear-gradient(135deg, var(--accent), #38bdf8)',
                 color: '#fff',
                 border: 'none',
                 padding: '12px 20px',
@@ -1418,7 +1420,7 @@ export const SecurityTab: React.FC<SecurityTabProps> = ({
                 alignItems: 'center',
                 justifyContent: 'center',
                 gap: 8,
-                boxShadow: '0 4px 15px rgba(99, 102, 241, 0.3)',
+                boxShadow: '0 4px 15px var(--accent-shadow)',
               }}
             >
               <Cloud size={18} />
@@ -2250,7 +2252,7 @@ export const SecurityTab: React.FC<SecurityTabProps> = ({
                       </td>
                       <td style={{ padding: '10px 14px', color: '#94a3b8', fontSize: '0.8rem' }}>
                         {rule.is_custom ? (
-                          <span style={{ color: '#c084fc', fontWeight: 600 }}>
+                          <span style={{ color: 'var(--accent)', fontWeight: 600 }}>
                             {isVi ? 'Phụ huynh' : 'Custom'}
                           </span>
                         ) : (

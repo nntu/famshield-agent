@@ -29,7 +29,7 @@ Cả hai chế độ đều sử dụng agent Windows. Chế độ quản lý t�
 ## Năng lực chính
 
 - **Kiểm soát DNS và mạng:** proxy DNS cục bộ, quy tắc lọc tên miền và cơ chế Windows Filtering Platform (WFP) để áp dụng chính sách mạng.
-- **Quản lý trên thiết bị:** giao diện Web Admin chạy cục bộ, responsive và hỗ trợ điều hướng bàn phím; cung cấp nhật ký hoạt động, cấu hình quy tắc và chế độ chỉ giám sát.
+- **Quản lý trên thiết bị:** giao diện Web Admin chạy cục bộ, responsive và hỗ trợ điều hướng bàn phím; sử dụng hệ màu Slate/Sky nhất quán với màu semantic riêng cho thành công, cảnh báo và lỗi; cung cấp nhật ký hoạt động, cấu hình quy tắc và chế độ chỉ giám sát.
 - **Bảo vệ truy cập:** xác thực Master PIN, lưu trữ dữ liệu cục bộ bằng SQLite và bảo vệ bí mật trên Windows bằng DPAPI.
 - **Quản lý ứng dụng và thời gian:** hỗ trợ theo dõi hoạt động ứng dụng và áp dụng chính sách giới hạn theo cấu hình.
 - **Riêng tư có chủ đích:** ảnh xác minh chỉ được chụp theo sự kiện và làm mờ trước khi lưu; bộ phát hiện từ khóa xử lý trong bộ đệm RAM và không ghi chuỗi phím thô xuống đĩa.

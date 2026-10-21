@@ -1,17 +1,41 @@
 @import "tailwindcss";
 
 :root {
+  color-scheme: light;
   --canvas: #f8fafc;
   --surface: #ffffff;
   --surface-subtle: #f1f5f9;
   --border: #e2e8f0;
   --border-subtle: #edf2f7;
+  --border-strong: #cbd5e1;
   --text-primary: #0f172a;
+  --text-strong: #334155;
   --text-secondary: #475569;
   --text-muted: #64748b;
-  --accent: #0284c7;
-  --accent-hover: #0369a1;
+  --text-faint: #94a3b8;
+  --accent: #0369a1;
+  --accent-hover: #075985;
   --accent-light: #e0f2fe;
+  --accent-soft: #f0f9ff;
+  --accent-tint: rgb(2 132 199 / 0.1);
+  --accent-border: rgb(2 132 199 / 0.3);
+  --accent-shadow: rgb(2 132 199 / 0.24);
+  --success: #059669;
+  --success-soft: #ecfdf5;
+  --warning: #d97706;
+  --warning-soft: #fffbeb;
+  --danger: #e11d48;
+  --danger-soft: #fff1f2;
+}
+
+body {
+  background: var(--canvas);
+  color: var(--text-primary);
+}
+
+::selection {
+  background: var(--accent-light);
+  color: var(--text-primary);
 }
 
 :where(
@@ -156,9 +180,7 @@ button.bg-slate-900,
 button.bg-slate-800,
 button.bg-sky-600,
 button.bg-sky-700,
-button.bg-blue-600,
 button.bg-rose-600,
-button.bg-red-600,
 button.bg-emerald-600,
 button.bg-amber-600,
 button.bg-amber-700,

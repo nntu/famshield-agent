@@ -114,11 +114,11 @@ async fn test_ipc_message_framing_roundtrip() {
 
 #[tokio::test]
 async fn test_ipc_message_max_size_protection() {
-    use famshield_service::read_framed_message;
+    use famshield_service::{read_framed_message, MAX_IPC_MESSAGE_SIZE};
     use std::io::Cursor;
 
-    // Craft a frame header claiming 500 KiB payload (> 256 KiB max quota)
-    let oversized_len: u32 = 500 * 1024;
+    // Craft a frame header claiming oversized payload exceeding MAX_IPC_MESSAGE_SIZE
+    let oversized_len: u32 = (MAX_IPC_MESSAGE_SIZE + 1024) as u32;
     let mut bad_header = Vec::new();
     bad_header.extend_from_slice(&oversized_len.to_le_bytes());
     bad_header.extend_from_slice(&[0u8; 16]);

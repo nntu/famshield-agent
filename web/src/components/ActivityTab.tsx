@@ -95,21 +95,21 @@ export const ActivityTab: React.FC<ActivityTabProps> = ({ lang, onRefresh, onSho
   const getCategoryIcon = (category: string) => {
     const lower = category.toLowerCase();
     if (lower.includes('trò chơi') || lower.includes('gaming')) {
-      return <Gamepad2 size={16} color="#ec4899" />;
+      return <Gamepad2 size={16} className="text-sky-600" />;
     }
     if (lower.includes('giải trí') || lower.includes('video') || lower.includes('entertainment')) {
-      return <Tv size={16} color="#38bdf8" />;
+      return <Tv size={16} className="text-sky-600" />;
     }
     if (lower.includes('mạng xã hội') || lower.includes('social') || lower.includes('liên lạc')) {
-      return <MessageCircle size={16} color="#a855f7" />;
+      return <MessageCircle size={16} className="text-sky-600" />;
     }
     if (lower.includes('học tập') || lower.includes('giáo dục') || lower.includes('education')) {
-      return <BookOpen size={16} color="#34d399" />;
+      return <BookOpen size={16} className="text-sky-600" />;
     }
     if (lower.includes('lập trình') || lower.includes('development')) {
-      return <Code2 size={16} color="#f59e0b" />;
+      return <Code2 size={16} className="text-sky-600" />;
     }
-    return <Globe size={16} color="#94a3b8" />;
+    return <Globe size={16} className="text-slate-500" />;
   };
 
   // Filtered lists
@@ -237,10 +237,10 @@ export const ActivityTab: React.FC<ActivityTabProps> = ({ lang, onRefresh, onSho
         <div className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-xs flex flex-col justify-between">
           <div className="flex justify-between items-start mb-2">
             <span className="text-xs text-slate-500 font-semibold flex items-center gap-1.5">
-              <Smartphone size={15} className="text-indigo-600" />
+              <Smartphone size={15} className="text-sky-600" />
               {t.stat_apps_opened}
             </span>
-            <span className="bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded text-2xs font-bold border border-indigo-100">
+            <span className="bg-sky-50 text-sky-700 px-2 py-0.5 rounded text-2xs font-bold border border-sky-100">
               {data?.active_apps_count || 0} apps
             </span>
           </div>
@@ -341,7 +341,7 @@ export const ActivityTab: React.FC<ActivityTabProps> = ({ lang, onRefresh, onSho
             >
               <span>{t.tab_apps_timeline}</span>
               <span
-                className={`px-1.5 py-0.2 rounded-full text-2xs font-bold ${activeSubTab === 'apps' ? 'bg-indigo-100 text-indigo-800' : 'bg-slate-200 text-slate-700'}`}
+                className={`px-1.5 py-0.2 rounded-full text-2xs font-bold ${activeSubTab === 'apps' ? 'bg-sky-100 text-sky-800' : 'bg-slate-200 text-slate-700'}`}
               >
                 {filteredApps.length}
               </span>
@@ -443,7 +443,7 @@ export const ActivityTab: React.FC<ActivityTabProps> = ({ lang, onRefresh, onSho
                             isKeyword
                               ? 'bg-amber-100 text-amber-700'
                               : isApp
-                                ? 'bg-indigo-50 text-indigo-700'
+                                ? 'bg-sky-50 text-sky-700'
                                 : 'bg-sky-50 text-sky-700'
                           }`}
                         >
@@ -489,7 +489,7 @@ export const ActivityTab: React.FC<ActivityTabProps> = ({ lang, onRefresh, onSho
                                 : item.action === 'MONITOR'
                                   ? 'bg-amber-50 text-amber-700 border-amber-200/80'
                                   : item.action === 'ACTIVE'
-                                    ? 'bg-indigo-50 text-indigo-700 border-indigo-200/80'
+                                    ? 'bg-sky-50 text-sky-700 border-sky-200/80'
                                     : 'bg-emerald-50 text-emerald-700 border-emerald-200/80'
                           }`}
                         >
@@ -556,7 +556,7 @@ export const ActivityTab: React.FC<ActivityTabProps> = ({ lang, onRefresh, onSho
                       >
                         <td className="py-2.5 px-3.5">
                           <div className="flex items-center gap-2.5">
-                            <Smartphone size={16} className="text-indigo-600 shrink-0" />
+                            <Smartphone size={16} className="text-sky-600 shrink-0" />
                             <div>
                               <div className="font-semibold text-slate-900">{app.app_title}</div>
                               <div className="text-2xs text-slate-400 font-mono">
@@ -745,7 +745,7 @@ export const ActivityTab: React.FC<ActivityTabProps> = ({ lang, onRefresh, onSho
                             {kv.severity}
                           </span>
                         </td>
-                        <td className="py-2.5 px-3.5 text-indigo-700 font-medium">{kv.app_name}</td>
+                        <td className="py-2.5 px-3.5 text-sky-700 font-medium">{kv.app_name}</td>
                         <td className="py-2.5 px-3.5 text-slate-600 italic font-mono text-2xs">
                           {kv.snippet_masked}
                         </td>
