@@ -160,7 +160,8 @@ fn test_online_update_client_check_and_stage() {
         version: "0.2.0".into(),
         channel: "stable".into(),
         sha256,
-        binary_url: "https://famshield.ttcantho.io.vn/download/binaries/famshield-service.exe".into(),
+        binary_url: "https://famshield.ttcantho.io.vn/download/binaries/famshield-service.exe"
+            .into(),
         signature_hex: String::new(),
         key_id: "key-cloud-2026".into(),
         min_supported_version: "0.1.0".into(),

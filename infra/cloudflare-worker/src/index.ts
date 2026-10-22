@@ -75,9 +75,8 @@ export default {
       });
     }
 
-    // 3. Version metadata endpoints: GET /version.json, GET /v1/release/latest, GET /
+    // 3. Version metadata endpoints: GET /version.json, GET /v1/release/latest
     if (
-      url.pathname === "/" ||
       url.pathname === "/version.json" ||
       url.pathname === "/v1/release/latest"
     ) {

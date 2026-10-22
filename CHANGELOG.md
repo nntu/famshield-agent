@@ -19,6 +19,14 @@ Tất cả các thay đổi quan trọng của dự án **FamShield Windows Agen
     - Giao diện người dùng Web Local Admin (`SecurityTab.tsx`): Bổ sung card điều khiển "Chế độ Giám Sát Yên Lặng" với toggle kích hoạt trực quan, huy hiệu trạng thái và giải thích chi tiết song ngữ (VI & EN).
 
 ### Changed
+- **Chuẩn Hóa Đơn Nhất Tên Miền (Single Domain) & Định Tuyến Theo Đường Dẫn (`famshield.ttcantho.io.vn`)**:
+  - **Triệt tiêu hoàn toàn tên miền cũ `.famshield.cloud`**: Thay thế và đồng bộ 100% tất cả các tham chiếu domain cũ sang tên miền chính thức `famshield.ttcantho.io.vn` trên toàn bộ codebase Client Agent (`famshield-local-admin`, `famshield-sync`, `famshield-updater`, `FamShield.iss`, UI Web Console, tài liệu và test suite).
+  - **Kiến trúc Single Domain định tuyến theo Path trên cổng HTTPS chuẩn (443)**:
+    - `/` $\rightarrow$ `localhost:3000` (Web Dashboard phụ huynh).
+    - `/v1/` $\rightarrow$ `localhost:8080` (Go Backend REST API & Telemetry Ingestion).
+    - `/nats` $\rightarrow$ `localhost:9222` (NATS WebSocket duplex push over `wss://famshield.ttcantho.io.vn/nats`).
+  - **Tinh chỉnh Cloudflare Worker (`infra/cloudflare-worker/src/index.ts`)**: Bỏ chặn đường dẫn gốc `/` để cho phép truy cập trực tiếp Web Dashboard phía origin server, chỉ can thiệp các route `/version.json`, `/v1/release/*` và `/download/*`.
+  - **Cập nhật Cẩm nang Triển khai (`docs/13-DEPLOYMENT-GUIDE.md`)**: Cập nhật mẫu cấu hình Caddyfile Reverse Proxy chuẩn hóa cho kiến trúc Single Domain duy nhất.
 - **Chuẩn Hóa Cơ Chế Chặn DNS Tàng Hình (Stealth DNS Blocking via RFC NXDOMAIN - Website Coi Như Không Tồn Tại, `famshield-dns`, `famshield-session`, `famshield-service`)**:
   - **Website bị chặn coi như không tồn tại**: Khi máy trạm gửi truy vấn tên miền nằm trong danh sách đen (`blocklist`), bộ lọc DNS proxy (`DnsProxy::build_blocked_response`) phản hồi mã trạng thái `NXDOMAIN` (Non-Existent Domain, RCODE 3) chuẩn RFC 1035 thông qua `hickory-proto` và bộ đệm nhị phân dự phòng.
   - **Không hiện thông báo chặn làm lộ việc can thiệp**: Trình duyệt web (Chrome, Edge, Firefox) tự động hiển thị lỗi mạng bản địa `DNS_PROBE_FINISHED_NXDOMAIN` ("Không thể truy cập trang web này - Không tìm thấy địa chỉ máy chủ"), hoàn toàn y hệt như website không hề tồn tại trên Internet.

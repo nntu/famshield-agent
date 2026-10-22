@@ -1,4 +1,4 @@
-﻿# Chiến Lược Versioning & Cơ Chế Auto-Update (FamShield Agent)
+# Chiến Lược Versioning & Cơ Chế Auto-Update (FamShield Agent)
 
 Tài liệu này đặc tả toàn bộ chiến lược phân phối phiên bản (**Versioning Strategy**), kiến trúc cập nhật tự động an toàn (**Staged Atomic Auto-Update**), cơ chế phòng vệ chống lỗi (*Canary / Automated Rollback*) và quy trình triển khai cho **FamShield Windows Agent**.
 
@@ -61,13 +61,13 @@ Mỗi bản phát hành được công bố trên Control Plane thông qua một
       "filename": "famshield-service.exe",
       "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
       "size_bytes": 14582310,
-      "url": "https://dl.famshield.cloud/releases/v1.2.1/famshield-service.exe"
+      "url": "https://famshield.ttcantho.io.vn/download/releases/v1.2.1/famshield-service.exe"
     },
     "session": {
       "filename": "famshield-session.exe",
       "sha256": "4b227777d4dd1fc61c6f884f48641d02b4d121d3fd328cb08b5531fcacdabf8a",
       "size_bytes": 8921104,
-      "url": "https://dl.famshield.cloud/releases/v1.2.1/famshield-session.exe"
+      "url": "https://famshield.ttcantho.io.vn/download/releases/v1.2.1/famshield-session.exe"
     }
   },
   "signature": {

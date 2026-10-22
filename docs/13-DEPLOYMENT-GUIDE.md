@@ -229,25 +229,23 @@ docker compose logs -f
 Cấu hình mẫu `Caddyfile` tự động quản lý chứng chỉ SSL TLS 1.3 và mTLS cho thiết bị:
 
 ```caddyfile
-# Cổng quản trị dành cho Phụ huynh
-admin.famshield.cloud {
-    reverse_proxy famshield-web-console:80
-}
-
-# Cổng API công khai và Webhook
-api.famshield.cloud {
-    reverse_proxy famshield-control-plane:8080
-}
-
-# Cổng mTLS chuyên dụng cho Agent Endpoint giao tiếp bảo mật
-device.famshield.cloud {
-    tls {
-        client_auth {
-            mode require_and_verify
-            trusted_ca_cert_file /etc/ssl/famshield/device_ca.crt
-        }
+# Cấu hình Single-Domain duy nhất famshield.ttcantho.io.vn định tuyến theo path:
+famshield.ttcantho.io.vn {
+    # 1. NATS WebSocket duplex control plane: wss://famshield.ttcantho.io.vn/nats -> localhost:9222
+    @nats {
+        path /nats*
     }
-    reverse_proxy famshield-control-plane:8080
+    reverse_proxy @nats localhost:9222
+
+    # 2. Go Backend REST API & Telemetry Ingestion: /v1/* -> localhost:8080
+    @api {
+        path /v1/*
+        path /api/*
+    }
+    reverse_proxy @api localhost:8080
+
+    # 3. Web Dashboard Frontend: / -> localhost:3000
+    reverse_proxy localhost:3000
 }
 ```
 
