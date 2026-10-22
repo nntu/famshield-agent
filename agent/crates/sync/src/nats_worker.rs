@@ -138,7 +138,11 @@ impl NatsConnectionWorker {
     }
 
     /// Process a received command message, verify HMAC, dispatch, and report ACK
-    async fn handle_incoming_message(&self, msg: &async_nats::Message, client: &async_nats::Client) {
+    async fn handle_incoming_message(
+        &self,
+        msg: &async_nats::Message,
+        client: &async_nats::Client,
+    ) {
         let payload_str = match std::str::from_utf8(&msg.payload) {
             Ok(s) => s,
             Err(e) => {

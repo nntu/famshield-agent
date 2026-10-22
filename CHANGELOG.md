@@ -9,6 +9,20 @@ Tất cả các thay đổi quan trọng của dự án **FamShield Windows Agen
 ## [Unreleased]
 
 ### Added
+- **Kích Hoạt Kênh Điều Khiển Thời Gian Thực Hai Chiều NATS Tối Ưu Cho Cloudflare Tunnel (`famshield-sync`, `famshield-service`)**:
+  - **Tích hợp `async-nats` (v0.50)**: Bổ sung thư viện async NATS chính thức vào workspace dependencies và `famshield-sync`, hỗ trợ đầy đủ kết nối thời gian thực qua giao thức Secure WebSocket (`wss://`) trên cổng chuẩn 443 hoặc TCP (`nats://:4222`).
+  - **Khởi tạo `NatsConnectionWorker` (`nats_worker.rs`)**:
+    - Quản lý luồng kết nối socket 2 chiều thường trực tới NATS Broker.
+    - Cấu hình `ping_interval(20s)` chống ngắt kết nối WebSocket rỗi trên mạng lưới Cloudflare Anycast Edge.
+    - Cơ chế tái kết nối tự động (Exponential Backoff kèm Jitter: $2\text{s} \to 4\text{s} \to 8\text{s} \dots \max 30\text{s}$) bảo vệ máy trạm không bị spam mạng khi rớt mạng hoặc khi laptop Sleep/Wakeup.
+  - **Thực thi Lệnh Khẩn Cấp Dưới 50ms**:
+    - Lắng nghe trực tiếp topic `devices.{device_id}.commands`.
+    - Xác thực bảo mật toàn diện qua `NatsDispatcher`: kiểm tra định danh máy trạm, chữ ký mật mã HMAC-SHA256, và cửa sổ chống tấn công phát lại (Anti-Replay Window $\le 300\text{s}$).
+    - Thực thi ngay lập tức các lệnh khẩn cấp: Khóa màn hình (`lock_session`), nạp luật cấm web (`update_blacklist`), đổi Master PIN (`reset_pin`), phê duyệt/hủy tiến trình cài phần mềm (`approve_install` / `deny_install`).
+    - Tự động phản hồi kết quả thực thi (ACK) ngược lại cho Cloud Server qua topic `devices.{device_id}.command_results`.
+  - **Bảo toàn Kiến trúc Freemium & An toàn Mạng**:
+    - Khi ở chế độ `StandaloneFree`: NATS Worker tự động ngủ đông ($0\%$ CPU, $0\%$ RAM, không bao giờ mở socket mạng).
+    - Hoạt động $100\%$ Outbound: Agent hoàn toàn không cần mở bất kỳ cổng nào trên router gia đình hay tường lửa trường học.
 - **Nâng Cấp Giao Thức Telemetry v1.1 & Đồng Bộ Giám Sát Thời Lượng Ứng Dụng (Telemetry v1.1 Protocol Upgrade, App Usage Screen Time & NUMA DNS Telemetry, `famshield-sync`, `famshield-service`, `contracts`)**:
   - **Tăng phiên bản Telemetry (Version Bump)**: Nâng cấp `CURRENT_TELEMETRY_VERSION` từ `"1.0"` lên `"1.1"` trong `TelemetryEnvelope` và cấu trúc gói tin hàng đợi ngoại tuyến.
   - **Sự kiện Giám sát Thời lượng Màn hình Ứng dụng (`AppUsagePayload`)**:

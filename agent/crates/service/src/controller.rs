@@ -9,8 +9,8 @@ use famshield_dns::{
 };
 use famshield_storage::StorageEngine;
 use famshield_sync::{
-    load_command_signing_key, CloudSyncClient, NatsDispatcher, TelemetryEvent, TelemetryPipeline,
-    TelemetrySyncWorker,
+    load_command_signing_key, CloudSyncClient, NatsConnectionWorker, NatsDispatcher,
+    TelemetryEvent, TelemetryPipeline, TelemetrySyncWorker,
 };
 use famshield_windows::{wfp::WfpSessionGuard, InstallerInterceptor, ProcessMonitor};
 
@@ -53,6 +53,7 @@ pub struct ServiceController {
     local_admin_server: Arc<famshield_local_admin::LocalAdminServer>,
     telemetry_pipeline: Arc<TelemetryPipeline>,
     sync_worker: Arc<TelemetrySyncWorker>,
+    nats_worker: Arc<NatsConnectionWorker>,
     is_updating: Arc<std::sync::atomic::AtomicBool>,
 }
 
@@ -139,7 +140,7 @@ impl ServiceController {
             .with_terminating_flag(is_updating.clone()),
         );
 
-        let telemetry_pipeline = Arc::new(TelemetryPipeline::new(device_id, storage.clone()));
+        let telemetry_pipeline = Arc::new(TelemetryPipeline::new(&device_id, storage.clone()));
         ipc_dispatcher.set_telemetry(telemetry_pipeline.clone());
 
         let server_url = storage
@@ -147,13 +148,42 @@ impl ServiceController {
             .ok()
             .flatten()
             .unwrap_or_else(|| "http://127.0.0.1:8080".to_string());
-        let cloud_client = Arc::new(CloudSyncClient::new(server_url));
+        let cloud_client = Arc::new(CloudSyncClient::new(&server_url));
 
         let sync_worker = Arc::new(TelemetrySyncWorker::new(
             telemetry_pipeline.clone(),
             cloud_client,
             storage.clone(),
             Some(dns_blocklist.clone()),
+        ));
+
+        let nats_url = storage
+            .get_meta("nats_url")
+            .ok()
+            .flatten()
+            .unwrap_or_else(|| {
+                if server_url.starts_with("https://") {
+                    let host = server_url
+                        .trim_start_matches("https://")
+                        .trim_end_matches('/');
+                    format!("wss://{}/nats", host)
+                } else if server_url.starts_with("http://") {
+                    let host = server_url
+                        .trim_start_matches("http://")
+                        .split(':')
+                        .next()
+                        .unwrap_or("127.0.0.1");
+                    format!("ws://{}:9222", host)
+                } else {
+                    "ws://127.0.0.1:9222".to_string()
+                }
+            });
+
+        let nats_worker = Arc::new(NatsConnectionWorker::new(
+            device_id,
+            nats_url,
+            nats_dispatcher.clone(),
+            storage.clone(),
         ));
 
         Self {
@@ -167,6 +197,7 @@ impl ServiceController {
             local_admin_server,
             telemetry_pipeline,
             sync_worker,
+            nats_worker,
             is_updating,
         }
     }
@@ -412,6 +443,13 @@ impl ServiceController {
         let sync_shutdown_rx = shutdown_rx.resubscribe();
         tokio::spawn(async move {
             sync_worker.run(sync_shutdown_rx).await;
+        });
+
+        // 5b. Start NATS Real-Time Control Plane Worker (Duplex Push over Cloudflare WebSocket WSS / TCP)
+        let nats_worker = self.nats_worker.clone();
+        let nats_shutdown_rx = shutdown_rx.resubscribe();
+        tokio::spawn(async move {
+            nats_worker.run(nats_shutdown_rx).await;
         });
 
         // 6. Start Anti-Tampering & Self-Healing Watchdog (Session 0 auto-respawn + NRPT drift lock)
