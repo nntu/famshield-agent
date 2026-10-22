@@ -12,13 +12,18 @@ Enrollment codes expire after 15 minutes, are stored hashed, and become unusable
 
 ## Heartbeat and policy
 
-`POST /v1/device/heartbeat` carries agent version, boot identifier, active sessions, subsystem health, current policy version, outbox depth, update state, and capability flags. The response contains server time, desired policy metadata, available release metadata, and a command-wait hint.
+`POST /v1/device/heartbeat` carries agent version, boot identifier, active sessions, subsystem health, current policy version, outbox depth, update state, capability flags, and DNS dynamic learning balancer observability metrics (`dns_upstream_optimal` indicating the lowest-RTT upstream, and `dns_avg_rtt_ms` indicating current average response latency). The response contains server time, desired policy metadata, available release metadata, and a command-wait hint.
 
 `GET /v1/device/policy/{version}` returns a signed immutable policy envelope. The signature covers canonical policy bytes, tenant, policy identifier, version, issued time, and content hash. Agents reject a different tenant, lower version unless explicitly authorized for rollback, invalid signature, unsupported schema, or expired emergency policy.
 
 ## Event ingestion
 
-`POST /v1/device/events:batch` accepts a stable `batch_id` and at most 1,000 events or 1 MiB uncompressed, whichever comes first. Each event includes `event_id`, `device_id`, `child_id` when known, `occurred_at`, monotonic ordering metadata within a boot, type, schema version, and payload. Supported types include telemetry, health, blocks, and `visual.verification` metadata.
+`POST /v1/device/events:batch` accepts a stable `batch_id` and at most 1,000 events or 1 MiB uncompressed, whichever comes first (using Telemetry Protocol version `1.1`). Each event includes `event_id`, `device_id`, `child_id` when known, `occurred_at`, monotonic ordering metadata within a boot, type, schema version, and typed payload:
+- `dns_query`: domain, client IP, action, category, and telemetry v1.1 fields (`latency_ms` and `upstream` resolver).
+- `app_usage`: active foreground duration segment (`application_id`, `process_name`, `duration_seconds`, `category`, `foreground_active`).
+- `process_event`: executable launch and termination with process keys and signer metadata.
+- `error_log`: client diagnostic events (`subsystem`, `error_code`, `message`).
+- `health`, `blocks`, and `visual.verification` metadata.
 
 The server validates tenant ownership from the device credential rather than trusting body identifiers. A repeated event returns its previous status. The response lists accepted, duplicate, retryable, and permanently rejected identifiers. One invalid event must not reject the complete batch.
 
@@ -34,16 +39,26 @@ The server validates tenant ownership from the device credential rather than tru
 ## Commands
 
 
-`GET /v1/device/commands?wait_seconds=25` implements authenticated long polling. V1 command types are:
+FamShield delivers remote commands via a high-performance **dual-channel architecture**:
 
-- `sync_policy`
-- `temporary_allow`
-- `lock_session`
-- `unlock_session`
-- `collect_diagnostics`
-- `update_agent`
+1. **Real-Time Push via NATS WebSocket (Primary):**
+   - The agent establishes an outbound connection over **NATS WebSocket (`wss://`) on standard port 443** (fully compatible with Cloudflare Tunnel and enterprise egress proxies without router port forwarding).
+   - Subscribes to `devices.{device_id}.commands` for instant (< 500ms) command execution.
+   - Publishes execution acknowledgments and results directly to `devices.{device_id}.command_results`.
+   - Sends periodic pings (every 20s) to keep edge tunnels active through intermediate stateful firewalls.
 
-Every command has an identifier, sequence, issue time, expiry, actor audit reference, type, and type-specific payload. Commands never contain shell text or executable paths supplied by a web user. `POST /v1/device/commands/{id}/result` records state transitions and a structured result. Execution is idempotent by command identifier.
+2. **HTTP Long-Polling / Heartbeat Fallback (Secondary):**
+   - If NATS connectivity is disrupted, agents fall back to `GET /v1/device/commands?wait_seconds=25` over HTTPS.
+
+Supported command types:
+- `sync_policy`: trigger immediate policy refresh and application.
+- `temporary_allow`: grant temporary access to a blocked domain or application.
+- `lock_session`: immediately lock the active interactive child session.
+- `unlock_session`: unlock an administratively locked session.
+- `collect_diagnostics`: aggregate local logs and health metrics into the outbox.
+- `update_agent`: trigger staged over-the-air update verification and installation.
+
+Every command has an identifier, sequence, issue time, expiry, HMAC-SHA256 signature, anti-replay window (<= 300s), actor audit reference, type, and type-specific payload. Commands never contain arbitrary shell text or raw executable paths. `POST /v1/device/commands/{id}/result` (or NATS ACK) records state transitions and structured results. Execution is strictly idempotent by command identifier.
 
 ## Errors, retries, and limits
 

@@ -1,17 +1,17 @@
-﻿# Rust Windows Agent Specification
+# Rust Windows Agent Specification
 
 The endpoint consists of a privileged Windows service and an unprivileged per-session helper. The service is authoritative for policy, persistence, enforcement, and server communication. The helper supplies interactive-session signals and user notices. Both components must be native x64 binaries for the V1 target.
 
 ## Rust workspace boundaries
 
 - `core`: policy types, domain matching, schedules, quotas, decisions, event types, visual verification triggers, and clocks expressed as traits.
-- `storage`: SQLite migrations, repositories, policy cache, command journal, outbox, visual evidence cache, retention, and recovery.
-- `dns`: UDP and TCP listeners, DNS parsing, filtering, SafeSearch rewriting, cache policy, upstream DoH, and WFP engine reconciliation.
+- `storage`: SQLite persistence managed by `refinery 0.10` migrations (embedded `V1`..`V6` SQL), automatic pre-migration snapshot safeguards (`famshield.migration_backup.db`) via SQLite Online Backup API, policy cache, command journal, durable outbox, and retention pruners.
+- `dns`: high-performance proxy featuring NUMA-aware lock-striped cache, multi-upstream dynamic learning balancer (RTT sampling & prefetch), UDP/TCP listeners, SafeSearch rewriting, and WFP dynamic filter reconciliation.
 - `windows`: safe wrappers for services, sessions, processes, ETW (`Microsoft-Windows-Kernel-Process`) tracing, WDAC/AppLocker management, User-Mode WFP (`fwpmu.dll`), signer inspection, Registry, DPAPI, firewall, adapters, power events, and named-pipe ACLs.
-- `service`: lifecycle orchestration, health state, enforcement, configuration reconciliation, and shutdown recovery.
+- `service`: lifecycle orchestration, health state, IPC dispatcher, enforcement, configuration reconciliation, and shutdown recovery.
 - `session`: foreground and idle tracking, notices, time-request UI, and DXGI Desktop Duplication capture with local privacy blur.
-- `local_admin`: local guardian authentication (Argon2id + DPAPI machine secret), local rule CRUD, local reporting queries, and cloud enrollment triggers.
-- `sync`: enrollment, mTLS, heartbeats, policy download, event batches, visual evidence upload, commands, and backoff (active only in Online Mode).
+- `local_admin`: responsive on-device Web Admin (`127.0.0.1:38123`), Master PIN (Argon2id + machine DPAPI), Two-Factor Authentication (2FA TOTP RFC 6238 with Google/Microsoft Authenticator & backup codes), rule CRUD, telemetry reports, 5-level blur settings, and safe report resets.
+- `sync`: dual-channel synchronization: Telemetry Protocol v1.1 (adaptive batching, HTTP connection pooling with keepalive) and real-time push command worker via **NATS WebSocket (`wss://`) on standard port 443** (Cloudflare Tunnel compatible; strictly outbound).
 - `updater`: signed manifest verification, staged replacement, health confirmation, and rollback.
 
 Public Windows wrappers must contain and document `unsafe`; other crates should consume safe interfaces. Production code must not call command-line tools where a stable Windows API is already wrapped, except for a documented compatibility fallback.
@@ -80,7 +80,7 @@ To cross-check disputed telemetry (such as disguised applications or multi-windo
 
 - **Triggers:** A frame is captured ONLY when a block event occurs (blocked app execution or blocked domain access), when suspicious usage classification is flagged, or when the child explicitly submits a time-extension request. Continuous screen streaming or periodic background captures are prohibited.
 - **Session 0 Isolation Handling:** Because the service runs in Session 0 without desktop access, the capture is executed by the unprivileged `session` helper residing in the child's interactive desktop session using the DXGI Desktop Duplication API (with GDI BitBlt fallback).
-- **Privacy Transformation:** The helper immediately processes the frame in memory before serialization: downscales resolution to maximum 480p (thumbnail quality) and applies Gaussian blur over text and input areas to ensure passwords, private messages, and personal reading material cannot be reconstructed, while UI structure and application context remain identifiable.
+- **Privacy Transformation:** The helper immediately processes the frame in memory before serialization: downscales resolution to maximum 480p (thumbnail quality) and applies Gaussian blur over text and input areas according to the configured preset (`none`, `low`, `medium`, `heavy`, `maximum`; default is `medium`). Passwords, private messages, and personal reading material cannot be reconstructed, while UI structure and application context remain identifiable.
 - **Child Transparency:** Capturing a frame triggers an instant, unobtrusive visual indicator (e.g. system tray animation or toast notice) to ensure the child is aware of the verification.
 - **Quota & Retention:** Each frame is encoded as compressed JPEG (< 150 KB). The service enforces a hard quota of max 50 captures per day per child and a local visual cache ceiling of 10 MiB to prevent SQLite bloat. Frames expire after 48 hours and are permanently deleted.
 

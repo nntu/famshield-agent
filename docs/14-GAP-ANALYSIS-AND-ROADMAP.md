@@ -71,8 +71,9 @@ flowchart TD
 | **Agent** | **Chụp màn hình mờ bảo vệ riêng tư** | ✅ **Hoàn thành** | GDI BitBlt, Gaussian Blur trong RAM, nén JPEG < 150 KiB, tự hủy sau 48h. | Hoàn tất |
 | **Agent** | **Dual-mode Auto-Updater** | ✅ **Hoàn thành** | Cập nhật Online (xác thực ECDSA manifest) & Ngoại tuyến (USB hot-folder), rollback an toàn. | Hoàn tất |
 | **Agent** | **Bộ cài đặt Inno Setup 64-bit** | ✅ **Hoàn thành** | Native 64-bit (`C:\Program Files\FamShield`), ký số Authenticode SHA-256. | Hoàn tất |
-| **Agent** | **HTTP & NATS Client kết nối mạng** | ⚠️ **Sẵn sàng khung** | Đã có `NatsDispatcher`, HMAC signature, anti-replay, nhưng chưa gắn kết nối TCP `async-nats` vào loop chính. | **P1** |
-| **Agent** | **Giao diện Local Admin Web UI** | ❌ **Chưa có** | Chưa có giao diện Web cục bộ (WebView2 / HTTPS localhost:5380) cho chế độ 100% Offline Free. | **P2** |
+| **Agent** | **HTTP & NATS Client kết nối mạng** | ✅ **Hoàn thành** | `CloudSyncClient` tối ưu Connection Pool HTTP + TCP keepalive, Telemetry v1.1 adaptive batching, và `NatsConnectionWorker` kết nối NATS WebSocket (`wss://`) trên cổng 443 (Cloudflare Tunnel tương thích), nhận lệnh từ xa tức thì sub-second. | Hoàn tất |
+| **Agent** | **Giao diện Local Admin Web UI** | ✅ **Hoàn thành** | Giao diện Web Admin cục bộ độc lập (Vite React trên `127.0.0.1:38123`), bảo mật 2FA TOTP (Google/Microsoft Authenticator & backup codes), quản lý Rules, Telemetry Reports, 5 cấp độ Blur, an toàn cho chế độ 100% Offline Free. | Hoàn tất |
+| **Agent** | **Quản lý Migration & Snapshot DB** | ✅ **Hoàn thành** | Tích hợp Refinery 0.10 với migration V1-V6 nhúng nhị phân, tự động sao lưu an toàn bằng SQLite Online Backup API (`famshield.migration_backup.db`) chống hỏng hóc DB khi nâng cấp. | Hoàn tất |
 
 ---
 
@@ -99,25 +100,21 @@ flowchart TD
   - Giao diện gửi lệnh tức thì: Khóa máy ngay (`lock_session`), cập nhật danh sách đen (`update_blacklist`), reset PIN.
 
 ### 3.3. Khoảng trống 3: Tích Hợp Kết Nối Mạng Thực Tế Giữa Agent và Server (P1)
-- **Hiện trạng:**
-  - Crate `famshield-sync` đã hoàn thành bộ định dạng dữ liệu, xác thực chữ ký HMAC-SHA256, và cơ chế anti-replay drift $\le 300\text{s}$.
-  - Tuy nhiên, `enroll_device` đang trả về dữ liệu mock, chưa thực hiện gọi HTTP POST thật lên Server.
-  - Service Controller chưa khởi chạy background loop định kỳ gửi batch sự kiện từ outbox SQLite lên Cloud.
-- **Yêu cầu giải quyết:**
-  - Tích hợp HTTP Client (`reqwest`) trong `famshield-sync`:
-    - `POST /v1/device/enroll`: Ghép nối mã 6 số với máy chủ.
-    - `POST /v1/device/heartbeat`: Báo cáo trạng thái nhịp tim và phiên bản policy mỗi 60s.
-    - `POST /v1/device/events:batch`: Định kỳ đẩy batch sự kiện vi phạm và log lỗi từ outbox SQLite.
-  - Tích hợp NATS JetStream client (`async-nats`) lắng nghe topic `devices.{device_id}.commands` để thực thi lệnh khóa máy trong $< 1\text{s}$.
+- **Trạng thái:** ✅ **Đã hoàn thành (Delivered)**
+- **Hiện thực:**
+  - Crate `famshield-sync` tích hợp `reqwest` Connection Pool tối ưu TCP keepalive, TCP nodelay, idle timeouts.
+  - Hỗ trợ Telemetry Protocol v1.1 với `AppUsagePayload` ghi nhận thời gian sử dụng foreground active time, `dns_query` thống kê latency và upstream resolver.
+  - Bộ điều phối nhịp tim (Heartbeat) định kỳ báo cáo tình trạng Dynamic Learning DNS Balancer (`dns_upstream_optimal`, `dns_avg_rtt_ms`).
+  - Hàng đợi Outbox SQLite sử dụng cơ chế Adaptive Batching tự động tăng kích thước batch từ 50 lên 100 khi phát hiện tồn đọng > 100 sự kiện.
+  - `NatsConnectionWorker` kết nối qua NATS WebSocket (`wss://`) trên cổng 443 đi qua Cloudflare Tunnel, lắng nghe kênh `devices.{device_id}.commands` và gửi ACK về `devices.{device_id}.command_results`, hoàn toàn Outbound không cần mở cổng NAT router.
 
 ### 3.4. Khoảng trống 4: Giao Diện Quản Trị Cục Bộ Cho Bản Miễn Phí (Local Admin UI - Milestone 5) (P2)
-- **Hiện trạng:**
-  - Chế độ `OperatingMode::StandaloneFree` chạy 100% offline, miễn phí, không phụ thuộc vào máy chủ đám mây.
-  - Hiện tại máy trạm chỉ có thể tương tác qua CLI `famshield-service.exe --reset-pin` hoặc thao tác trực tiếp với cơ sở dữ liệu SQLite.
-- **Yêu cầu giải quyết:**
-  - Triển khai Local Web Server tối giản (sử dụng `axum` hoặc `tiny_http`) chạy trong session helper hoặc service, lắng nghe tại `https://127.0.0.1:5380`.
-  - Giao diện Web nhẹ nhàng yêu cầu nhập Master PIN để đăng nhập.
-  - Cung cấp trang thêm/sửa/xóa tên miền cần chặn, xem báo cáo thời gian dùng máy trong 7 ngày, và nút "Ghép nối Cloud" bằng mã 6 số.
+- **Trạng thái:** ✅ **Đã hoàn thành (Delivered)**
+- **Hiện thực:**
+  - Triển khai crate `famshield-local-admin` độc lập chạy Web Server trên `http://127.0.0.1:38123` (với các cổng dự phòng tự động).
+  - Giao diện Single Page App (SPA) responsive xây dựng bằng Vite React và Tailwind CSS, tích hợp sẵn trong bundle nhị phân.
+  - Xác thực Master PIN bảo vệ qua Argon2id và Windows DPAPI machine-scope; hỗ trợ bảo mật 2 lớp 2FA TOTP (Google/Microsoft Authenticator và 8 mã khẩn cấp).
+  - Quản lý quy tắc ứng dụng/tên miền trực tiếp xuống SQLite cục bộ, biểu đồ phân tích thời gian dùng máy, cấu hình 5 cấp độ làm mờ ảnh chụp màn hình, và chức năng xóa an toàn nhật ký báo cáo.
 
 ---
 

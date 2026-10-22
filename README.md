@@ -28,12 +28,12 @@ Cả hai chế độ đều sử dụng agent Windows. Chế độ quản lý t�
 
 ## Năng lực chính
 
-- **Kiểm soát DNS và mạng:** proxy DNS cục bộ, quy tắc lọc tên miền và cơ chế Windows Filtering Platform (WFP) để áp dụng chính sách mạng.
-- **Quản lý trên thiết bị:** giao diện Web Admin chạy cục bộ, responsive và hỗ trợ điều hướng bàn phím; sử dụng hệ màu Slate/Sky nhất quán với màu semantic riêng cho thành công, cảnh báo và lỗi; cung cấp nhật ký hoạt động, cấu hình quy tắc và chế độ chỉ giám sát.
-- **Bảo vệ truy cập:** xác thực Master PIN, lưu trữ dữ liệu cục bộ bằng SQLite và bảo vệ bí mật trên Windows bằng DPAPI.
-- **Quản lý ứng dụng và thời gian:** hỗ trợ theo dõi hoạt động ứng dụng và áp dụng chính sách giới hạn theo cấu hình.
-- **Riêng tư có chủ đích:** ảnh xác minh chỉ được chụp theo sự kiện và làm mờ trước khi lưu; bộ phát hiện từ khóa xử lý trong bộ đệm RAM và không ghi chuỗi phím thô xuống đĩa.
-- **Đồng bộ tùy chọn:** chế độ Online Managed hỗ trợ đồng bộ chính sách, gửi telemetry và nhận lệnh đã xác thực từ máy chủ.
+- **Kiểm soát DNS và mạng hiệu năng cao:** Proxy DNS cục bộ tích hợp bộ định tuyến DNS đa luồng (Multi-Upstream) với cơ chế tự học RTT (Dynamic Learning DNS Balancer), bộ nhớ đệm NUMA-aware lock-striped cache và Windows Filtering Platform (WFP) chế độ dynamic session ngăn chặn rò rỉ DNS/DoH.
+- **Quản lý toàn diện trên thiết bị (Local Web Admin):** Giao diện quản trị web cục bộ chạy trên `127.0.0.1:38123` (hoặc cổng dự phòng), hỗ trợ bảo mật 2 lớp 2FA TOTP (Google/Microsoft Authenticator & mã khẩn cấp), quản lý danh sách quy tắc ứng dụng/tên miền, biểu đồ thống kê thời gian thực, tùy chỉnh độ mờ ảnh chụp màn hình (5 cấp độ) và tính năng xóa an toàn nhật ký báo cáo.
+- **Bảo vệ danh tính & bí mật:** Xác thực Master PIN bằng thuật toán Argon2id kết hợp mã hóa bảo vệ Windows DPAPI (machine-scope); cơ sở dữ liệu SQLite cục bộ được quản lý bằng bộ công cụ di chuyển chuyên nghiệp **Refinery 0.10** cùng cơ chế tự động sao lưu trực tiếp (SQLite Online Backup API) trước khi nâng cấp schema.
+- **Quản lý ứng dụng và thời gian thực:** Giám sát thời gian sử dụng ứng dụng tiền cảnh (foreground active time), tổng hợp định kỳ và đẩy vào hàng đợi telemetry (`app_usage`).
+- **Riêng tư có chủ đích (Privacy-by-Design):** Ảnh xác minh vi phạm chỉ chụp theo sự kiện (chặn web/app, xin thêm giờ), xử lý làm mờ Gaussian Blur trực tiếp trong RAM trước khi lưu vào đĩa hoặc truyền đi, tự hủy sau 48 giờ. Bộ đệm phát hiện từ khóa xử lý an toàn trong RAM, không ghi log bàn phím thô.
+- **Đồng bộ đám mây & điều khiển thời gian thực hai kênh:** Chế độ `OnlineManaged` hỗ trợ giao thức Telemetry Protocol v1.1 gửi hàng loạt tối ưu thích ứng (Adaptive Batching), HTTP Connection Pool với TCP keepalive, và kênh nhận lệnh điều khiển từ xa tức thì qua **NATS WebSocket (`wss://`) trên cổng chuẩn 443** (tương thích 100% Cloudflare Tunnel và Firewall doanh nghiệp, kết nối hoàn toàn Outbound không cần mở cổng NAT router).
 
 ## Kiến trúc
 
@@ -44,11 +44,11 @@ Workspace Rust được chia thành các crate theo trách nhiệm:
 | `famshield-core` | Kiểu dữ liệu miền nghiệp vụ, chính sách và trạng thái |
 | `famshield-service` | Windows Service, điều phối và IPC |
 | `famshield-session` | Thành phần chạy trong phiên người dùng, thông báo và giao diện hệ thống |
-| `famshield-dns` | Proxy DNS và xử lý chính sách tên miền |
-| `famshield-windows` | Tích hợp Windows, WFP, NRPT và theo dõi tiến trình |
-| `famshield-local-admin` | Web Admin cục bộ và API quản trị |
-| `famshield-storage` | Cơ sở dữ liệu SQLite và hàng đợi sự kiện |
-| `famshield-sync` | Chế độ hoạt động, đồng bộ và xác thực lệnh từ xa |
+| `famshield-dns` | Proxy DNS đa luồng, dynamic RTT learning balancer, NUMA-aware cache và xử lý chính sách tên miền |
+| `famshield-windows` | Tích hợp Windows, WFP dynamic session, NRPT và theo dõi tiến trình |
+| `famshield-local-admin` | Web Admin cục bộ, bảo mật 2FA TOTP và API quản trị trên thiết bị |
+| `famshield-storage` | Cơ sở dữ liệu SQLite, quản lý migration qua Refinery 0.10, snapshot backup guard và hàng đợi outbox |
+| `famshield-sync` | Telemetry v1.1, kết nối NATS WebSocket qua Cloudflare Tunnel, HTTP connection pool và xác thực lệnh từ xa |
 | `famshield-updater` | Kiểm tra chữ ký và cập nhật agent |
 
 ## Bắt đầu trên Windows

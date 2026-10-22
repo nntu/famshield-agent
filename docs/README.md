@@ -34,8 +34,8 @@ The repository is released under the [MIT License](../LICENSE). Unless a separat
 
 - The system supports Dual-Mode Operation: Local Standalone Mode (PIN/password protected on endpoint, zero cloud required) and Online Managed Mode (enrolled to Go control plane). Seamless transition between modes is supported.
 - Windows endpoint components use Rust; the server API uses Go.
-- The service communicates outbound over HTTPS only when enrolled in Online Mode.
-- PostgreSQL is the server system of record for Online Mode; SQLite is the authoritative endpoint store, local policy database, and event outbox.
+- The service communicates outbound over HTTPS and NATS WebSocket (`wss://` on standard port 443 via Cloudflare Tunnel) only when enrolled in Online Mode.
+- PostgreSQL is the server system of record for Online Mode; SQLite is the authoritative endpoint store, local policy database, and event outbox (managed with Refinery 0.10 and SQLite Online Backup API pre-migration snapshot protection).
 - Policy remains active offline using the last verified version.
 - Application usage means active foreground time, not process lifetime.
 - Website telemetry means DNS-observed domains, not browser history or full URLs.

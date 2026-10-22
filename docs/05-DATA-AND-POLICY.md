@@ -29,13 +29,18 @@ Every tenant-owned table includes `tenant_id`; unique keys and foreign keys incl
 - `application_inventory(application_id, identity_hash, signer, product, category, category_source, first_seen, last_seen)` stores observed software without command lines or window titles.
 - `active_processes(process_key, session_id, application_id, parent_key, started_mono, last_seen_mono, foreground)` supports running-state and launcher relationship tracking.
 - `visual_evidence(evidence_id, event_id, occurred_at, trigger, payload, size_bytes, uploaded, expires_at)` stores ephemeral blurred frames, subject to a strict 10 MiB aggregate outbox quota and 48-hour automated expiration.
-- `local_admin_auth(id, hash_algorithm, salt, credential_hash, failed_attempts, locked_until, updated_at)` stores DPAPI-secured Master PIN authentication for Local Mode.
+- `local_admin_auth(id, hash_algorithm, salt, credential_hash, failed_attempts, locked_until, updated_at, totp_secret, totp_enabled, totp_backup_codes)` stores DPAPI-secured Master PIN authentication and 2FA TOTP configuration for Local Mode.
 - `local_rules(rule_id, rule_type, payload, enabled, created_at, updated_at)` stores user-defined rules created during Local Mode operation.
+- `domain_hourly_aggregates(domain, hour_bucket, count, category, action)` stores aggregated domain queries to accelerate local reporting queries.
 - `network_journal(setting, previous_value, desired_value, state)` supports safe restoration.
 
 In **Local Mode**, telemetry events, usage checkpoints, and domain queries accumulate in SQLite and serve as the direct data source for the local dashboard. A local retention worker prunes logs older than the configured limit (default 30 days) without sending data to any external network. In **Online Mode**, events are ingested into the durable outbox and dispatched to the Go server in batches via mTLS, purging acknowledged records.
 
-Migrations are append-only, transactional where supported, and tested from every released schema. Unknown future fields must survive policy caching even when the active agent ignores an optional field.
+### Database Migrations and Snapshot Protection
+
+Endpoint schema evolution is managed via **Refinery 0.10** with embedded SQL migrations (`V1__initial.sql` through `V6__domain_aggregates.sql`):
+1. **Automated Pre-Migration Snapshot Guard:** Prior to executing any schema migration, `create_pre_migration_snapshot` utilizes the native SQLite Online Backup API (`rusqlite::backup::Backup`) to create an atomic, non-blocking snapshot file `famshield.migration_backup.db`. If a migration step encounters any error or panic, the database is immediately restored from this backup snapshot, eliminating database corruption and dirty schema states.
+2. **Expand & Contract Backward Compatibility:** All migrations adhere to the Expand & Contract pattern—new columns specify `DEFAULT` or `NULL`, tables/indexes use `IF NOT EXISTS`, and application queries explicitly enumerate column names (prohibiting `SELECT *`). This ensures full backward compatibility if an automatic watchdog rollback downgrades the binary (e.g. from v1.0.3 to v1.0.0).
 
 
 ## Policy envelope

@@ -8,6 +8,11 @@ Tất cả các thay đổi quan trọng của dự án **FamShield Windows Agen
 
 ## [Unreleased]
 
+### Changed
+- **Đồng Bộ Hóa Toàn Diện Tài Liệu Kỹ Thuật & Cẩm Nang Sử Dụng (`README.md`, `README.en.md`, `docs/*`)**:
+  - Cập nhật song ngữ (`README.md` & `README.en.md`) phản ánh đầy đủ các tính năng hiện tại: kênh điều khiển hai chiều NATS WebSocket (`wss://`) trên cổng 443 tương thích Cloudflare Tunnel, giao thức Telemetry Protocol v1.1, quản lý database chuyên nghiệp với Refinery 0.10 và SQLite Online Backup API snapshot safeguard, bảo mật 2FA TOTP (Google/Microsoft Authenticator) và giao diện Local Web Admin.
+  - Cập nhật tài liệu kiến trúc kỹ thuật [`docs/02-SYSTEM-ARCHITECTURE.md`](file:///d:/projects/famshield/famshield-agent/docs/02-SYSTEM-ARCHITECTURE.md), [`docs/03-WINDOWS-AGENT.md`](file:///d:/projects/famshield/famshield-agent/docs/03-WINDOWS-AGENT.md), [`docs/04-CONTROL-PLANE-API.md`](file:///d:/projects/famshield/famshield-agent/docs/04-CONTROL-PLANE-API.md), [`docs/05-DATA-AND-POLICY.md`](file:///d:/projects/famshield/famshield-agent/docs/05-DATA-AND-POLICY.md), [`docs/14-GAP-ANALYSIS-AND-ROADMAP.md`](file:///d:/projects/famshield/famshield-agent/docs/14-GAP-ANALYSIS-AND-ROADMAP.md) và [`docs/README.md`](file:///d:/projects/famshield/famshield-agent/docs/README.md).
+
 ### Added
 - **Chuẩn Hóa Quản Trị CSDL Với Thư Viện Chuyên Nghiệp Refinery & Cơ Chế Pre-Migration Snapshot An Toàn (`famshield-storage`)**:
   - **Tích hợp `refinery` (v0.10)**: Chuyển đổi toàn diện cơ chế nâng cấp schema sang bộ công cụ `refinery` chuẩn công nghiệp, loại bỏ thư viện migration thủ công cũ.

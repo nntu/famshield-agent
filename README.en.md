@@ -28,12 +28,12 @@ Both modes use the Windows agent. Online Managed mode depends on the server serv
 
 ## Key capabilities
 
-- **DNS and network controls:** local DNS proxy, domain filtering policies, and Windows Filtering Platform (WFP) enforcement.
-- **On-device management:** responsive, keyboard-accessible local Web Admin with a consistent Slate/Sky palette and dedicated semantic colors for success, warning, and error states; includes activity logs, policy configuration, and audit-only monitoring.
-- **Access protection:** Master PIN authentication, local SQLite storage, and Windows DPAPI protection for secrets.
-- **App and time policies:** supports application activity monitoring and configured usage limits.
-- **Privacy by design:** visual evidence is event-triggered and blurred before storage; keyword detection uses an in-memory buffer and does not write raw keystroke sequences to disk.
-- **Optional synchronization:** Online Managed mode supports policy synchronization, telemetry delivery, and authenticated remote commands.
+- **High-performance DNS and network controls:** local DNS proxy integrated with a multi-upstream DNS routing engine featuring dynamic RTT learning (Dynamic Learning DNS Balancer), NUMA-aware lock-striped cache, and Windows Filtering Platform (WFP) dynamic session enforcement preventing DNS/DoH bypasses.
+- **Comprehensive on-device management (Local Web Admin):** responsive, keyboard-accessible local Web Admin running on `127.0.0.1:38123` (with fallback ports), supporting two-factor authentication (2FA TOTP via Google/Microsoft Authenticator & emergency backup codes), application/domain rule management, real-time activity graphs, 5-level configurable screenshot blur, and safe report log deletion.
+- **Identity & secrets protection:** Argon2id Master PIN authentication combined with machine-scoped Windows DPAPI encryption; local SQLite database managed by industrial-grade **Refinery 0.10** migrations with automatic pre-migration snapshot guards (SQLite Online Backup API) prior to schema changes.
+- **Real-time app & usage tracking:** tracks active foreground application duration, periodically aggregates usage segments, and enqueues them into the telemetry outbox (`app_usage`).
+- **Privacy by design:** visual evidence frames are strictly event-triggered (blocked domain/app, time extensions), processed with in-memory Gaussian Blur before disk storage or transport, and self-delete after 48 hours. Keyword detection evaluates in an ephemeral RAM buffer without persisting raw keystroke logs to disk.
+- **Cloud synchronization & real-time dual-channel control:** Online Managed mode supports Telemetry Protocol v1.1 with adaptive outbox batching, HTTP connection pooling with TCP keepalive, and instantaneous remote commands via **NATS WebSocket (`wss://`) on standard port 443** (100% compatible with Cloudflare Tunnel and enterprise firewalls; strictly outbound connection requiring zero inbound NAT port forwarding).
 
 ## Architecture
 
@@ -44,11 +44,11 @@ The Rust workspace is split into crates by responsibility:
 | `famshield-core` | Domain types, policies, and state |
 | `famshield-service` | Windows Service, orchestration, and IPC |
 | `famshield-session` | User-session component, notifications, and system UI |
-| `famshield-dns` | DNS proxy and domain policy processing |
-| `famshield-windows` | Windows integration, WFP, NRPT, and process monitoring |
-| `famshield-local-admin` | Local Web Admin and management API |
-| `famshield-storage` | SQLite database and event outbox |
-| `famshield-sync` | Operating modes, synchronization, and remote command authentication |
+| `famshield-dns` | Multi-upstream DNS proxy, dynamic RTT learning balancer, NUMA-aware cache, and domain policies |
+| `famshield-windows` | Windows platform integration, WFP dynamic sessions, NRPT, and process monitoring |
+| `famshield-local-admin` | Local Web Admin console, 2FA TOTP security, and on-device management API |
+| `famshield-storage` | SQLite persistence, Refinery 0.10 migrations, pre-migration snapshot guard, and event outbox |
+| `famshield-sync` | Telemetry v1.1, NATS WebSocket over Cloudflare Tunnel, HTTP connection pool, and remote command authentication |
 | `famshield-updater` | Signature verification and agent updates |
 
 ## Get started on Windows
