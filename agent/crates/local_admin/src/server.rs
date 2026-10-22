@@ -134,7 +134,6 @@ pub struct SilentModeResponse {
     pub success: bool,
     pub silent_mode: bool,
 }
-}
 
 #[derive(Serialize)]
 pub struct EvidenceItemResponse {

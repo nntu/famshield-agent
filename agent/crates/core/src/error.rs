@@ -16,4 +16,7 @@ pub enum CoreError {
 
     #[error("Conflict detected: {0}")]
     RuleConflict(String),
+
+    #[error("Serialization error: {0}")]
+    Serialization(String),
 }
