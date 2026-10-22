@@ -13,6 +13,32 @@ use windows::Win32::UI::WindowsAndMessaging::{
     GetDesktopWindow, GetSystemMetrics, SM_CXSCREEN, SM_CYSCREEN,
 };
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum BlurMode {
+    #[default]
+    None, // 0px: Clear, sharp capture
+    Reduced, // 4px: Mild privacy blur, softened text while preserving app layout
+    Full,    // 15px: Strong privacy Gaussian blur
+}
+
+impl BlurMode {
+    pub fn radius(&self) -> u32 {
+        match self {
+            Self::None => 0,
+            Self::Reduced => 4,
+            Self::Full => 15,
+        }
+    }
+
+    pub fn from_str_opt(s: &str) -> Self {
+        match s.trim().to_lowercase().as_str() {
+            "reduced" | "giam_mo" | "mild" => Self::Reduced,
+            "full" | "tat_mo" | "heavy" | "privacy" => Self::Full,
+            _ => Self::None,
+        }
+    }
+}
+
 pub struct SmartVisualVerifier {
     blur_radius: u32,
 }
@@ -26,6 +52,12 @@ impl Default for SmartVisualVerifier {
 impl SmartVisualVerifier {
     pub fn new(blur_radius: u32) -> Self {
         Self { blur_radius }
+    }
+
+    pub fn with_blur_mode(mode: BlurMode) -> Self {
+        Self {
+            blur_radius: mode.radius(),
+        }
     }
 
     /// Captures the interactive display via Win32 GDI BitBlt, scales down to 480p,

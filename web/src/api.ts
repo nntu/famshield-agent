@@ -1,10 +1,13 @@
 import type {
   ActivitySummaryResponse,
+  AppUsageSummary,
   BackupPayload,
+  CaptureBlurConfig,
   DnsConfigResponse,
   DnsRetentionConfig,
   DomainQuerySummary,
   EvidenceItem,
+  HourlyFrequency,
   InitializeSetupRequest,
   InitializeSetupResponse,
   KeywordConfigResponse,
@@ -13,6 +16,8 @@ import type {
   LoginResponse,
   ProtectionModeResponse,
   QueryLogRecord,
+  ResetReportsPayload,
+  ResetReportsResponse,
   RestoreResponse,
   ServerConfig,
   SetDnsConfigResponse,
@@ -170,15 +175,45 @@ export const api = {
     );
   },
 
-  async getDnsSummary(limit: number = 200): Promise<DomainQuerySummary[]> {
-    return apiRequest<DomainQuerySummary[]>(`/api/logs/dns/summary?limit=${limit}`);
+  async getDnsSummary(
+    limit: number = 200,
+    startTime?: string,
+    endTime?: string
+  ): Promise<DomainQuerySummary[]> {
+    const params = new URLSearchParams();
+    params.append('limit', limit.toString());
+    if (startTime) params.append('start_time', startTime);
+    if (endTime) params.append('end_time', endTime);
+    return apiRequest<DomainQuerySummary[]>(`/api/logs/dns/summary?${params.toString()}`);
   },
 
-  async getLogs(limit: number = 100, domain?: string): Promise<QueryLogRecord[]> {
-    const url = domain
-      ? `/api/logs/dns?limit=${limit}&domain=${encodeURIComponent(domain)}`
-      : `/api/logs/dns?limit=${limit}`;
-    return apiRequest<QueryLogRecord[]>(url);
+  async getLogs(
+    limit: number = 100,
+    domain?: string,
+    startTime?: string,
+    endTime?: string,
+    action?: string
+  ): Promise<QueryLogRecord[]> {
+    const params = new URLSearchParams();
+    params.append('limit', limit.toString());
+    if (domain) params.append('domain', domain);
+    if (startTime) params.append('start_time', startTime);
+    if (endTime) params.append('end_time', endTime);
+    if (action) params.append('action', action);
+    return apiRequest<QueryLogRecord[]>(`/api/logs/dns?${params.toString()}`);
+  },
+
+  async getDnsHourly(
+    domain?: string,
+    startTime?: string,
+    endTime?: string
+  ): Promise<HourlyFrequency[]> {
+    const params = new URLSearchParams();
+    if (domain) params.append('domain', domain);
+    if (startTime) params.append('start_time', startTime);
+    if (endTime) params.append('end_time', endTime);
+    const qs = params.toString();
+    return apiRequest<HourlyFrequency[]>(`/api/logs/dns/hourly${qs ? `?${qs}` : ''}`);
   },
 
   async getEvidence(limit: number = 50): Promise<EvidenceItem[]> {
@@ -292,6 +327,14 @@ export const api = {
     return apiRequest<ActivitySummaryResponse>('/api/activity/summary');
   },
 
+  async getAppUsageSummary(startTime?: string, endTime?: string): Promise<AppUsageSummary[]> {
+    const params = new URLSearchParams();
+    if (startTime) params.append('start_time', startTime);
+    if (endTime) params.append('end_time', endTime);
+    const query = params.toString() ? `?${params.toString()}` : '';
+    return apiRequest<AppUsageSummary[]>(`/api/activity/apps/summary${query}`);
+  },
+
   async getKeywordConfig(): Promise<KeywordConfigResponse> {
     return apiRequest<KeywordConfigResponse>('/api/keywords');
   },
@@ -358,6 +401,14 @@ export const api = {
         body: JSON.stringify({ master_pin: masterPin, otp_code: otpCode }),
       }
     );
+  },
+
+  async resetReports(payload: ResetReportsPayload): Promise<ResetReportsResponse> {
+    return apiRequest<ResetReportsResponse>('/api/activity/reset', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
   },
 
   async checkSoftwareUpdate(): Promise<{
@@ -442,5 +493,19 @@ export const api = {
         method: 'POST',
       }
     );
+  },
+
+  async getCaptureBlur(): Promise<CaptureBlurConfig> {
+    return apiRequest<CaptureBlurConfig>('/api/settings/capture-blur');
+  },
+
+  async setCaptureBlur(
+    blur_mode: 'none' | 'reduced' | 'full'
+  ): Promise<{ success: boolean; blur_mode: string; message: string }> {
+    return apiRequest('/api/settings/capture-blur', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ blur_mode }),
+    });
   },
 };

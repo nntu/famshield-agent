@@ -210,6 +210,21 @@ pub struct KeywordConfigResponse {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AppUsageSummary {
+    pub app_name: String,
+    pub app_title: String,
+    pub category: String,
+    pub total_duration_minutes: u32,
+    pub total_duration_formatted: String,
+    pub percentage: f32,
+    pub session_count: usize,
+    pub first_seen_at: DateTime<Utc>,
+    pub last_seen_at: DateTime<Utc>,
+    pub is_active_now: bool,
+    pub status: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ActivitySummaryResponse {
     pub date: String,
     pub total_screen_time_minutes: u32,
@@ -220,6 +235,7 @@ pub struct ActivitySummaryResponse {
     pub monitored_events_count: usize,
     pub keyword_violations_count: usize,
     pub app_activities: Vec<AppActivityItem>,
+    pub grouped_apps: Vec<AppUsageSummary>,
     pub web_activities: Vec<WebActivityItem>,
     pub keyword_violations: Vec<KeywordViolationDto>,
     pub unified_timeline: Vec<UnifiedTimelineItem>,
@@ -284,24 +300,53 @@ pub fn classify_app(app_name: &str) -> (&'static str, &'static str) {
         ("Minecraft", "Trò chơi (Gaming)")
     } else if lower.contains("genshin") {
         ("Genshin Impact", "Trò chơi (Gaming)")
-    } else if lower.contains("league") || lower.contains("riot") {
-        ("League of Legends", "Trò chơi (Gaming)")
-    } else if lower.contains("steam") {
-        ("Steam Client", "Trò chơi (Gaming)")
+    } else if lower.contains("league") || lower.contains("riot") || lower.contains("valorant") {
+        ("Riot Games (LoL/Valorant)", "Trò chơi (Gaming)")
+    } else if lower.contains("steam") || lower.contains("epicgames") {
+        ("Game Launcher (Steam/Epic)", "Trò chơi (Gaming)")
+    } else if lower.contains("csgo") || lower.contains("cs2") || lower.contains("dota") {
+        ("Valve Game (CS/Dota)", "Trò chơi (Gaming)")
+    } else if lower.contains("ldplayer") || lower.contains("nox") || lower.contains("bluestacks") {
+        ("Giả lập Android Game", "Trò chơi (Gaming)")
     } else if lower.contains("chrome") {
         ("Google Chrome", "Trình duyệt (Browser)")
     } else if lower.contains("msedge") {
         ("Microsoft Edge", "Trình duyệt (Browser)")
-    } else if lower.contains("firefox") {
-        ("Mozilla Firefox", "Trình duyệt (Browser)")
+    } else if lower.contains("coccoc") {
+        ("Cốc Cốc Browser", "Trình duyệt (Browser)")
+    } else if lower.contains("firefox") || lower.contains("brave") || lower.contains("opera") {
+        ("Trình duyệt Web", "Trình duyệt (Browser)")
     } else if lower.contains("discord") {
         ("Discord", "Mạng xã hội (Social Media)")
     } else if lower.contains("zalo") {
         ("Zalo", "Liên lạc (Communication)")
-    } else if lower.contains("code") {
-        ("VS Code", "Lập trình (Development)")
+    } else if lower.contains("telegram")
+        || lower.contains("messenger")
+        || lower.contains("whatsapp")
+    {
+        ("Nhắn tin (Chat)", "Liên lạc (Communication)")
+    } else if lower.contains("spotify") || lower.contains("vlc") || lower.contains("mediaplayer") {
+        ("Nghe nhạc & Video", "Giải trí (Entertainment)")
+    } else if lower.contains("code")
+        || lower.contains("devenv")
+        || lower.contains("idea64")
+        || lower.contains("pycharm")
+    {
+        ("Công cụ Lập trình (IDE)", "Lập trình (Development)")
     } else if lower.contains("zoom") || lower.contains("teams") {
         ("Hội họp Trực tuyến", "Học tập & Làm việc (Education/Work)")
+    } else if lower.contains("winword")
+        || lower.contains("word")
+        || lower.contains("excel")
+        || lower.contains("powerpnt")
+    {
+        ("Microsoft Office", "Học tập & Làm việc (Education/Work)")
+    } else if lower.contains("acrobat")
+        || lower.contains("acrord32")
+        || lower.contains("foxit")
+        || lower.contains("notion")
+    {
+        ("Tài liệu & Ghi chú", "Học tập & Làm việc (Education/Work)")
     } else {
         ("Ứng dụng Windows", "Tiện ích & Hệ thống (Utilities)")
     }
@@ -420,6 +465,41 @@ impl LocalAdminService {
     ) -> Result<Vec<famshield_storage::DomainQuerySummary>, LocalAdminError> {
         let summaries = self.storage.get_domain_query_summaries(limit)?;
         Ok(summaries)
+    }
+
+    /// Query aggregated DNS summaries grouped by domain with optional time range filter.
+    pub fn get_domain_query_summaries_filtered(
+        &self,
+        start_time: Option<chrono::DateTime<chrono::Utc>>,
+        end_time: Option<chrono::DateTime<chrono::Utc>>,
+        limit: usize,
+    ) -> Result<Vec<famshield_storage::DomainQuerySummary>, LocalAdminError> {
+        let summaries = self
+            .storage
+            .get_domain_query_summaries_filtered(start_time, end_time, limit)?;
+        Ok(summaries)
+    }
+
+    /// Query 24-hour access frequency distribution.
+    pub fn get_hourly_frequency(
+        &self,
+        domain: Option<&str>,
+        start_time: Option<chrono::DateTime<chrono::Utc>>,
+        end_time: Option<chrono::DateTime<chrono::Utc>>,
+    ) -> Result<Vec<famshield_storage::HourlyFrequency>, LocalAdminError> {
+        let hourly = self
+            .storage
+            .get_hourly_frequency(domain, start_time, end_time)?;
+        Ok(hourly)
+    }
+
+    /// Query DNS logs with multi-criteria filtering (domain, action, time range, limit).
+    pub fn list_query_logs_with_filter(
+        &self,
+        filter: &famshield_storage::QueryLogFilter,
+    ) -> Result<Vec<famshield_storage::QueryLogRecord>, LocalAdminError> {
+        let logs = self.storage.list_query_logs_filtered(filter)?;
+        Ok(logs)
     }
 
     /// Query DNS logs with optional domain filtering.
@@ -730,12 +810,17 @@ impl LocalAdminService {
     /// Retrieve consolidated activity monitoring summary including total screen time, apps used with timestamps, and web domains visited.
     pub fn get_activity_summary(
         &self,
-        _active_app: &str,
+        active_app: &str,
     ) -> Result<ActivitySummaryResponse, LocalAdminError> {
         let now = Utc::now();
         let date_str = now.format("%Y-%m-%d").to_string();
 
-        // 1. App Activities
+        // 1. Grouped Application Usage Report
+        let grouped_apps = self
+            .get_grouped_app_usage(active_app, None, None)
+            .unwrap_or_default();
+
+        // 2. Raw App Activities Segments
         let raw_segments = self.storage.list_usage_segments(100).unwrap_or_default();
         let mut app_activities = Vec::new();
         let mut total_duration_minutes: u32 = 0;
@@ -768,6 +853,11 @@ impl LocalAdminService {
                     },
                 });
             }
+        }
+
+        // If raw_segments is empty but grouped_apps has time, use grouped_apps sum
+        if total_duration_minutes == 0 && !grouped_apps.is_empty() {
+            total_duration_minutes = grouped_apps.iter().map(|a| a.total_duration_minutes).sum();
         }
 
         // 2. Web Activities
@@ -875,16 +965,97 @@ impl LocalAdminService {
             date: date_str,
             total_screen_time_minutes: total_duration_minutes,
             total_screen_time_formatted,
-            active_apps_count: app_activities.len(),
+            active_apps_count: if grouped_apps.is_empty() {
+                app_activities.len()
+            } else {
+                grouped_apps.len()
+            },
             total_web_visits_count: web_activities.len(),
             blocked_events_count: blocked_count,
             monitored_events_count: monitored_count,
             keyword_violations_count,
             app_activities,
+            grouped_apps,
             web_activities,
             keyword_violations: keyword_violations_list,
             unified_timeline,
         })
+    }
+
+    /// Retrieve application usage aggregated and grouped by application name,
+    /// calculating the total usage duration for each individual app.
+    pub fn get_grouped_app_usage(
+        &self,
+        active_app: &str,
+        start_time: Option<&str>,
+        end_time: Option<&str>,
+    ) -> Result<Vec<AppUsageSummary>, LocalAdminError> {
+        let db_groups = self
+            .storage
+            .get_app_usage_grouped(start_time, end_time)
+            .unwrap_or_default();
+
+        let total_screen_time_ms: i64 = db_groups.iter().map(|g| g.total_duration_ms).sum();
+
+        let mut list = Vec::new();
+        for g in db_groups {
+            let duration_mins = (g.total_duration_ms / 60_000).max(1) as u32;
+            let (title, cat) = classify_app(&g.app_name);
+            let duration_formatted = if duration_mins >= 60 {
+                format!("{}h {:02}m", duration_mins / 60, duration_mins % 60)
+            } else {
+                format!("{} phút", duration_mins)
+            };
+            let is_active_now =
+                !active_app.is_empty() && g.app_name.eq_ignore_ascii_case(active_app);
+            let percentage = if total_screen_time_ms > 0 {
+                ((g.total_duration_ms as f64 / total_screen_time_ms as f64) * 100.0) as f32
+            } else {
+                0.0
+            };
+
+            let status = if is_active_now {
+                "Active".to_string()
+            } else if duration_mins > 60 {
+                "QuotaWarning".to_string()
+            } else {
+                "Normal".to_string()
+            };
+
+            list.push(AppUsageSummary {
+                app_name: g.app_name,
+                app_title: title.to_string(),
+                category: cat.to_string(),
+                total_duration_minutes: duration_mins,
+                total_duration_formatted: duration_formatted,
+                percentage,
+                session_count: g.session_count,
+                first_seen_at: g.first_seen_utc,
+                last_seen_at: g.last_seen_utc,
+                is_active_now,
+                status,
+            });
+        }
+
+        // If list is empty but we have an active_app, show it
+        if list.is_empty() && !active_app.is_empty() && active_app != "unknown" {
+            let (title, cat) = classify_app(active_app);
+            list.push(AppUsageSummary {
+                app_name: active_app.to_string(),
+                app_title: title.to_string(),
+                category: cat.to_string(),
+                total_duration_minutes: 1,
+                total_duration_formatted: "1 phút".to_string(),
+                percentage: 100.0,
+                session_count: 1,
+                first_seen_at: Utc::now(),
+                last_seen_at: Utc::now(),
+                is_active_now: true,
+                status: "Active".to_string(),
+            });
+        }
+
+        Ok(list)
     }
 
     // Keyboard & Keyword Monitoring APIs

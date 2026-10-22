@@ -2903,6 +2903,141 @@ export const SecurityTab: React.FC<SecurityTabProps> = ({
             </button>
           </div>
         </div>
+
+        {/* NUMA Dynamic Learning DNS Balancer Diagnostics */}
+        {dnsConfig?.upstream_diagnostics && dnsConfig.upstream_diagnostics.length > 0 && (
+          <div
+            style={{
+              marginTop: 18,
+              padding: 16,
+              borderRadius: 12,
+              background: 'rgba(15, 23, 42, 0.5)',
+              border: '1px solid rgba(56, 189, 248, 0.2)',
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: 8,
+                marginBottom: 12,
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Activity size={16} color="#38bdf8" />
+                <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#f8fafc' }}>
+                  {isVi
+                    ? 'Bộ Cân Bằng Tải Tự Học NUMA (Dynamic DNS Balancer)'
+                    : 'NUMA Dynamic Learning DNS Balancer'}
+                </span>
+              </div>
+              {dnsConfig.optimal_upstream && (
+                <span
+                  style={{
+                    fontSize: '0.75rem',
+                    fontWeight: 600,
+                    background: 'rgba(56, 189, 248, 0.15)',
+                    color: '#38bdf8',
+                    border: '1px solid rgba(56, 189, 248, 0.3)',
+                    padding: '3px 8px',
+                    borderRadius: 6,
+                  }}
+                >
+                  🚀 {isVi ? 'Đang chọn tối ưu:' : 'Active Optimal:'} {dnsConfig.optimal_upstream}
+                </span>
+              )}
+            </div>
+
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                gap: 10,
+              }}
+            >
+              {dnsConfig.upstream_diagnostics.map((diag) => (
+                <div
+                  key={diag.addr}
+                  style={{
+                    padding: 12,
+                    borderRadius: 8,
+                    background: diag.is_optimal
+                      ? 'rgba(56, 189, 248, 0.08)'
+                      : 'rgba(255, 255, 255, 0.03)',
+                    border: `1px solid ${
+                      diag.is_optimal ? 'rgba(56, 189, 248, 0.4)' : 'rgba(255, 255, 255, 0.06)'
+                    }`,
+                  }}
+                >
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      marginBottom: 6,
+                    }}
+                  >
+                    <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#f8fafc' }}>
+                      {diag.target}
+                    </span>
+                    {diag.is_optimal && (
+                      <span
+                        style={{
+                          fontSize: '0.65rem',
+                          fontWeight: 700,
+                          color: '#38bdf8',
+                          background: 'rgba(56, 189, 248, 0.2)',
+                          padding: '1px 6px',
+                          borderRadius: 4,
+                        }}
+                      >
+                        OPTIMAL
+                      </span>
+                    )}
+                  </div>
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      fontSize: '0.75rem',
+                      color: '#94a3b8',
+                      marginBottom: 3,
+                    }}
+                  >
+                    <span>{isVi ? 'Độ trễ (RTT):' : 'Latency (RTT):'}</span>
+                    <strong
+                      style={{
+                        color:
+                          diag.latency_ms < 25
+                            ? '#4ade80'
+                            : diag.latency_ms < 80
+                              ? '#facc15'
+                              : '#f87171',
+                      }}
+                    >
+                      {diag.latency_ms} ms
+                    </strong>
+                  </div>
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      fontSize: '0.7rem',
+                      color: '#64748b',
+                    }}
+                  >
+                    <span>{isVi ? 'Thành công:' : 'Success:'}</span>
+                    <span>
+                      {diag.success_count} / {diag.total_queries}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Software Update & Version Management */}

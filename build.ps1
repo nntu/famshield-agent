@@ -222,8 +222,12 @@ function Install-Agent {
 
     # Forcefully terminate any lingering famshield-service and famshield-session processes
     Write-Host "Terminating lingering famshield-service and famshield-session processes..." -ForegroundColor Yellow
-    & taskkill.exe /F /IM famshield-service.exe /T 2>$null | Out-Null
-    & taskkill.exe /F /IM famshield-session.exe /T 2>$null | Out-Null
+    if (Get-Process -Name "famshield-service" -ErrorAction SilentlyContinue) {
+        cmd.exe /c 'taskkill /F /IM famshield-service.exe /T >nul 2>nul'
+    }
+    if (Get-Process -Name "famshield-session" -ErrorAction SilentlyContinue) {
+        cmd.exe /c 'taskkill /F /IM famshield-session.exe /T >nul 2>nul'
+    }
     Get-Process -Name "famshield-service", "famshield-session" -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 
     # Remove existing service cleanly so fresh installation can re-register it
@@ -245,12 +249,23 @@ function Install-Agent {
 
     $webDistSrc = Join-Path $ProjectRoot "web\dist"
     if (Test-Path $webDistSrc) {
-        $targetWebDir = Join-Path $InstallDir "web"
-        if (-not (Test-Path $targetWebDir)) {
-            New-Item -ItemType Directory -Path $targetWebDir -Force | Out-Null
+        # 1. Update ProgramData\FamShield\web\dist (Primary priority for LocalAdminServer)
+        $pdWebDist = Join-Path $env:ProgramData "FamShield\web\dist"
+        if (-not (Test-Path $pdWebDist)) {
+            New-Item -ItemType Directory -Path $pdWebDist -Force | Out-Null
         }
-        Copy-Item -Path $webDistSrc -Destination $targetWebDir -Recurse -Force
-        Write-Host "==> Copied latest web/dist admin assets to $targetWebDir\dist" -ForegroundColor Green
+        Get-ChildItem -Path $pdWebDist -Recurse -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+        Copy-Item -Path (Join-Path $webDistSrc "*") -Destination $pdWebDist -Recurse -Force
+        Write-Host "==> Copied latest web/dist admin assets to $pdWebDist" -ForegroundColor Green
+
+        # 2. Update Program Files\FamShield\web\dist (Fallback)
+        $pfWebDist = Join-Path $InstallDir "web\dist"
+        if (-not (Test-Path $pfWebDist)) {
+            New-Item -ItemType Directory -Path $pfWebDist -Force | Out-Null
+        }
+        Get-ChildItem -Path $pfWebDist -Recurse -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+        Copy-Item -Path (Join-Path $webDistSrc "*") -Destination $pfWebDist -Recurse -Force
+        Write-Host "==> Copied latest web/dist admin assets to $pfWebDist" -ForegroundColor Green
     }
 
     Write-Host "==> [3/3] Registering Windows Service ($ServiceName) and NRPT Routing..." -ForegroundColor Cyan
@@ -354,8 +369,12 @@ function Uninstall-Agent {
     }
 
     Write-Host "Terminating lingering famshield-service and famshield-session processes..." -ForegroundColor Yellow
-    & taskkill.exe /F /IM famshield-service.exe /T 2>$null | Out-Null
-    & taskkill.exe /F /IM famshield-session.exe /T 2>$null | Out-Null
+    if (Get-Process -Name "famshield-service" -ErrorAction SilentlyContinue) {
+        cmd.exe /c 'taskkill /F /IM famshield-service.exe /T >nul 2>nul'
+    }
+    if (Get-Process -Name "famshield-session" -ErrorAction SilentlyContinue) {
+        cmd.exe /c 'taskkill /F /IM famshield-session.exe /T >nul 2>nul'
+    }
     Get-Process -Name "famshield-service", "famshield-session" -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 
     if ($svc) {

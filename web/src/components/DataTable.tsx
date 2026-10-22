@@ -55,6 +55,7 @@ export function DataTable<TData>({
         pageSize,
       },
     },
+    autoResetPageIndex: false,
     onSortingChange: setSorting,
     onGlobalFilterChange: setGlobalFilter,
     getCoreRowModel: getCoreRowModel(),

@@ -9,6 +9,9 @@ interface NavbarProps {
   lang: Language;
   onLangChange: (lang: Language) => void;
   operatingMode: string;
+  appVersion?: string;
+  updateAvailable?: boolean;
+  latestVersion?: string;
   onLogout: () => void;
   isAuthenticated: boolean;
 }
@@ -19,6 +22,9 @@ export const Navbar: React.FC<NavbarProps> = ({
   lang,
   onLangChange,
   operatingMode,
+  appVersion,
+  updateAvailable,
+  latestVersion,
   onLogout,
   isAuthenticated,
 }) => {
@@ -62,6 +68,37 @@ export const Navbar: React.FC<NavbarProps> = ({
             />
             {operatingMode}
           </span>
+
+          <button
+            type="button"
+            onClick={() => onTabChange('security')}
+            title={
+              updateAvailable
+                ? lang === 'vi'
+                  ? `Có bản cập nhật mới v${latestVersion}! Bấm để mở Cài đặt & Cập nhật.`
+                  : `New update v${latestVersion} available! Click to open Security & Updates.`
+                : lang === 'vi'
+                  ? `Phiên bản hiện tại: v${appVersion || '1.0.1'}. Bấm để kiểm tra bản mới.`
+                  : `Current version: v${appVersion || '1.0.1'}. Click to check updates.`
+            }
+            className={`px-2.5 py-0.5 rounded-full text-xs font-mono font-medium flex items-center gap-1.5 transition-all cursor-pointer ${
+              updateAvailable
+                ? 'bg-amber-50 text-amber-900 border border-amber-300 hover:bg-amber-100 shadow-2xs animate-pulse font-semibold'
+                : 'bg-slate-100 text-slate-600 hover:text-slate-900 hover:bg-slate-200/80 border border-slate-200/80'
+            }`}
+          >
+            {updateAvailable ? (
+              <>
+                <span aria-hidden="true">🚀</span>
+                <span>v{appVersion || '1.0.1'}</span>
+                <span className="text-2xs font-sans font-semibold text-amber-700 ml-0.5">
+                  ({lang === 'vi' ? 'Bản mới' : 'Update'} v{latestVersion})
+                </span>
+              </>
+            ) : (
+              <span>v{appVersion || '1.0.1'}</span>
+            )}
+          </button>
         </div>
 
         {/* Right Controls */}

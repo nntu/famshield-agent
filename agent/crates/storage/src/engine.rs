@@ -33,6 +33,23 @@ pub struct DomainQuerySummary {
     pub last_seen_at: DateTime<Utc>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct HourlyFrequency {
+    pub hour: u32,
+    pub total_count: u64,
+    pub allowed_count: u64,
+    pub blocked_count: u64,
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct QueryLogFilter {
+    pub domain: Option<String>,
+    pub action: Option<String>,
+    pub start_time: Option<DateTime<Utc>>,
+    pub end_time: Option<DateTime<Utc>>,
+    pub limit: usize,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct LocalRuleRecord {
     pub rule_id: String,
@@ -85,6 +102,15 @@ pub struct UsageSegmentRecord {
     pub start_utc: DateTime<Utc>,
     pub duration_ms: i64,
     pub state: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AppUsageGroupRecord {
+    pub app_name: String,
+    pub total_duration_ms: i64,
+    pub session_count: usize,
+    pub first_seen_utc: DateTime<Utc>,
+    pub last_seen_utc: DateTime<Utc>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -343,6 +369,165 @@ impl StorageEngine {
             summaries.push(r?);
         }
         Ok(summaries)
+    }
+
+    /// Retrieve aggregated domain statistics filtered within an optional time range.
+    pub fn get_domain_query_summaries_filtered(
+        &self,
+        start_time: Option<DateTime<Utc>>,
+        end_time: Option<DateTime<Utc>>,
+        limit: usize,
+    ) -> Result<Vec<DomainQuerySummary>, StorageError> {
+        if start_time.is_none() && end_time.is_none() {
+            return self.get_domain_query_summaries(limit);
+        }
+
+        let conn = self.conn.lock().unwrap();
+        let start_str = start_time.map(|t| t.to_rfc3339());
+        let end_str = end_time.map(|t| t.to_rfc3339());
+
+        let mut stmt = conn.prepare(
+            "SELECT domain,
+                    COUNT(*) as total_queries,
+                    SUM(CASE WHEN action = 'ALLOW' THEN 1 ELSE 0 END) as allowed_count,
+                    SUM(CASE WHEN action = 'BLOCK' THEN 1 ELSE 0 END) as blocked_count,
+                    SUM(CASE WHEN action = 'MONITOR' THEN 1 ELSE 0 END) as monitored_count,
+                    SUM(CASE WHEN action = 'ERROR' THEN 1 ELSE 0 END) as error_count,
+                    MAX(occurred_at) as last_seen_at
+             FROM query_logs
+             WHERE (?1 IS NULL OR occurred_at >= ?1)
+               AND (?2 IS NULL OR occurred_at <= ?2)
+             GROUP BY domain
+             ORDER BY total_queries DESC, last_seen_at DESC
+             LIMIT ?3",
+        )?;
+
+        let rows = stmt.query_map(params![start_str, end_str, limit as i64], |row| {
+            let occ_str: String = row.get(6)?;
+            let last_seen_at = DateTime::parse_from_rfc3339(&occ_str)
+                .map(|dt| dt.with_timezone(&Utc))
+                .unwrap_or_else(|_| Utc::now());
+            Ok(DomainQuerySummary {
+                domain: row.get(0)?,
+                total_queries: row.get::<_, i64>(1)? as usize,
+                allowed_count: row.get::<_, i64>(2)? as usize,
+                blocked_count: row.get::<_, i64>(3)? as usize,
+                monitored_count: row.get::<_, i64>(4)? as usize,
+                error_count: row.get::<_, i64>(5)? as usize,
+                last_seen_at,
+            })
+        })?;
+
+        let mut summaries = Vec::new();
+        for r in rows {
+            summaries.push(r?);
+        }
+        Ok(summaries)
+    }
+
+    /// Retrieve 24-hour access frequency distribution (hours 0..23) optionally filtered by domain and time window.
+    pub fn get_hourly_frequency(
+        &self,
+        domain: Option<&str>,
+        start_time: Option<DateTime<Utc>>,
+        end_time: Option<DateTime<Utc>>,
+    ) -> Result<Vec<HourlyFrequency>, StorageError> {
+        let conn = self.conn.lock().unwrap();
+        let start_str = start_time.map(|t| t.to_rfc3339());
+        let end_str = end_time.map(|t| t.to_rfc3339());
+
+        let mut stmt = conn.prepare(
+            "SELECT 
+                CAST(strftime('%H', occurred_at, 'localtime') AS INTEGER) AS hr,
+                COUNT(*) AS total_count,
+                SUM(CASE WHEN action = 'ALLOW' THEN 1 ELSE 0 END) AS allowed_count,
+                SUM(CASE WHEN action = 'BLOCK' THEN 1 ELSE 0 END) AS blocked_count
+             FROM query_logs
+             WHERE (?1 IS NULL OR domain = ?1)
+               AND (?2 IS NULL OR occurred_at >= ?2)
+               AND (?3 IS NULL OR occurred_at <= ?3)
+             GROUP BY hr
+             ORDER BY hr ASC",
+        )?;
+
+        let mut map = std::collections::HashMap::new();
+        let rows = stmt.query_map(params![domain, start_str, end_str], |row| {
+            let hr: u32 = row.get(0)?;
+            let total: i64 = row.get(1)?;
+            let allowed: i64 = row.get(2)?;
+            let blocked: i64 = row.get(3)?;
+            Ok((hr, total as u64, allowed as u64, blocked as u64))
+        })?;
+
+        for r in rows {
+            let (hr, total, allowed, blocked) = r?;
+            if hr < 24 {
+                map.insert(hr, (total, allowed, blocked));
+            }
+        }
+
+        let mut result = Vec::with_capacity(24);
+        for h in 0..24 {
+            let (total_count, allowed_count, blocked_count) =
+                map.get(&h).copied().unwrap_or((0, 0, 0));
+            result.push(HourlyFrequency {
+                hour: h,
+                total_count,
+                allowed_count,
+                blocked_count,
+            });
+        }
+        Ok(result)
+    }
+
+    /// Query raw DNS resolution logs with flexible multi-criteria filtering.
+    pub fn list_query_logs_filtered(
+        &self,
+        filter: &QueryLogFilter,
+    ) -> Result<Vec<QueryLogRecord>, StorageError> {
+        let conn = self.conn.lock().unwrap();
+        let start_str = filter.start_time.map(|t| t.to_rfc3339());
+        let end_str = filter.end_time.map(|t| t.to_rfc3339());
+        let action_filter = filter.action.as_deref();
+
+        let mut stmt = conn.prepare(
+            "SELECT domain, qtype, action, reason, rule_id, occurred_at 
+             FROM query_logs 
+             WHERE (?1 IS NULL OR domain = ?1)
+               AND (?2 IS NULL OR action = ?2)
+               AND (?3 IS NULL OR occurred_at >= ?3)
+               AND (?4 IS NULL OR occurred_at <= ?4)
+             ORDER BY id DESC LIMIT ?5",
+        )?;
+
+        let rows = stmt.query_map(
+            params![
+                filter.domain.as_deref(),
+                action_filter,
+                start_str,
+                end_str,
+                filter.limit as i64,
+            ],
+            |row| {
+                let occ_str: String = row.get(5)?;
+                Ok(QueryLogRecord {
+                    domain: row.get(0)?,
+                    qtype: row.get(1)?,
+                    action: row.get(2)?,
+                    reason: row.get(3)?,
+                    rule_id: row.get(4)?,
+                    occurred_at: DateTime::parse_from_rfc3339(&occ_str)
+                        .map(|dt| dt.with_timezone(&Utc))
+                        .unwrap_or_else(|_| Utc::now()),
+                })
+            },
+        )?;
+
+        let mut logs = Vec::new();
+        for r in rows {
+            logs.push(r?);
+        }
+        Ok(logs)
     }
 
     /// Roll up raw query logs older than `older_than` into persistent domain_query_aggregates,
@@ -812,6 +997,49 @@ impl StorageEngine {
         Ok(total.unwrap_or(0))
     }
 
+    /// Retrieve application usage aggregated and grouped by application name,
+    /// optionally filtered within a start and end ISO timestamp range.
+    pub fn get_app_usage_grouped(
+        &self,
+        start_time: Option<&str>,
+        end_time: Option<&str>,
+    ) -> Result<Vec<AppUsageGroupRecord>, StorageError> {
+        let conn = self.conn.lock().unwrap();
+
+        let sql = "SELECT rule_id, SUM(duration_ms) as total_ms, COUNT(*) as sessions, MIN(start_utc), MAX(start_utc)
+                   FROM usage_segments
+                   WHERE (?1 IS NULL OR start_utc >= ?1) AND (?2 IS NULL OR start_utc <= ?2)
+                   GROUP BY rule_id
+                   ORDER BY total_ms DESC";
+
+        let mut stmt = conn.prepare(sql)?;
+        let rows = stmt.query_map(params![start_time, end_time], |row| {
+            let app_name: String = row.get(0)?;
+            let total_ms: i64 = row.get(1)?;
+            let count: i64 = row.get(2)?;
+            let first_str: String = row.get(3)?;
+            let last_str: String = row.get(4)?;
+
+            Ok(AppUsageGroupRecord {
+                app_name,
+                total_duration_ms: total_ms,
+                session_count: count as usize,
+                first_seen_utc: DateTime::parse_from_rfc3339(&first_str)
+                    .unwrap_or_else(|_| Utc::now().into())
+                    .with_timezone(&Utc),
+                last_seen_utc: DateTime::parse_from_rfc3339(&last_str)
+                    .unwrap_or_else(|_| Utc::now().into())
+                    .with_timezone(&Utc),
+            })
+        })?;
+
+        let mut list = Vec::new();
+        for r in rows {
+            list.push(r?);
+        }
+        Ok(list)
+    }
+
     // Keyword Monitoring & Violations
     pub fn record_keyword_violation(
         &self,
@@ -1029,6 +1257,57 @@ impl StorageEngine {
         )?;
         Ok(count.max(0) as usize)
     }
+
+    /// Resets reporting and telemetry tables based on the specified scopes.
+    /// Scopes: "all", "dns", "apps", "evidence", "keywords".
+    /// Executes within an atomic SQLite transaction and then vacuums the database.
+    pub fn reset_reports(&self, scopes: &[String]) -> Result<ResetReportStats, StorageError> {
+        let mut stats = ResetReportStats::default();
+        let clear_all = scopes.is_empty() || scopes.iter().any(|s| s == "all");
+        let clear_dns = clear_all || scopes.iter().any(|s| s == "dns");
+        let clear_apps = clear_all || scopes.iter().any(|s| s == "apps");
+        let clear_evidence = clear_all || scopes.iter().any(|s| s == "evidence");
+        let clear_keywords = clear_all || scopes.iter().any(|s| s == "keywords");
+
+        let mut conn = self.conn.lock().unwrap();
+        let tx = conn.transaction()?;
+
+        if clear_dns {
+            let q_count = tx.execute("DELETE FROM query_logs", [])?;
+            let _ = tx.execute("DELETE FROM domain_query_aggregates", [])?;
+            stats.dns_cleared = q_count;
+        }
+
+        if clear_apps {
+            let a_count = tx.execute("DELETE FROM usage_segments", [])?;
+            stats.apps_cleared = a_count;
+        }
+
+        if clear_evidence {
+            let e_count = tx.execute("DELETE FROM visual_evidence", [])?;
+            stats.evidence_cleared = e_count;
+        }
+
+        if clear_keywords {
+            let k_count = tx.execute("DELETE FROM keyword_violations", [])?;
+            stats.keywords_cleared = k_count;
+        }
+
+        tx.commit()?;
+
+        // Reclaim unallocated disk pages
+        let _ = conn.execute("PRAGMA incremental_vacuum", []);
+
+        Ok(stats)
+    }
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct ResetReportStats {
+    pub dns_cleared: usize,
+    pub apps_cleared: usize,
+    pub evidence_cleared: usize,
+    pub keywords_cleared: usize,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

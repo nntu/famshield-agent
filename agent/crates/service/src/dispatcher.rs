@@ -7,10 +7,13 @@ use tracing::{debug, error, info};
 use crate::ipc::IpcMessage;
 use famshield_storage::{StorageEngine, VisualEvidenceRecord};
 
+type ActiveAppSession = (String, chrono::DateTime<Utc>, i64);
+
 pub struct IpcDispatcher {
     storage: StorageEngine,
     pending_captures: Arc<Mutex<VecDeque<(String, String)>>>,
     recent_triggers: Arc<Mutex<HashMap<String, Instant>>>,
+    active_tracker: Arc<Mutex<Option<ActiveAppSession>>>,
 }
 
 impl IpcDispatcher {
@@ -19,6 +22,7 @@ impl IpcDispatcher {
             storage,
             pending_captures: Arc::new(Mutex::new(VecDeque::new())),
             recent_triggers: Arc::new(Mutex::new(HashMap::new())),
+            active_tracker: Arc::new(Mutex::new(None)),
         }
     }
 
@@ -82,6 +86,80 @@ impl IpcDispatcher {
                     "Session {} foreground: exe='{}', idle={}",
                     session_id, executable_name, is_idle
                 );
+
+                // Accumulate application usage when user is actively interacting with foreground app
+                if !is_idle && !executable_name.is_empty() && executable_name != "unknown" {
+                    let mut tracker_guard = match self.active_tracker.lock() {
+                        Ok(g) => g,
+                        Err(p) => p.into_inner(),
+                    };
+
+                    let now = Utc::now();
+                    if let Some((ref cur_app, ref start_time, ref mut dur_ms)) = *tracker_guard {
+                        if cur_app.eq_ignore_ascii_case(&executable_name) {
+                            *dur_ms += 2000;
+                            // Checkpoint every 10 seconds to storage
+                            if *dur_ms % 10_000 == 0 {
+                                let seg_id = format!("seg-{}", start_time.timestamp_millis());
+                                let _ = self.storage.record_usage_segment(
+                                    &famshield_storage::UsageSegmentRecord {
+                                        segment_id: seg_id,
+                                        child_id: "local_child".to_string(),
+                                        rule_id: executable_name.clone(),
+                                        start_utc: *start_time,
+                                        duration_ms: *dur_ms,
+                                        state: "committed".to_string(),
+                                    },
+                                );
+                            }
+                        } else {
+                            // Flushed previous app segment
+                            let seg_id = format!("seg-{}", start_time.timestamp_millis());
+                            let _ = self.storage.record_usage_segment(
+                                &famshield_storage::UsageSegmentRecord {
+                                    segment_id: seg_id,
+                                    child_id: "local_child".to_string(),
+                                    rule_id: cur_app.clone(),
+                                    start_utc: *start_time,
+                                    duration_ms: *dur_ms,
+                                    state: "committed".to_string(),
+                                },
+                            );
+                            *tracker_guard = Some((executable_name.clone(), now, 2000));
+                        }
+                    } else {
+                        *tracker_guard = Some((executable_name.clone(), now, 2000));
+                        let seg_id = format!("seg-{}", now.timestamp_millis());
+                        let _ = self.storage.record_usage_segment(
+                            &famshield_storage::UsageSegmentRecord {
+                                segment_id: seg_id,
+                                child_id: "local_child".to_string(),
+                                rule_id: executable_name.clone(),
+                                start_utc: now,
+                                duration_ms: 2000,
+                                state: "committed".to_string(),
+                            },
+                        );
+                    }
+                } else if is_idle {
+                    let mut tracker_guard = match self.active_tracker.lock() {
+                        Ok(g) => g,
+                        Err(p) => p.into_inner(),
+                    };
+                    if let Some((cur_app, start_time, dur_ms)) = tracker_guard.take() {
+                        let seg_id = format!("seg-{}", start_time.timestamp_millis());
+                        let _ = self.storage.record_usage_segment(
+                            &famshield_storage::UsageSegmentRecord {
+                                segment_id: seg_id,
+                                child_id: "local_child".to_string(),
+                                rule_id: cur_app,
+                                start_utc: start_time,
+                                duration_ms: dur_ms,
+                                state: "committed".to_string(),
+                            },
+                        );
+                    }
+                }
 
                 // Check if any visual evidence capture command is pending for the session
                 let next_capture = {

@@ -8,6 +8,85 @@ Tất cả các thay đổi quan trọng của dự án **FamShield Windows Agen
 
 ## [Unreleased]
 
+### Added
+- **Cơ Chế Đặt Lại Báo Cáo & Số Liệu Hoạt Động Về 0 An Toàn (Secure Activity & Telemetry Report Reset, `famshield-storage`, `famshield-local-admin`, `web`)**:
+  - **Khởi tạo và làm sạch tầng cơ sở dữ liệu (`famshield-storage`)**:
+    - Bổ sung cấu trúc phản hồi `ResetReportStats` và hàm thực thi giao dịch nguyên tử `StorageEngine::reset_reports(&self, scopes: &[String])`.
+    - Hỗ trợ làm sạch linh hoạt theo phạm vi tùy chọn hoặc toàn bộ:
+      - `dns`: Xóa toàn bộ bản ghi nhật ký DNS (`query_logs`) và bảng gom nhóm thống kê tên miền (`domain_query_aggregates`).
+      - `apps`: Xóa toàn bộ phân đoạn theo dõi tiến trình (`usage_segments`).
+      - `evidence`: Xóa sạch danh mục ảnh chụp màn hình vi phạm (`visual_evidence`) trong CSDL.
+      - `keywords`: Xóa lịch sử ghi nhận gõ phím vi phạm (`keyword_violations`).
+      - `all`: Làm sạch đồng thời toàn bộ 4 phạm vi báo cáo trên chỉ với 1 thao tác.
+    - Tự động thu hồi dung lượng đĩa vật lý SQLite sau khi xóa qua lệnh `PRAGMA incremental_vacuum(500)`.
+  - **Xác thực bảo mật đa tầng & API Quản Trị Cục Bộ (`famshield-local-admin`)**:
+    - Bổ sung endpoint `POST /api/activity/reset` yêu cầu xác thực nghiêm ngặt qua Master PIN của phụ huynh.
+    - Hỗ trợ đầy đủ xác thực 2 bước (2FA TOTP 6 số hoặc Backup Code khẩn cấp) nếu máy trạm đã kích hoạt 2FA.
+    - Áp dụng cơ chế khóa chống dò mật khẩu lũy tiến (Exponential Lockout với PBKDF2 + DPAPI).
+    - Tự động xả sạch bộ nhớ đệm DNS in-memory (`state.dns_cache.flush()`) khi reset DNS telemetry để đảm bảo đồng bộ hoàn toàn với dữ liệu mới.
+    - Bảo toàn tuyệt đối 100% các cấu hình bảo vệ cốt lõi: Không bao giờ làm ảnh hưởng đến Master PIN, cấu hình 2FA, danh sách đen web chặn cục bộ, từ khóa cấm, hạn mức thời gian hay mã ghép nối Cloud.
+  - **Giao diện Modal Đặt Lại Dữ Liệu Chuyên Nghiệp (`web`)**:
+    - Xây dựng thành phần modal hiện đại `ResetReportModal.tsx` tích hợp hiệu ứng cảnh báo an toàn màu hổ phách/đỏ, danh sách chọn phạm vi (Toàn bộ hoặc từng hạng mục độc lập).
+    - Tích hợp nút bấm "Đặt lại về 0" trên thanh điều khiển của cả 2 tab: **Hoạt Động (ActivityTab)** và **Nhật Ký (LogsTab)**.
+    - Tự động cập nhật lại toàn bộ biểu đồ, bảng xếp hạng và số liệu thống kê ngay lập tức sau khi đặt lại thành công mà không gây giật lag trang.
+- **Tối Ưu Hóa Giám Sát Tiến Trình Ứng Dụng & Báo Cáo Gom Nhóm Thời Lượng Theo Từng Ứng Dụng (Aggregated Application Screen Time Report & Continuous Tracking Optimization, `famshield-storage`, `famshield-service`, `famshield-local-admin`, `web`)**:
+  - **Tối ưu hóa giám sát tiến trình ngầm (`famshield-service`, `famshield-session`)**:
+    - Nâng cấp bộ điều phối IPC (`IpcDispatcher`): Lưu vết tiến trình cửa sổ đang hoạt động (`active_tracker`) theo thời gian thực từ các nhịp `ForegroundHeartbeat` (2000ms/nhịp).
+    - Tự động tích lũy thời lượng và ghi nhận phân đoạn sử dụng (`UsageSegmentRecord`) định kỳ mỗi 10 giây hoặc ngay khi người dùng chuyển đổi ứng dụng, đồng thời tự động chốt phân đoạn khi máy tính chuyển sang trạng thái tạm nghỉ (idle).
+  - **Công cụ tổng hợp dữ liệu tốc độ cao tại SQLite (`famshield-storage`)**:
+    - Bổ sung cấu trúc dữ liệu `AppUsageGroupRecord` và hàm truy vấn tổng hợp `get_app_usage_grouped`: Truy vấn trực tiếp từ bảng `usage_segments` với giải thuật gom nhóm SQL (`GROUP BY rule_id ORDER BY total_ms DESC`), trích xuất tổng thời lượng sử dụng, số phiên mở ứng dụng (`session_count`), cùng thời điểm bắt đầu và hoạt động gần nhất.
+  - **Phân loại ứng dụng thông minh & API tổng hợp (`famshield-local-admin`)**:
+    - Mở rộng hàm `classify_app` tự động nhận diện chính xác hàng chục ứng dụng phổ biến: Discord, Zalo, Telegram, Messenger, WhatsApp, Spotify, VLC, VS Code, Visual Studio, IntelliJ IDEA, PyCharm, Zoom, Microsoft Teams, Word, Excel, PowerPoint, Acrobat, Notion...
+    - Cung cấp endpoint mới `GET /api/activity/apps/summary` và tích hợp mảng dữ liệu gom nhóm `grouped_apps` vào phản hồi tổng quan hoạt động `ActivitySummaryResponse`.
+  - **Giao diện Báo cáo Gom nhóm Ứng dụng & Biểu đồ Xếp hạng (`web`)**:
+    - Thêm bộ chuyển đổi chế độ xem linh hoạt trong tab Ứng dụng (`ActivityTab.tsx`): **Bản Gom Nhóm Theo Ứng Dụng** (Mặc định) và **Dòng Thời Gian Chi Tiết** (Raw Segments).
+    - **Biểu đồ thanh ngang xếp hạng thời lượng (`AppUsageRankingChart.tsx`)**: Trực quan hóa Top các ứng dụng chiếm nhiều thời gian nhất bằng Chart.js horizontal bar chart, hiển thị trực quan tỷ lệ % và thời lượng thực tế kèm bảng màu phân loại theo danh mục.
+    - **Bảng dữ liệu gom nhóm trực quan**: Hiển thị tên ứng dụng, icon phân loại danh mục, tổng thời gian sử dụng nổi bật (`total_duration_formatted`), thanh tiến trình tỷ lệ phần trăm trực quan, số phiên mở ứng dụng và nhãn trạng thái (Đang mở, Cảnh báo hạn mức, Bình thường).
+- **Bộ Cân Bằng Tải DNS Tự Học NUMA (NUMA Dynamic Learning DNS Balancer, `famshield-dns`, `famshield-service`, `famshield-local-admin`, `web`)**:
+
+### Security
+- **Rà Soát & Củng Cố Toàn Diện Quy Trình Tự Gỡ Cài Đặt (Robust & Anti-Tamper Uninstallation Architecture, `famshield-local-admin`, `famshield-session`, `installer`)**:
+  - **Triệt tiêu lỗi 401 Unauthorized khi gỡ qua Session Agent Tray (`famshield-local-admin`, `famshield-session`)**: Sửa lỗi kiểm tra phân quyền tại endpoint `POST /api/system/uninstall`. Cho phép xác thực an toàn qua phiên Web hoặc trực tiếp qua Master PIN (với cơ chế khóa chống dò mật khẩu lũy tiến DPAPI + PBKDF2), giúp hộp thoại gỡ cài đặt Win32 gốc (`famshield-session.exe --uninstall` hoặc Tray Menu) hoạt động trơn tru.
+  - **Hỗ trợ xác thực 2 lớp (2FA TOTP / Backup Code) trên hộp thoại Win32 Native (`famshield-session`)**: Bổ sung trường nhập mã OTP 6 số hoặc mã dự phòng khẩn cấp vào giao diện Win32 uninstaller, ngăn chặn trường hợp người dùng bật 2FA bị từ chối gỡ bỏ ngoài Web UI.
+  - **Cơ chế chống xung đột Watchdog ngầm (Anti-Race Condition Teardown, `famshield-service`, `famshield-local-admin`)**: Thiết lập cờ `is_terminating` thông báo tức thì cho `SystemWatchdog` tạm dừng mọi luồng tự phục hồi (Self-Healing). Ngăn chặn triệt để tình trạng Watchdog tự động bật lại `famshield-session.exe` hoặc tự ý khóa lại luật NRPT `127.0.0.2` trong lúc tiến trình gỡ bỏ đang dọn dẹp hệ thống, loại bỏ nguy cơ kẹt mạng Internet sau khi gỡ.
+  - **Bịt lỗ hổng bỏ qua xác thực của Inno Setup (`installer/FamShield.iss`)**: Cập nhật hàm `InitializeUninstall()`, nếu phát hiện người dùng (hoặc trẻ em) tự ý chạy trực tiếp file `unins000.exe` trong `C:\Program Files\FamShield`, bộ cài sẽ tự động chuyển hướng và khởi chạy hộp thoại xác thực Master PIN (`famshield-session.exe --uninstall`), lập tức hủy lệnh gỡ cài đặt không có mật khẩu.
+  - **Khôi phục mạng DNS 100% sạch sẽ**: Tự động dọn dẹp NRPT Registry, phục hồi cấu hình DNS toàn bộ card mạng về DHCP bằng cả PowerShell và Netsh, dỡ bỏ chính sách chặn DoH trên Chrome/Edge và dọn dẹp sạch sẽ toàn bộ thư mục `%ProgramData%\FamShield`.
+  - Thiết kế kiến trúc bộ cân bằng tải phân tán chống tranh chấp dòng đệm CPU (Lock-Free NUMA-aware struct với `#[repr(align(64))]`), loại bỏ triệt để hiện tượng false sharing qua các luồng worker đa nhân trên Windows.
+  - Cơ chế tự học độ trễ động (Dynamic EWMA RTT Learning): Đo đạc thời gian phản hồi thực tế (Round-Trip Time) của từng máy chủ DNS upstream qua giải thuật Exponentially Weighted Moving Average ($\alpha = 0.25$).
+  - Thuật toán thích ứng & phạt rớt gói (Adaptive Health Ranking & Outage Penalty): Khi một upstream bị timeout hoặc lỗi mạng, hệ thống tự động cộng dồn mức phạt độ trễ ($+250\text{ms} \times \text{fails}$) và đẩy upstream suy thoái xuống danh sách dự phòng; tự động thăng hạng máy chủ có RTT thấp nhất lên làm máy chủ tối ưu (Primary Optimal Upstream).
+  - Thăm dò thích ứng $\epsilon$-exploration: Tự động gửi truy vấn thăm dò ngầm (1 trong mỗi 25 truy vấn) tới các máy chủ phụ để nhận diện sớm khi đường truyền hồi phục hoặc xuất hiện DNS server có tuyến truyền tải tốt hơn.
+  - Hiển thị trực quan trên giao diện: Thêm card chẩn đoán NUMA Balancer trong thẻ Bảo Mật (`SecurityTab.tsx`) hiển thị trực tiếp RTT (ms), tỷ lệ thành công, và huy hiệu "🚀 Tối ưu nhất" cho máy chủ được tự động tuyển chọn.
+- **Tái Thiết Kế Báo Cáo DNS & Dòng Thời Gian Truy Cập Trong Ngày (DNS Time Range Filtering, Hourly Histogram & Access Timeline, `famshield-storage`, `famshield-local-admin`, `web`)**:
+  - **Lọc theo khoảng thời gian linh hoạt (Time Range Filter)**: Hỗ trợ chọn nhanh "Hôm nay", "24 giờ qua", "7 ngày qua", "Tất cả" hoặc "Tùy chọn ngày bắt đầu - kết thúc" trên giao diện `LogsTab.tsx`.
+  - **Biểu đồ tần suất truy cập 24 giờ (24h Hourly Frequency Chart)**: Biểu đồ cột phân bố mật độ truy vấn qua 24 khung giờ trong ngày (00:00 - 23:00) với tỷ lệ cho phép (xanh) và bị chặn (đỏ), hiển thị tooltip chi tiết khi di chuột và nhận diện khung giờ cao điểm (Peak Traffic Hour).
+  - **Dòng thời gian truy cập chi tiết của từng tên miền (Daily Access Timeline & Time Clusters)**:
+    - Trong modal xem chi tiết tên miền: Bổ sung thanh timeline 24 giờ trực quan hiển thị các vệt sáng theo mật độ truy cập.
+    - Phân cụm thời gian trong ngày: Tự động gom nhóm các thời điểm truy cập thành Buổi sáng (06:00 - 12:00), Buổi chiều (12:00 - 18:00), Buổi tối (18:00 - 22:00), và Đêm khuya (22:00 - 06:00) kèm nhãn mốc thời gian cụ thể (ví dụ `08:15`, `09:30`, `14:20`).
+    - Biểu đồ tần suất 24h riêng biệt cho từng tên miền.
+  - Bổ sung API `GET /api/logs/dns/hourly`, mở rộng `GET /api/logs/dns` và `GET /api/logs/dns/summary` hỗ trợ query parameters `start_time`, `end_time`, `action`.
+- **Tùy Chọn Mức Độ Làm Mờ Ảnh Chụp Màn Hình (Configurable Screenshot Blur Levels: Tắt Mờ / Giảm Mờ / Mờ Bảo Vệ, `famshield-session`, `famshield-local-admin`, `web`)**:
+  - **3 cấp độ làm mờ linh hoạt**:
+    1. `Tắt mờ (Rõ nét)` (`none`): Khung hình chuẩn sắc nét 480p nguyên bản (blur radius = 0).
+    2. `Giảm mờ (Mờ nhẹ)` (`reduced`): Mờ nhẹ (blur radius = 4px, CSS `blur-[2.5px]`), làm nhòe văn bản nhạy cảm nhưng giữ trọn hình thái bố cục, logo, giao diện ứng dụng để phụ huynh dễ dàng quan sát.
+    3. `Mờ bảo vệ` (`full`): Mờ bảo vệ riêng tư chuẩn Gaussian blur (blur radius = 15px, CSS `blur-md`).
+  - Thanh điều khiển mức độ làm mờ trực tiếp trên thanh công cụ `EvidenceTab.tsx` và bên trong modal phóng to ảnh chụp bằng chứng.
+  - Lưu trữ tùy chọn vào `localStorage` và bổ sung API `GET/POST /api/settings/capture-blur` cho phép lưu mức độ làm mờ mặc định của hệ thống máy trạm.
+- **Hiển Thị & Đối Soát Phiên Bản Trực Quan Toàn Diện Trên Web Admin (Comprehensive Agent Version Exposure & Update Indicators, `famshield-local-admin`, `web`)**:
+  - **Backend API**: Bổ sung trường `app_version: env!("CARGO_PKG_VERSION")` vào payload `StatusResponse` (`GET /api/status`) và `SetupStatusResponse` (`GET /api/setup/status`), trả về số hiệu phiên bản tác nhân nhị phân trực tiếp cho giao diện quản trị.
+  - **Thanh Điều Hướng (Navbar)**: Hiển thị huy hiệu phiên bản `v{app_version}` ngay cạnh chế độ hoạt động; khi có bản cập nhật mới, huy hiệu chuyển sang màu cam nổi bật `🚀 v1.0.1 (Bản mới vX.Y.Z)` kèm hiệu ứng nhấp nháy, bấm trực tiếp để chuyển nhanh sang màn hình Cập nhật trong thẻ Bảo Mật.
+  - **Chân Trang Toàn Cục (Global Footer)**: Bổ sung thanh chân trang tinh tế ở đáy giao diện hiển thị phiên bản tác nhân Windows, chế độ vận hành (Online Managed / Standalone Offline), bản quyền nhóm phát triển và liên kết nhanh kiểm tra cập nhật.
+  - **Modal Xác Thực Master PIN & Tổng Quan Hệ Thống**: Tích hợp nhãn số hiệu phiên bản tại chân hộp thoại xác thực `PinModal` và thẻ trạng thái bảo vệ `DashboardTab`.
+- **Tích Hợp Thư Viện Đồ Thị Chuyên Nghiệp Chart.js & React-Chartjs-2 (`web`)**:
+  - Tích hợp bộ đôi `chart.js` (v4.5.1) và `react-chartjs-2` (v5.3.1) chuẩn hóa theo nền tảng React 19 và Tailwind CSS v4, tối ưu render qua HTML5 Canvas hiệu năng cao (60 FPS, không gây phình to DOM tree như SVG tĩnh).
+  - **Biểu đồ phân bố tần suất 24 giờ (`DnsHourlyChart.tsx`)**: Hỗ trợ chuyển đổi mượt mà 1-click giữa **Biểu đồ Cột Chồng (Stacked Bar)** và **Biểu đồ Vùng Sóng Mượt (Smooth Area Bezier Line)** với màu phân lớp cho phép (Sky Blue) và bị chặn (Rose Red); tích hợp tooltip tương tác hiển thị thời gian, số lượng và nhận diện giờ cao điểm (Peak Traffic Hour).
+  - **Biểu đồ phân bố giờ truy cập của từng tên miền trong Modal (`DomainTimelineChart.tsx`)**: Trực quan hóa tần suất truy cập từng giờ riêng biệt cho tên miền đang chọn.
+  - **Biểu đồ tròn phân bố thời lượng ứng dụng (`CategoryDoughnutChart.tsx`)**: Biểu đồ Doughnut (cutout 68%) hiển thị tỷ lệ sử dụng màn hình theo danh mục (Trò chơi, Giải trí, Học tập, Mạng xã hội, Hệ thống...) kèm nhãn tổng thời gian ở tâm và bảng chú giải tỷ lệ phần trăm trực quan.
+- **Tối Ưu Tải Dữ Liệu & Khắc Phục Hiện Tượng Giật/Nhấp Nháy Màn Hình Nhật Ký DNS (Jitter-Free Silent Background Telemetry Sync & Stale-While-Revalidate, `web`)**:
+  - **Cơ chế tải ngầm êm ái (Silent Background Sync)**: Tách biệt hoàn toàn luồng nạp khởi đầu (Initial Loading) và luồng đồng bộ chu kỳ (Auto-Refresh 5s). Khi đồng bộ ngầm, hệ thống giữ nguyên cấu trúc DOM và canvas đồ thị Chart.js, không bao giờ unmount biểu đồ để thay bằng spinner gây co giật chiều cao trang.
+  - **Khử bỏ vòng lặp re-fetch kép giữa App và LogsTab**: Loại bỏ cơ chế cha con thăm dò trùng lặp (`App.tsx` không còn định kỳ gọi `getLogs(150)` gây xáo trộn props mảng và kích hoạt lại toàn bộ effect của `LogsTab`). Chuyển toàn bộ quyền điều phối thời gian nạp và khoảng lọc thời gian (`startTime`/`endTime`) về chính `LogsTab`.
+  - **Cập nhật mượt mà dữ liệu đồ thị (250ms Smooth In-Place Transition)**: Thiết lập cấu hình Chart.js animation 250ms cho phép các cột và đường sóng cập nhật trực tiếp tại chỗ theo thời gian thực mà không reset lại từ 0.
+  - **Chống nhảy trang bảng dữ liệu (TanStack Table `autoResetPageIndex: false`)**: Đảm bảo người dùng khi đang xem trang 2, trang 3 hoặc đang cuộn bảng nhật ký tên miền không bị văng ngược về đầu trang mỗi khi có bản ghi mới.
+
 ## [1.0.1] - 2026-10-21
 
 ### Added

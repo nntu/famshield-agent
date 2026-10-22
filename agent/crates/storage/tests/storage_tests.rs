@@ -382,3 +382,190 @@ fn test_rollup_and_prune_query_logs() {
     assert_eq!(safe.allowed_count, 1);
     assert_eq!(safe.blocked_count, 0);
 }
+
+#[test]
+fn test_filtered_query_logs_and_hourly_frequency() {
+    use famshield_storage::QueryLogFilter;
+    let storage = StorageEngine::in_memory().unwrap();
+    let now = Utc::now();
+
+    let logs = vec![
+        QueryLogRecord {
+            domain: "facebook.com".into(),
+            qtype: "A".into(),
+            action: "ALLOW".into(),
+            reason: "upstream".into(),
+            rule_id: None,
+            occurred_at: now - chrono::Duration::hours(2),
+        },
+        QueryLogRecord {
+            domain: "facebook.com".into(),
+            qtype: "A".into(),
+            action: "BLOCK".into(),
+            reason: "local_domain_rule".into(),
+            rule_id: Some("facebook.com".into()),
+            occurred_at: now - chrono::Duration::hours(1),
+        },
+        QueryLogRecord {
+            domain: "tiktok.com".into(),
+            qtype: "A".into(),
+            action: "BLOCK".into(),
+            reason: "local_domain_rule".into(),
+            rule_id: Some("tiktok.com".into()),
+            occurred_at: now,
+        },
+    ];
+    storage.insert_query_logs_batch(&logs).unwrap();
+
+    // 1. Test filtered by action
+    let filter_block = QueryLogFilter {
+        domain: None,
+        action: Some("BLOCK".into()),
+        start_time: None,
+        end_time: None,
+        limit: 10,
+    };
+    let blocked_records = storage.list_query_logs_filtered(&filter_block).unwrap();
+    assert_eq!(blocked_records.len(), 2);
+
+    // 2. Test filtered by domain and time window
+    let filter_fb = QueryLogFilter {
+        domain: Some("facebook.com".into()),
+        action: None,
+        start_time: Some(now - chrono::Duration::hours(3)),
+        end_time: Some(now),
+        limit: 10,
+    };
+    let fb_records = storage.list_query_logs_filtered(&filter_fb).unwrap();
+    assert_eq!(fb_records.len(), 2);
+
+    // 3. Test filtered domain summary within 90 minutes
+    let summaries_90m = storage
+        .get_domain_query_summaries_filtered(
+            Some(now - chrono::Duration::minutes(90)),
+            Some(now + chrono::Duration::minutes(1)),
+            10,
+        )
+        .unwrap();
+    // Only the 1hr ago FB and now TikTok are in this 90 min window
+    assert_eq!(summaries_90m.len(), 2);
+
+    // 4. Test 24-hour hourly frequency
+    let hourly = storage.get_hourly_frequency(None, None, None).unwrap();
+    assert_eq!(hourly.len(), 24);
+    let total_sum: u64 = hourly.iter().map(|h| h.total_count).sum();
+    assert_eq!(total_sum, 3);
+}
+
+#[test]
+fn test_app_usage_grouped() {
+    let storage = StorageEngine::in_memory().unwrap();
+    let now = Utc::now();
+
+    storage
+        .record_usage_segment(&famshield_storage::UsageSegmentRecord {
+            segment_id: "seg-1".into(),
+            child_id: "child-1".into(),
+            rule_id: "roblox.exe".into(),
+            start_utc: now - chrono::Duration::minutes(30),
+            duration_ms: 1_200_000, // 20 mins
+            state: "committed".into(),
+        })
+        .unwrap();
+
+    storage
+        .record_usage_segment(&famshield_storage::UsageSegmentRecord {
+            segment_id: "seg-2".into(),
+            child_id: "child-1".into(),
+            rule_id: "roblox.exe".into(),
+            start_utc: now - chrono::Duration::minutes(5),
+            duration_ms: 300_000, // 5 mins
+            state: "committed".into(),
+        })
+        .unwrap();
+
+    storage
+        .record_usage_segment(&famshield_storage::UsageSegmentRecord {
+            segment_id: "seg-3".into(),
+            child_id: "child-1".into(),
+            rule_id: "chrome.exe".into(),
+            start_utc: now - chrono::Duration::minutes(10),
+            duration_ms: 600_000, // 10 mins
+            state: "committed".into(),
+        })
+        .unwrap();
+
+    let grouped = storage.get_app_usage_grouped(None, None).unwrap();
+    assert_eq!(grouped.len(), 2);
+    // Roblox should be first with 25 mins total (1,500,000 ms)
+    assert_eq!(grouped[0].app_name, "roblox.exe");
+    assert_eq!(grouped[0].total_duration_ms, 1_500_000);
+    assert_eq!(grouped[0].session_count, 2);
+
+    // Chrome should be second with 10 mins total (600,000 ms)
+    assert_eq!(grouped[1].app_name, "chrome.exe");
+    assert_eq!(grouped[1].total_duration_ms, 600_000);
+    assert_eq!(grouped[1].session_count, 1);
+}
+
+#[test]
+fn test_reset_reports() {
+    let storage = StorageEngine::in_memory().unwrap();
+    let now = Utc::now();
+
+    // 1. Insert DNS query
+    storage
+        .insert_query_logs_batch(&[QueryLogRecord {
+            domain: "example.com".into(),
+            qtype: "A".into(),
+            action: "ALLOW".into(),
+            reason: "test".into(),
+            rule_id: None,
+            occurred_at: now,
+        }])
+        .unwrap();
+
+    // 2. Insert App segment
+    storage
+        .record_usage_segment(&famshield_storage::UsageSegmentRecord {
+            segment_id: "seg-test".into(),
+            child_id: "c1".into(),
+            rule_id: "app.exe".into(),
+            start_utc: now,
+            duration_ms: 60_000,
+            state: "committed".into(),
+        })
+        .unwrap();
+
+    // 3. Insert Keyword violation
+    storage
+        .record_keyword_violation(&famshield_storage::KeywordViolationRecord {
+            id: "v1".into(),
+            timestamp_utc: now,
+            app_name: "test.exe".into(),
+            keyword_matched: "badword".into(),
+            category: "profanity".into(),
+            severity: "high".into(),
+            snippet_masked: "***".into(),
+        })
+        .unwrap();
+
+    // Reset only DNS
+    let dns_stats = storage.reset_reports(&["dns".into()]).unwrap();
+    assert_eq!(dns_stats.dns_cleared, 1);
+    assert_eq!(dns_stats.apps_cleared, 0);
+
+    // Verify DNS is empty, but app and keywords remain
+    let dns_count = storage.list_recent_query_logs(10).unwrap().len();
+    assert_eq!(dns_count, 0);
+    let app_grouped = storage.get_app_usage_grouped(None, None).unwrap();
+    assert_eq!(app_grouped.len(), 1);
+
+    // Reset all
+    let all_stats = storage.reset_reports(&["all".into()]).unwrap();
+    assert_eq!(all_stats.apps_cleared, 1);
+    assert_eq!(all_stats.keywords_cleared, 1);
+
+    assert_eq!(storage.get_app_usage_grouped(None, None).unwrap().len(), 0);
+    assert_eq!(storage.list_keyword_violations(10).unwrap().len(), 0);
+}

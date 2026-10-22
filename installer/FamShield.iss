@@ -94,8 +94,10 @@ Filename: "{sys}\sc.exe"; Parameters: "stop FamShieldService"; Flags: runhidden;
 Filename: "{sys}\taskkill.exe"; Parameters: "/F /IM famshield-service.exe /T"; Flags: runhidden; RunOnceId: "KillFamShieldService"
 Filename: "{sys}\sc.exe"; Parameters: "delete FamShieldService"; Flags: runhidden; RunOnceId: "DeleteFamShieldService"
 ; 3. Reset all network adapters DNS back to DHCP and flush cache
-Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -Command ""Get-NetAdapter | ForEach-Object {{ Set-DnsClientServerAddress -InterfaceIndex $_.InterfaceIndex -ResetServerAddresses -ErrorAction SilentlyContinue }}; ipconfig /flushdns"""; Flags: runhidden; RunOnceId: "ResetDnsAddresses"
-; 4. Remove Code Signing certificate from stores
+Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -Command ""Get-NetAdapter | ForEach-Object {{ Set-DnsClientServerAddress -InterfaceIndex $_.InterfaceIndex -ResetServerAddresses -ErrorAction SilentlyContinue }}; Get-NetAdapter | Where-Object {{ $_.Status -eq 'Up' }} | ForEach-Object {{ netsh interface ip set dns name=$_.Name source=dhcp }}; ipconfig /flushdns"""; Flags: runhidden; RunOnceId: "ResetDnsAddresses"
+; 4. Remove browser DoH suppression policies
+Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -Command ""Remove-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Google\Chrome' -Name 'DnsOverHttpsMode' -ErrorAction SilentlyContinue; Remove-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Edge' -Name 'DnsOverHttpsMode' -ErrorAction SilentlyContinue"""; Flags: runhidden; RunOnceId: "RemoveDohPolicies"
+; 5. Remove Code Signing certificate from stores
 Filename: "{sys}\certutil.exe"; Parameters: "-delstore Root ""FamShield Root CA"""; Flags: runhidden; RunOnceId: "DelCertRoot"
 Filename: "{sys}\certutil.exe"; Parameters: "-delstore TrustedPublisher ""FamShield Root CA"""; Flags: runhidden; RunOnceId: "DelCertPublisher"
 
@@ -105,8 +107,7 @@ Type: files; Name: "{app}\famshield-service.exe"
 Type: files; Name: "{app}\famshield-session.exe"
 Type: files; Name: "{app}\*.ico"
 Type: files; Name: "{app}\*.cer"
-Type: files; Name: "{commonappdata}\FamShield\admin_port.txt"
-Type: filesandordirs; Name: "{commonappdata}\FamShield\logs"
+Type: filesandordirs; Name: "{commonappdata}\FamShield"
 
 [Code]
 // Clean up existing service and terminate running processes before files extraction
@@ -132,17 +133,33 @@ end;
 
 // Prompt for parent confirmation when uninstaller is launched manually
 function InitializeUninstall(): Boolean;
+var
+  ResultCode: Integer;
 begin
   Result := True;
-  if not WizardSilent then
+  if not UninstallSilent then
   begin
-    if MsgBox('CẢNH BÁO BẢO MẬT PHỤ HUYNH:' + #13#10#13#10 +
-              'Bạn có chắc chắn muốn gỡ bỏ FamShield?' + #13#10 +
-              'Toàn bộ cấu hình bảo vệ sẽ bị dừng và cài đặt DNS mạng sẽ được khôi phục về ban đầu.',
-              mbConfirmation, MB_YESNO or MB_DEFBUTTON2) <> IDYES then
+    // Anti-tamper: Direct execution of unins000.exe requires Master PIN authentication
+    if FileExists(ExpandConstant('{app}\famshield-session.exe')) then
     begin
+      MsgBox('CẢNH BÁO BẢO MẬT PHỤ HUYNH:' + #13#10#13#10 +
+             'Để gỡ cài đặt FamShield, bạn cần xác thực Master PIN.' + #13#10 +
+             'FamShield đang khởi chạy cửa sổ xác thực an toàn...',
+             mbInformation, MB_OK);
+      Exec(ExpandConstant('{app}\famshield-session.exe'), '--uninstall', '', SW_SHOW, ewNoWait, ResultCode);
       Result := False;
       Exit;
+    end
+    else
+    begin
+      if MsgBox('CẢNH BÁO BẢO MẬT:' + #13#10#13#10 +
+                'Bạn có chắc chắn muốn gỡ bỏ FamShield?' + #13#10 +
+                'Toàn bộ cấu hình bảo vệ sẽ bị dừng và cài đặt DNS mạng sẽ được khôi phục về ban đầu.',
+                mbConfirmation, MB_YESNO or MB_DEFBUTTON2) <> IDYES then
+      begin
+        Result := False;
+        Exit;
+      end;
     end;
   end;
 end;

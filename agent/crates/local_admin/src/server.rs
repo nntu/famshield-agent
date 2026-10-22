@@ -14,9 +14,9 @@ use tokio::sync::{broadcast, Mutex};
 use tracing::{info, warn};
 
 use crate::service::{
-    probe_server_connection, ActivitySummaryResponse, AddKeywordRequest, BackupPayload,
-    CreateRuleRequest, KeywordConfigResponse, KeywordRuleDto, LocalAdminService, ServerConfig,
-    ToggleKeywordRequest, UpdateServerConfigRequest,
+    probe_server_connection, ActivitySummaryResponse, AddKeywordRequest, AppUsageSummary,
+    BackupPayload, CreateRuleRequest, KeywordConfigResponse, KeywordRuleDto, LocalAdminService,
+    ServerConfig, ToggleKeywordRequest, UpdateServerConfigRequest,
 };
 use crate::ui::LOCAL_DASHBOARD_HTML;
 use famshield_dns::blocklist::BlocklistStore;
@@ -32,10 +32,12 @@ pub struct ServerState {
     pub service: Arc<LocalAdminService>,
     pub dns_blocklist: Option<Arc<BlocklistStore>>,
     pub dns_cache: Option<Arc<famshield_dns::DnsCache>>,
+    pub dns_balancer: Option<Arc<famshield_dns::NumaDnsBalancer>>,
     pub sessions: Arc<Mutex<HashMap<String, DateTime<Utc>>>>,
     pub temp_auth_tokens: TempAuthTokensMap,
     pub pending_totp_setup: PendingTotpSetupState,
     pub active_app: Arc<Mutex<String>>,
+    pub is_terminating: Option<Arc<std::sync::atomic::AtomicBool>>,
 }
 
 #[derive(Deserialize)]
@@ -99,6 +101,7 @@ pub struct StatusResponse {
     pub total_queries_today: usize,
     pub rules_count: usize,
     pub evidence_count: usize,
+    pub app_version: String,
 }
 
 #[derive(Deserialize)]
@@ -145,6 +148,7 @@ pub struct SetupStatusResponse {
     pub is_configured: bool,
     pub operating_mode: String,
     pub device_id: String,
+    pub app_version: String,
 }
 
 #[derive(Deserialize)]
@@ -170,6 +174,9 @@ pub struct QueryParams {
     pub limit: Option<usize>,
     pub token: Option<String>,
     pub domain: Option<String>,
+    pub action: Option<String>,
+    pub start_time: Option<String>,
+    pub end_time: Option<String>,
 }
 
 pub struct LocalAdminServer {
@@ -186,16 +193,28 @@ impl LocalAdminServer {
                 service,
                 dns_blocklist,
                 dns_cache: None,
+                dns_balancer: None,
                 sessions: Arc::new(Mutex::new(HashMap::new())),
                 temp_auth_tokens: Arc::new(Mutex::new(HashMap::new())),
                 pending_totp_setup: Arc::new(Mutex::new(None)),
                 active_app: Arc::new(Mutex::new("Roblox.exe".to_string())),
+                is_terminating: None,
             },
         }
     }
 
+    pub fn with_terminating_flag(mut self, flag: Arc<std::sync::atomic::AtomicBool>) -> Self {
+        self.state.is_terminating = Some(flag);
+        self
+    }
+
     pub fn with_dns_cache(mut self, dns_cache: Arc<famshield_dns::DnsCache>) -> Self {
         self.state.dns_cache = Some(dns_cache);
+        self
+    }
+
+    pub fn with_dns_balancer(mut self, dns_balancer: Arc<famshield_dns::NumaDnsBalancer>) -> Self {
+        self.state.dns_balancer = Some(dns_balancer);
         self
     }
 
@@ -249,6 +268,8 @@ impl LocalAdminServer {
             .route("/api/auth/totp/disable", post(handle_disable_totp))
             .route("/api/status", get(handle_status))
             .route("/api/activity/summary", get(handle_get_activity_summary))
+            .route("/api/activity/apps/summary", get(handle_get_apps_summary))
+            .route("/api/activity/reset", post(handle_reset_reports))
             .route(
                 "/api/rules",
                 get(handle_list_rules).post(handle_create_rule),
@@ -258,6 +279,7 @@ impl LocalAdminServer {
             .route("/api/rules/:rule_id", delete(handle_delete_rule))
             .route("/api/logs/dns", get(handle_list_logs))
             .route("/api/logs/dns/summary", get(handle_get_dns_summary))
+            .route("/api/logs/dns/hourly", get(handle_get_dns_hourly))
             .route("/api/evidence", get(handle_list_evidence))
             .route(
                 "/api/evidence/:evidence_id/thumbnail",
@@ -280,6 +302,10 @@ impl LocalAdminServer {
             .route(
                 "/api/settings/dns-retention/prune-now",
                 post(handle_prune_dns_retention_now),
+            )
+            .route(
+                "/api/settings/capture-blur",
+                get(handle_get_capture_blur).post(handle_set_capture_blur),
             )
             .route(
                 "/api/settings/protection-mode",
@@ -1138,6 +1164,7 @@ async fn handle_status(
         total_queries_today,
         rules_count,
         evidence_count,
+        app_version: env!("CARGO_PKG_VERSION").to_string(),
     }))
 }
 
@@ -1386,10 +1413,26 @@ async fn handle_list_logs(
     }
 
     let limit = query.limit.unwrap_or(100).min(500);
-    match state
-        .service
-        .list_query_logs_filtered(query.domain.as_deref(), limit)
-    {
+    let start_time = query
+        .start_time
+        .as_deref()
+        .and_then(|s| DateTime::parse_from_rfc3339(s).ok())
+        .map(|dt| dt.with_timezone(&Utc));
+    let end_time = query
+        .end_time
+        .as_deref()
+        .and_then(|s| DateTime::parse_from_rfc3339(s).ok())
+        .map(|dt| dt.with_timezone(&Utc));
+
+    let filter = famshield_storage::QueryLogFilter {
+        domain: query.domain,
+        action: query.action,
+        start_time,
+        end_time,
+        limit,
+    };
+
+    match state.service.list_query_logs_with_filter(&filter) {
         Ok(logs) => Ok(Json(logs)),
         Err(e) => {
             warn!("Failed to query DNS logs: {}", e);
@@ -1408,10 +1451,56 @@ async fn handle_get_dns_summary(
     }
 
     let limit = query.limit.unwrap_or(200).min(1000);
-    match state.service.get_domain_query_summaries(limit) {
+    let start_time = query
+        .start_time
+        .as_deref()
+        .and_then(|s| DateTime::parse_from_rfc3339(s).ok())
+        .map(|dt| dt.with_timezone(&Utc));
+    let end_time = query
+        .end_time
+        .as_deref()
+        .and_then(|s| DateTime::parse_from_rfc3339(s).ok())
+        .map(|dt| dt.with_timezone(&Utc));
+
+    match state
+        .service
+        .get_domain_query_summaries_filtered(start_time, end_time, limit)
+    {
         Ok(summaries) => Ok(Json(summaries)),
         Err(e) => {
             warn!("Failed to query domain DNS summaries: {}", e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+
+async fn handle_get_dns_hourly(
+    State(state): State<ServerState>,
+    headers: HeaderMap,
+    Query(query): Query<QueryParams>,
+) -> Result<Json<Vec<famshield_storage::HourlyFrequency>>, StatusCode> {
+    if !check_auth(&state, &headers, query.token.as_deref()).await {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+
+    let start_time = query
+        .start_time
+        .as_deref()
+        .and_then(|s| DateTime::parse_from_rfc3339(s).ok())
+        .map(|dt| dt.with_timezone(&Utc));
+    let end_time = query
+        .end_time
+        .as_deref()
+        .and_then(|s| DateTime::parse_from_rfc3339(s).ok())
+        .map(|dt| dt.with_timezone(&Utc));
+
+    match state
+        .service
+        .get_hourly_frequency(query.domain.as_deref(), start_time, end_time)
+    {
+        Ok(frequencies) => Ok(Json(frequencies)),
+        Err(e) => {
+            warn!("Failed to query DNS hourly frequency: {}", e);
             Err(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }
@@ -1703,6 +1792,7 @@ async fn handle_setup_status(State(state): State<ServerState>) -> impl IntoRespo
         is_configured,
         operating_mode: mode.to_string(),
         device_id: dev_id,
+        app_version: env!("CARGO_PKG_VERSION").to_string(),
     })
 }
 
@@ -1994,6 +2084,29 @@ async fn handle_get_activity_summary(
     }
 }
 
+async fn handle_get_apps_summary(
+    State(state): State<ServerState>,
+    headers: HeaderMap,
+    Query(query): Query<QueryParams>,
+) -> Result<Json<Vec<AppUsageSummary>>, StatusCode> {
+    if !check_auth(&state, &headers, query.token.as_deref()).await {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+
+    let active_app = state.active_app.lock().await.clone();
+    match state.service.get_grouped_app_usage(
+        &active_app,
+        query.start_time.as_deref(),
+        query.end_time.as_deref(),
+    ) {
+        Ok(apps) => Ok(Json(apps)),
+        Err(e) => {
+            warn!("Failed to retrieve grouped app usage: {}", e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+
 #[derive(Deserialize)]
 pub struct ToggleMonitoringRequest {
     pub enabled: bool,
@@ -2227,6 +2340,138 @@ async fn handle_check_update(State(state): State<ServerState>) -> impl IntoRespo
 }
 
 #[derive(serde::Deserialize)]
+pub struct ResetReportsPayload {
+    pub master_pin: String,
+    pub otp_code: Option<String>,
+    pub scope: Option<Vec<String>>,
+}
+
+async fn handle_reset_reports(
+    State(state): State<ServerState>,
+    headers: HeaderMap,
+    Json(payload): Json<ResetReportsPayload>,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    let _is_web_authenticated = check_auth(&state, &headers, None).await;
+
+    match state.service.authenticate_storage(&payload.master_pin) {
+        Ok(true) => {
+            // Check step-up 2FA OTP if enabled
+            if let Ok(Some(cfg)) = state.service.storage().get_parent_totp_config() {
+                if cfg.enabled {
+                    let Some(otp) = payload
+                        .otp_code
+                        .as_deref()
+                        .map(str::trim)
+                        .filter(|s| !s.is_empty())
+                    else {
+                        return Err((
+                            StatusCode::BAD_REQUEST,
+                            Json(serde_json::json!({
+                                "success": false,
+                                "requires_otp": true,
+                                "message": "Xác thực 2 lớp (2FA) đang bật. Vui lòng nhập thêm mã OTP 6 số hoặc mã dự phòng để xác nhận đặt lại báo cáo."
+                            })),
+                        ));
+                    };
+
+                    let mut valid = false;
+                    if otp.len() == 6 && otp.chars().all(|c| c.is_ascii_digit()) {
+                        if let Ok(unprotected) =
+                            crate::secret_protection::unprotect_secret(&cfg.encrypted_secret)
+                        {
+                            let computer_name = std::env::var("COMPUTERNAME")
+                                .unwrap_or_else(|_| "Desktop".to_string());
+                            let account_name = format!("Parent ({})", computer_name);
+                            if let Ok(true) = crate::totp::TotpManager::verify_code(
+                                &unprotected.plaintext,
+                                &account_name,
+                                otp,
+                            ) {
+                                valid = true;
+                            }
+                        }
+                    }
+
+                    if !valid {
+                        let hash = crate::totp::TotpManager::hash_backup_code(otp);
+                        if let Ok(consumed) = state
+                            .service
+                            .storage()
+                            .verify_and_consume_backup_code(&hash)
+                        {
+                            if consumed {
+                                valid = true;
+                            }
+                        }
+                    }
+
+                    if !valid {
+                        return Err((
+                            StatusCode::UNAUTHORIZED,
+                            Json(serde_json::json!({
+                                "success": false,
+                                "invalid_otp": true,
+                                "message": "Mã OTP 2FA hoặc mã dự phòng không chính xác."
+                            })),
+                        ));
+                    }
+                }
+            }
+
+            let scopes = payload.scope.unwrap_or_else(|| vec!["all".to_string()]);
+            match state.service.storage().reset_reports(&scopes) {
+                Ok(stats) => {
+                    tracing::info!(
+                        "Reset reports completed successfully with scopes: {:?}",
+                        scopes
+                    );
+                    if scopes.iter().any(|s| s == "all" || s == "dns") {
+                        if let Some(cache) = &state.dns_cache {
+                            cache.flush();
+                        }
+                    }
+
+                    Ok(Json(serde_json::json!({
+                        "success": true,
+                        "message": "Đã đặt lại các báo cáo về 0 thành công!",
+                        "stats": stats,
+                    })))
+                }
+                Err(e) => Err((
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(serde_json::json!({
+                        "success": false,
+                        "message": format!("Lỗi khi xóa dữ liệu báo cáo: {}", e)
+                    })),
+                )),
+            }
+        }
+        Ok(false) => Err((
+            StatusCode::FORBIDDEN,
+            Json(serde_json::json!({
+                "success": false,
+                "message": "Mật khẩu Master PIN không chính xác! Không thể đặt lại báo cáo."
+            })),
+        )),
+        Err(crate::service::LocalAdminError::Auth(crate::auth::AuthError::Locked(until))) => Err((
+            StatusCode::TOO_MANY_REQUESTS,
+            Json(serde_json::json!({
+                "success": false,
+                "locked": true,
+                "message": format!("Tài khoản tạm thời bị khóa do nhập sai nhiều lần. Thử lại sau {}", until)
+            })),
+        )),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({
+                "success": false,
+                "message": format!("Lỗi xác thực: {}", e)
+            })),
+        )),
+    }
+}
+
+#[derive(serde::Deserialize)]
 pub struct UninstallPayload {
     pub master_pin: String,
     pub otp_code: Option<String>,
@@ -2237,15 +2482,7 @@ async fn handle_system_uninstall(
     headers: HeaderMap,
     Json(payload): Json<UninstallPayload>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
-    if !check_auth(&state, &headers, None).await {
-        return Err((
-            StatusCode::UNAUTHORIZED,
-            Json(serde_json::json!({
-                "success": false,
-                "message": "Phiên làm việc không hợp lệ hoặc đã hết hạn."
-            })),
-        ));
-    }
+    let is_web_authenticated = check_auth(&state, &headers, None).await;
 
     match state.service.authenticate_storage(&payload.master_pin) {
         Ok(true) => {
@@ -2304,6 +2541,7 @@ async fn handle_system_uninstall(
                             StatusCode::UNAUTHORIZED,
                             Json(serde_json::json!({
                                 "success": false,
+                                "invalid_otp": true,
                                 "message": "Mã OTP 2FA hoặc mã dự phòng không chính xác."
                             })),
                         ));
@@ -2312,8 +2550,14 @@ async fn handle_system_uninstall(
             }
 
             tracing::warn!(
-                "⚠️ Master PIN verified for uninstallation. Initiating full clean teardown..."
+                "⚠️ Master PIN verified for uninstallation (web_authenticated={}). Initiating clean teardown...",
+                is_web_authenticated
             );
+
+            // Signal watchdog immediately so it will suspend session helper auto-respawns and NRPT lock
+            if let Some(flag) = &state.is_terminating {
+                flag.store(true, std::sync::atomic::Ordering::SeqCst);
+            }
 
             // Spawn background teardown thread
             tokio::spawn(async move {
@@ -2324,7 +2568,10 @@ async fn handle_system_uninstall(
                     .args(["/F", "/IM", "famshield-session.exe", "/T"])
                     .output();
 
-                // 2. Reset network adapters DNS to DHCP and flush cache
+                // 2. Remove NRPT rules and restore browser DoH settings
+                let _ = famshield_windows::NrptManager::remove_nrpt_rule();
+
+                // 3. Reset network adapters DNS to DHCP and flush cache
                 let _ = std::process::Command::new("powershell")
                     .args([
                         "-NoProfile",
@@ -2335,39 +2582,41 @@ async fn handle_system_uninstall(
                     ])
                     .output();
 
-                // 3. Remove NRPT rules
-                let _ = famshield_windows::NrptManager::remove_nrpt_rule();
-
-                // 4. Remove Chrome and Edge DoH suppression policies
+                // 4. Also reset IPv4 DNS via netsh as robust fallback
                 let _ = std::process::Command::new("powershell")
                     .args([
                         "-NoProfile",
                         "-ExecutionPolicy",
                         "Bypass",
                         "-Command",
-                        "Remove-ItemProperty -Path 'HKLM:\\SOFTWARE\\Policies\\Google\\Chrome' -Name 'DnsOverHttpsMode' -ErrorAction SilentlyContinue; Remove-ItemProperty -Path 'HKLM:\\SOFTWARE\\Policies\\Microsoft\\Edge' -Name 'DnsOverHttpsMode' -ErrorAction SilentlyContinue",
+                        "Get-NetAdapter | Where-Object { $_.Status -eq 'Up' } | ForEach-Object { netsh interface ip set dns name=$_.Name source=dhcp }",
                     ])
                     .output();
 
                 // 5. If unins000.exe exists, execute it silently
+                let mut unins_spawned = false;
                 if let Ok(exe_path) = std::env::current_exe() {
                     if let Some(dir) = exe_path.parent() {
                         let unins = dir.join("unins000.exe");
                         if unins.exists() {
                             let _ = std::process::Command::new(&unins)
-                                .args(["/VERYSILENT", "/SUPPRESSMSGBOXES"])
+                                .args(["/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART"])
                                 .spawn();
+                            unins_spawned = true;
                         }
                     }
                 }
 
-                // 6. Stop and delete service
-                let _ = std::process::Command::new("sc")
-                    .args(["stop", "FamShieldService"])
-                    .output();
-                let _ = std::process::Command::new("sc")
-                    .args(["delete", "FamShieldService"])
-                    .output();
+                // 6. Stop and delete service if unins000 didn't run
+                if !unins_spawned {
+                    tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+                    let _ = std::process::Command::new("sc")
+                        .args(["stop", "FamShieldService"])
+                        .output();
+                    let _ = std::process::Command::new("sc")
+                        .args(["delete", "FamShieldService"])
+                        .output();
+                }
             });
 
             Ok(Json(serde_json::json!({
@@ -2380,6 +2629,14 @@ async fn handle_system_uninstall(
             Json(serde_json::json!({
                 "success": false,
                 "message": "Mật khẩu Master PIN không chính xác! Không thể gỡ bỏ ứng dụng."
+            })),
+        )),
+        Err(crate::service::LocalAdminError::Auth(crate::auth::AuthError::Locked(until))) => Err((
+            StatusCode::TOO_MANY_REQUESTS,
+            Json(serde_json::json!({
+                "success": false,
+                "locked": true,
+                "message": format!("Tài khoản tạm thời bị khóa do nhập sai nhiều lần. Thử lại sau {}", until)
             })),
         )),
         Err(e) => Err((
@@ -2415,9 +2672,21 @@ async fn handle_get_dns_config(
         (0, 0, 0)
     };
 
+    let (upstream_diagnostics, optimal_upstream) = if let Some(ref balancer) = state.dns_balancer {
+        let diags = balancer.get_diagnostics();
+        let opt = balancer
+            .get_optimal_upstream()
+            .map(|u| u.original_target.clone());
+        (serde_json::to_value(diags).unwrap_or_default(), opt)
+    } else {
+        (serde_json::json!([]), None)
+    };
+
     Ok(Json(serde_json::json!({
         "detected_system_dns": detected,
         "current_upstream": current_upstream,
+        "optimal_upstream": optimal_upstream,
+        "upstream_diagnostics": upstream_diagnostics,
         "cache_entries": entries,
         "cache_hits": hits,
         "cache_misses": misses,
@@ -2452,6 +2721,11 @@ async fn handle_set_dns_config(
     // Save to metadata storage
     let _ = state.service.storage().set_meta("dns_upstream", trimmed);
 
+    // Update balancer if available
+    if let Some(ref balancer) = state.dns_balancer {
+        balancer.set_upstreams(&[trimmed.to_string()]);
+    }
+
     // Flush cache to ensure immediate adoption
     if let Some(ref cache) = state.dns_cache {
         cache.flush();
@@ -2461,6 +2735,59 @@ async fn handle_set_dns_config(
         "success": true,
         "current_upstream": trimmed,
         "message": format!("Đã cập nhật máy chủ DNS sang: {}", trimmed)
+    })))
+}
+
+#[derive(Deserialize)]
+pub struct CaptureBlurPayload {
+    pub blur_mode: String,
+}
+
+async fn handle_get_capture_blur(
+    State(state): State<ServerState>,
+    headers: HeaderMap,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    if !check_auth(&state, &headers, None).await {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+    let mode = state
+        .service
+        .storage()
+        .get_meta("screenshot_blur_mode")
+        .ok()
+        .flatten()
+        .unwrap_or_else(|| "none".to_string());
+    Ok(Json(serde_json::json!({ "blur_mode": mode })))
+}
+
+async fn handle_set_capture_blur(
+    State(state): State<ServerState>,
+    headers: HeaderMap,
+    Json(payload): Json<CaptureBlurPayload>,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    if !check_auth(&state, &headers, None).await {
+        return Err((
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({"error": "Unauthorized"})),
+        ));
+    }
+    let mode = payload.blur_mode.trim().to_lowercase();
+    if mode != "none" && mode != "reduced" && mode != "full" {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({
+                "error": "Chế độ làm mờ không hợp lệ. Chỉ chấp nhận: 'none' (tắt mờ), 'reduced' (giảm mờ), 'full' (mờ bảo vệ)"
+            })),
+        ));
+    }
+    let _ = state
+        .service
+        .storage()
+        .set_meta("screenshot_blur_mode", &mode);
+    Ok(Json(serde_json::json!({
+        "success": true,
+        "blur_mode": mode,
+        "message": format!("Đã lưu cài đặt làm mờ ảnh chụp màn hình: {}", mode)
     })))
 }
 

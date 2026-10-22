@@ -34,6 +34,11 @@ export const App: React.FC = () => {
   const [logs, setLogs] = useState<QueryLogRecord[]>([]);
   const [evidenceList, setEvidenceList] = useState<EvidenceItem[]>([]);
   const [autoRefresh, setAutoRefresh] = useState<boolean>(true);
+  const [updateInfo, setUpdateInfo] = useState<{
+    current_version: string;
+    latest_version: string;
+    update_available: boolean;
+  } | null>(null);
 
   const [toasts, setToasts] = useState<
     { id: number; message: string; type: 'success' | 'error' | 'info' }[]
@@ -107,6 +112,7 @@ export const App: React.FC = () => {
     };
 
     checkInitAndAuth();
+    api.checkSoftwareUpdate().then(setUpdateInfo).catch(() => {});
 
     const handleUnauthorized = () => {
       setIsAuthenticated(false);
@@ -151,7 +157,7 @@ export const App: React.FC = () => {
     showToast(lang === 'vi' ? 'Đã đăng xuất' : 'Logged out', 'info');
   };
 
-  // Auto-refresh interval (every 4 seconds for dashboard & logs)
+  // Auto-refresh interval (every 4 seconds for dashboard)
   useEffect(() => {
     if (!isAuthenticated || !autoRefresh) return;
 
@@ -164,11 +170,6 @@ export const App: React.FC = () => {
         api
           .getLogs(10)
           .then((l) => setLogs(l))
-          .catch(() => {});
-      } else if (currentTab === 'logs') {
-        api
-          .getLogs(150)
-          .then(setLogs)
           .catch(() => {});
       }
     }, 4000);
@@ -195,6 +196,8 @@ export const App: React.FC = () => {
     return <SetupWizard lang={lang} onComplete={handleSetupComplete} />;
   }
 
+  const appVersion = status?.app_version || updateInfo?.current_version || '1.0.1';
+
   return (
     <div className="w-full min-h-[100dvh] flex flex-col bg-slate-50 text-slate-800 antialiased">
       <Navbar
@@ -203,6 +206,9 @@ export const App: React.FC = () => {
         lang={lang}
         onLangChange={handleLangChange}
         operatingMode={status?.operating_mode || 'StandaloneFree'}
+        appVersion={appVersion}
+        updateAvailable={updateInfo?.update_available}
+        latestVersion={updateInfo?.latest_version}
         onLogout={handleLogout}
         isAuthenticated={isAuthenticated}
       />
@@ -255,7 +261,46 @@ export const App: React.FC = () => {
         )}
       </main>
 
-      <PinModal isOpen={isPinModalOpen} lang={lang} onSuccess={handleAuthSuccess} />
+      {/* Global Application Footer */}
+      <footer className="w-full border-t border-slate-200/80 bg-white/75 backdrop-blur-xs py-3.5 mt-auto">
+        <div className="w-full max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-2.5 text-xs text-slate-500">
+          <div className="flex items-center gap-2 flex-wrap justify-center sm:justify-start">
+            <span className="font-semibold text-slate-700">FamShield Windows Agent</span>
+            <span className="font-mono text-2xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md border border-slate-200/60 font-semibold">
+              v{appVersion}
+            </span>
+            <span className="text-slate-300">•</span>
+            <span>
+              {status?.operating_mode === 'OnlineManaged'
+                ? lang === 'vi'
+                  ? 'Chế độ Trực tuyến'
+                  : 'Online Managed'
+                : lang === 'vi'
+                  ? 'Độc lập Ngoại tuyến'
+                  : 'Standalone Offline'}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-3 text-2xs">
+            <button
+              type="button"
+              onClick={() => setCurrentTab('security')}
+              className="text-sky-600 hover:text-sky-800 hover:underline cursor-pointer font-medium"
+            >
+              {lang === 'vi' ? 'Kiểm tra cập nhật' : 'Check for updates'}
+            </button>
+            <span className="text-slate-300">•</span>
+            <span>© 2026 FamShield Team</span>
+          </div>
+        </div>
+      </footer>
+
+      <PinModal
+        isOpen={isPinModalOpen}
+        lang={lang}
+        onSuccess={handleAuthSuccess}
+        appVersion={appVersion}
+      />
 
       {/* Floating Toast Box */}
       <div

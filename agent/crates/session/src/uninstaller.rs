@@ -32,6 +32,16 @@ static UNINSTALL_DIALOG_ACTIVE: AtomicBool = AtomicBool::new(false);
 const ID_EDIT_PIN: usize = 201;
 const ID_BTN_OK: usize = 202;
 const ID_BTN_CANCEL: usize = 203;
+const ID_EDIT_OTP: usize = 204;
+
+#[derive(Debug)]
+enum UninstallOutcome {
+    Success,
+    WrongPin,
+    RequiresOtp,
+    InvalidOtp,
+    Locked,
+}
 
 pub struct Uninstaller;
 
@@ -74,8 +84,8 @@ impl Uninstaller {
 
         let _ = RegisterClassW(&wc);
 
-        let dlg_width = 420;
-        let dlg_height = 220;
+        let dlg_width = 440;
+        let dlg_height = 250;
 
         let hwnd_desktop = GetDesktopWindow();
         let mut desk_rect = windows::Win32::Foundation::RECT::default();
@@ -109,9 +119,25 @@ impl Uninstaller {
             w!("Vui lòng nhập Master PIN Phụ Huynh để xác nhận gỡ bỏ.\nSau khi gỡ, toàn bộ cấu hình mạng DNS sẽ được khôi phục."),
             WS_CHILD | WS_VISIBLE,
             24,
-            18,
-            360,
-            42,
+            14,
+            380,
+            36,
+            hwnd,
+            None,
+            instance,
+            None,
+        );
+
+        // Label for PIN
+        let _ = CreateWindowExW(
+            windows::Win32::UI::WindowsAndMessaging::WINDOW_EX_STYLE(0),
+            w!("STATIC"),
+            w!("Mã Master PIN:"),
+            WS_CHILD | WS_VISIBLE,
+            24,
+            62,
+            140,
+            20,
             hwnd,
             None,
             instance,
@@ -129,12 +155,47 @@ impl Uninstaller {
                 | windows::Win32::UI::WindowsAndMessaging::WINDOW_STYLE(
                     (ES_CENTER | ES_PASSWORD) as u32,
                 ),
-            120,
-            75,
-            160,
-            28,
+            170,
+            59,
+            220,
+            26,
             hwnd,
             windows::Win32::UI::WindowsAndMessaging::HMENU(ID_EDIT_PIN as _),
+            instance,
+            None,
+        );
+
+        // Label for OTP
+        let _ = CreateWindowExW(
+            windows::Win32::UI::WindowsAndMessaging::WINDOW_EX_STYLE(0),
+            w!("STATIC"),
+            w!("Mã 2FA OTP (nếu có):"),
+            WS_CHILD | WS_VISIBLE,
+            24,
+            98,
+            140,
+            20,
+            hwnd,
+            None,
+            instance,
+            None,
+        );
+
+        // Edit box for OTP
+        let _ = CreateWindowExW(
+            windows::Win32::UI::WindowsAndMessaging::WINDOW_EX_STYLE(0),
+            w!("EDIT"),
+            w!(""),
+            WS_CHILD
+                | WS_VISIBLE
+                | WS_BORDER
+                | windows::Win32::UI::WindowsAndMessaging::WINDOW_STYLE(ES_CENTER as u32),
+            170,
+            95,
+            220,
+            26,
+            hwnd,
+            windows::Win32::UI::WindowsAndMessaging::HMENU(ID_EDIT_OTP as _),
             instance,
             None,
         );
@@ -148,8 +209,8 @@ impl Uninstaller {
                 | WS_VISIBLE
                 | windows::Win32::UI::WindowsAndMessaging::WINDOW_STYLE(BS_DEFPUSHBUTTON as u32),
             95,
-            125,
-            110,
+            145,
+            115,
             32,
             hwnd,
             windows::Win32::UI::WindowsAndMessaging::HMENU(ID_BTN_OK as _),
@@ -163,9 +224,9 @@ impl Uninstaller {
             w!("BUTTON"),
             w!("Hủy"),
             WS_CHILD | WS_VISIBLE,
-            215,
-            125,
-            110,
+            225,
+            145,
+            115,
             32,
             hwnd,
             windows::Win32::UI::WindowsAndMessaging::HMENU(ID_BTN_CANCEL as _),
@@ -195,15 +256,35 @@ impl Uninstaller {
                 let cmd_id = wparam.0 & 0xffff;
                 if cmd_id == ID_BTN_OK {
                     let mut pin_buf = [0u16; 64];
-                    let edit_hwnd = GetDlgItem(hwnd, ID_EDIT_PIN as i32).unwrap_or_default();
-                    let len = GetWindowTextW(edit_hwnd, &mut pin_buf);
+                    let edit_pin_hwnd = GetDlgItem(hwnd, ID_EDIT_PIN as i32).unwrap_or_default();
+                    let pin_len = GetWindowTextW(edit_pin_hwnd, &mut pin_buf);
 
-                    if len > 0 {
-                        let entered_pin = String::from_utf16_lossy(&pin_buf[..len as usize]);
+                    let mut otp_buf = [0u16; 64];
+                    let edit_otp_hwnd = GetDlgItem(hwnd, ID_EDIT_OTP as i32).unwrap_or_default();
+                    let otp_len = GetWindowTextW(edit_otp_hwnd, &mut otp_buf);
+
+                    if pin_len > 0 {
+                        let entered_pin = String::from_utf16_lossy(&pin_buf[..pin_len as usize]);
+                        let entered_otp = if otp_len > 0 {
+                            let s = String::from_utf16_lossy(&otp_buf[..otp_len as usize]);
+                            let trimmed = s.trim().to_string();
+                            if trimmed.is_empty() {
+                                None
+                            } else {
+                                Some(trimmed)
+                            }
+                        } else {
+                            None
+                        };
+
                         let port = famshield_service::get_active_admin_port();
 
-                        match Self::send_uninstall_request(port, &entered_pin) {
-                            Ok(true) => {
+                        match Self::send_uninstall_request(
+                            port,
+                            &entered_pin,
+                            entered_otp.as_deref(),
+                        ) {
+                            Ok(UninstallOutcome::Success) => {
                                 info!("Uninstall request authenticated successfully.");
                                 MessageBoxW(
                                     hwnd,
@@ -213,7 +294,34 @@ impl Uninstaller {
                                 );
                                 let _ = DestroyWindow(hwnd);
                             }
-                            Ok(false) => {
+                            Ok(UninstallOutcome::RequiresOtp) => {
+                                warn!("Master PIN ok, but 2FA OTP is required.");
+                                MessageBoxW(
+                                    hwnd,
+                                    w!("Tài khoản đang kích hoạt xác thực 2 lớp (2FA).\n\nVui lòng nhập thêm mã OTP 6 số từ ứng dụng Authenticator hoặc mã dự phòng vào ô 'Mã 2FA OTP' để xác nhận."),
+                                    w!("Yêu Cầu Xác Thực 2FA"),
+                                    MB_ICONWARNING | MB_OK,
+                                );
+                            }
+                            Ok(UninstallOutcome::InvalidOtp) => {
+                                warn!("2FA OTP or backup code invalid.");
+                                MessageBoxW(
+                                    hwnd,
+                                    w!("Mã OTP 2FA hoặc mã dự phòng không chính xác!\nVui lòng kiểm tra lại."),
+                                    w!("Xác Thực 2FA Thất Bại"),
+                                    MB_ICONWARNING | MB_OK,
+                                );
+                            }
+                            Ok(UninstallOutcome::Locked) => {
+                                warn!("Master PIN account locked due to failed attempts.");
+                                MessageBoxW(
+                                    hwnd,
+                                    w!("Tài khoản tạm thời bị khóa do nhập sai nhiều lần.\nVui lòng đợi hết thời gian khóa trước khi thử lại."),
+                                    w!("Tài Khoản Tạm Khóa"),
+                                    MB_ICONWARNING | MB_OK,
+                                );
+                            }
+                            Ok(UninstallOutcome::WrongPin) => {
                                 warn!("Master PIN verification failed for uninstall.");
                                 MessageBoxW(
                                     hwnd,
@@ -257,14 +365,27 @@ impl Uninstaller {
         }
     }
 
-    fn send_uninstall_request(port: u16, pin: &str) -> Result<bool, String> {
+    fn send_uninstall_request(
+        port: u16,
+        pin: &str,
+        otp: Option<&str>,
+    ) -> Result<UninstallOutcome, String> {
         let mut stream = TcpStream::connect(format!("127.0.0.1:{}", port))
             .map_err(|e| format!("Không thể kết nối đến cổng {}: {}", port, e))?;
-        stream.set_read_timeout(Some(Duration::from_secs(5))).ok();
-        stream.set_write_timeout(Some(Duration::from_secs(5))).ok();
+        stream.set_read_timeout(Some(Duration::from_secs(6))).ok();
+        stream.set_write_timeout(Some(Duration::from_secs(6))).ok();
 
         let escaped_pin = pin.replace('\\', "\\\\").replace('"', "\\\"");
-        let body = format!(r#"{{"master_pin":"{}"}}"#, escaped_pin);
+        let body = if let Some(otp_val) = otp {
+            let escaped_otp = otp_val.replace('\\', "\\\\").replace('"', "\\\"");
+            format!(
+                r#"{{"master_pin":"{}","otp_code":"{}"}}"#,
+                escaped_pin, escaped_otp
+            )
+        } else {
+            format!(r#"{{"master_pin":"{}"}}"#, escaped_pin)
+        };
+
         let req = format!(
             "POST /api/system/uninstall HTTP/1.1\r\n\
              Host: 127.0.0.1:{}\r\n\
@@ -285,13 +406,17 @@ impl Uninstaller {
         let mut response = String::new();
         let _ = stream.read_to_string(&mut response);
 
-        if response.contains("200 OK") || response.contains("\"success\":true") {
-            Ok(true)
-        } else if response.contains("403 Forbidden")
-            || response.contains("401 Unauthorized")
-            || response.contains("\"success\":false")
+        if response.contains("\"success\":true") {
+            Ok(UninstallOutcome::Success)
+        } else if response.contains("\"requires_otp\":true") {
+            Ok(UninstallOutcome::RequiresOtp)
+        } else if response.contains("\"invalid_otp\":true") {
+            Ok(UninstallOutcome::InvalidOtp)
+        } else if response.contains("\"locked\":true") || response.contains("429 Too Many Requests")
         {
-            Ok(false)
+            Ok(UninstallOutcome::Locked)
+        } else if response.contains("403 Forbidden") || response.contains("\"success\":false") {
+            Ok(UninstallOutcome::WrongPin)
         } else {
             Err("Phản hồi không xác định từ dịch vụ".to_string())
         }

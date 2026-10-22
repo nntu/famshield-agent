@@ -268,3 +268,57 @@ async fn test_dns_proxy_monitor_mode_logs_without_blocking() {
     proxy_handle.abort();
     upstream_handle.await.unwrap();
 }
+
+#[test]
+fn test_numa_dns_balancer_learning_and_selection() {
+    use famshield_dns::balancer::NumaDnsBalancer;
+    use std::time::Duration;
+
+    let balancer = NumaDnsBalancer::new(&["1.1.1.1:53".to_string(), "8.8.8.8:53".to_string()]);
+    let initial_candidates = balancer.pick_ordered_upstreams();
+    assert_eq!(initial_candidates.len(), 2);
+
+    let cf = initial_candidates
+        .iter()
+        .find(|u| u.original_target == "1.1.1.1:53")
+        .unwrap()
+        .clone();
+    let google = initial_candidates
+        .iter()
+        .find(|u| u.original_target == "8.8.8.8:53")
+        .unwrap()
+        .clone();
+
+    // 1. Learn latencies: Cloudflare is fast (8ms), Google is slower (35ms)
+    cf.record_success(Duration::from_millis(8));
+    google.record_success(Duration::from_millis(35));
+
+    let optimal = balancer.get_optimal_upstream().expect("Optimal upstream");
+    assert_eq!(optimal.original_target, "1.1.1.1:53");
+
+    // 2. Simulate Cloudflare experiencing outage / consecutive timeouts
+    cf.record_failure();
+    cf.record_failure();
+
+    // Balancer immediately detects failure penalty and adapts optimal choice to Google
+    let new_optimal = balancer.get_optimal_upstream().expect("Adapted optimal");
+    assert_eq!(new_optimal.original_target, "8.8.8.8:53");
+
+    // 3. Diagnostics verification
+    let diagnostics = balancer.get_diagnostics();
+    assert_eq!(diagnostics.len(), 2);
+    let diag_google = diagnostics
+        .iter()
+        .find(|d| d.target == "8.8.8.8:53")
+        .unwrap();
+    assert!(diag_google.is_optimal);
+    assert_eq!(diag_google.success_count, 1);
+    assert_eq!(diag_google.failure_count, 0);
+
+    let diag_cf = diagnostics
+        .iter()
+        .find(|d| d.target == "1.1.1.1:53")
+        .unwrap();
+    assert!(!diag_cf.is_optimal);
+    assert_eq!(diag_cf.consecutive_fails, 2);
+}

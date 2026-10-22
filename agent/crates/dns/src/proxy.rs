@@ -4,6 +4,7 @@ use std::time::Instant;
 use tokio::net::UdpSocket;
 use tracing::{debug, info, warn};
 
+use crate::balancer::NumaDnsBalancer;
 use crate::blocklist::BlocklistStore;
 use crate::buffer::BytePacketBuffer;
 use crate::cache::DnsCache;
@@ -41,7 +42,7 @@ pub fn qtype_to_string(qtype: u16) -> &'static str {
 
 pub struct DnsProxy {
     bind_addr: String,
-    upstreams: Arc<arc_swap::ArcSwap<Vec<String>>>,
+    balancer: Arc<NumaDnsBalancer>,
     blocklist: Arc<BlocklistStore>,
     cache: Arc<DnsCache>,
     log_tx: Option<tokio::sync::mpsc::UnboundedSender<DnsLogEntry>>,
@@ -57,24 +58,37 @@ impl DnsProxy {
         let addr = upstream_addr.into();
         Self {
             bind_addr: bind_addr.into(),
-            upstreams: Arc::new(arc_swap::ArcSwap::from_pointee(vec![addr])),
+            balancer: Arc::new(NumaDnsBalancer::new(&[addr])),
             blocklist,
             cache,
             log_tx: None,
         }
     }
 
-    pub fn with_upstreams(mut self, upstreams: Vec<String>) -> Self {
-        self.upstreams = Arc::new(arc_swap::ArcSwap::from_pointee(upstreams));
+    pub fn with_upstreams(self, upstreams: Vec<String>) -> Self {
+        self.balancer.set_upstreams(&upstreams);
+        self
+    }
+
+    pub fn with_balancer(mut self, balancer: Arc<NumaDnsBalancer>) -> Self {
+        self.balancer = balancer;
         self
     }
 
     pub fn set_upstreams(&self, upstreams: Vec<String>) {
-        self.upstreams.store(Arc::new(upstreams));
+        self.balancer.set_upstreams(&upstreams);
     }
 
     pub fn get_upstreams(&self) -> Vec<String> {
-        (**self.upstreams.load()).clone()
+        self.balancer
+            .get_diagnostics()
+            .into_iter()
+            .map(|d| d.target)
+            .collect()
+    }
+
+    pub fn balancer(&self) -> Arc<NumaDnsBalancer> {
+        self.balancer.clone()
     }
 
     pub fn with_log_sender(mut self, tx: tokio::sync::mpsc::UnboundedSender<DnsLogEntry>) -> Self {
@@ -338,13 +352,13 @@ impl DnsProxy {
             let blocklist = self.blocklist.clone();
             let cache = self.cache.clone();
             let log_tx = self.log_tx.clone();
-            let upstreams = self.upstreams.clone();
+            let balancer = self.balancer.clone();
 
             tokio::spawn(async move {
                 Self::handle_query(
                     query_wire,
                     client_addr,
-                    upstreams,
+                    balancer,
                     socket,
                     blocklist,
                     cache,
@@ -358,7 +372,7 @@ impl DnsProxy {
     async fn handle_query(
         query_wire: Vec<u8>,
         client_addr: SocketAddr,
-        upstreams: Arc<arc_swap::ArcSwap<Vec<String>>>,
+        balancer: Arc<NumaDnsBalancer>,
         socket: Arc<UdpSocket>,
         blocklist: Arc<BlocklistStore>,
         cache: Arc<DnsCache>,
@@ -496,44 +510,40 @@ impl DnsProxy {
             served_stale = true;
         }
 
-        // 3. Upstream Forwarding with Failover across configured upstreams
-        let current_targets = upstreams.load();
+        // 3. Upstream Forwarding with Dynamic NUMA Learning Balancer
+        let candidates = balancer.pick_ordered_upstreams();
         let mut forward_result = Err(DnsError::EndOfBuffer);
 
-        for (idx, target_str) in current_targets.iter().enumerate() {
-            let parsed_addr: Result<SocketAddr, _> = if target_str.contains(':') {
-                target_str.parse()
-            } else {
-                format!("{}:53", target_str).parse()
+        for (idx, metric) in candidates.iter().enumerate() {
+            let target = metric.addr;
+            let timeout_ms = if idx == 0 { 1500 } else { 2000 };
+            let start_t = Instant::now();
+            let query_fut = async {
+                let upstream_sock = UdpSocket::bind("0.0.0.0:0").await?;
+                upstream_sock.connect(target).await?;
+                upstream_sock.send(&query_wire).await?;
+                let mut resp_buf = [0u8; 4096];
+                let resp_len = tokio::time::timeout(
+                    std::time::Duration::from_millis(timeout_ms),
+                    upstream_sock.recv(&mut resp_buf),
+                )
+                .await
+                .map_err(|_| DnsError::EndOfBuffer)??;
+                Ok::<Vec<u8>, DnsError>(resp_buf[..resp_len].to_vec())
             };
 
-            if let Ok(target) = parsed_addr {
-                let timeout_ms = if idx == 0 { 1500 } else { 2000 };
-                let query_fut = async {
-                    let upstream_sock = UdpSocket::bind("0.0.0.0:0").await?;
-                    upstream_sock.connect(target).await?;
-                    upstream_sock.send(&query_wire).await?;
-                    let mut resp_buf = [0u8; 4096];
-                    let resp_len = tokio::time::timeout(
-                        std::time::Duration::from_millis(timeout_ms),
-                        upstream_sock.recv(&mut resp_buf),
-                    )
-                    .await
-                    .map_err(|_| DnsError::EndOfBuffer)??;
-                    Ok::<Vec<u8>, DnsError>(resp_buf[..resp_len].to_vec())
-                };
-
-                match query_fut.await {
-                    Ok(resp) => {
-                        forward_result = Ok(resp);
-                        break;
-                    }
-                    Err(e) => {
-                        debug!(
-                            "Upstream {} query failed/timeout: {}, attempting next...",
-                            target, e
-                        );
-                    }
+            match query_fut.await {
+                Ok(resp) => {
+                    metric.record_success(start_t.elapsed());
+                    forward_result = Ok(resp);
+                    break;
+                }
+                Err(e) => {
+                    metric.record_failure();
+                    debug!(
+                        "Upstream {} query failed/timeout: {}, attempting next...",
+                        target, e
+                    );
                 }
             }
         }

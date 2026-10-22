@@ -47,6 +47,7 @@ pub struct ServiceController {
     ipc_dispatcher: Arc<IpcDispatcher>,
     dns_blocklist: Arc<BlocklistStore>,
     dns_cache: Arc<DnsCache>,
+    dns_balancer: Arc<famshield_dns::NumaDnsBalancer>,
     process_monitor: Arc<ProcessMonitor>,
     nats_dispatcher: Arc<NatsDispatcher>,
     local_admin_server: Arc<famshield_local_admin::LocalAdminServer>,
@@ -99,6 +100,32 @@ impl ServiceController {
         }
         let nats_dispatcher = Arc::new(nats_dispatcher);
 
+        let configured_upstream = storage
+            .get_meta("dns_upstream")
+            .ok()
+            .flatten()
+            .unwrap_or_else(|| "1.1.1.1".to_string());
+
+        let upstreams = match famshield_windows::NrptManager::get_system_dns_servers() {
+            detected if !detected.is_empty() => {
+                let mut list = vec![configured_upstream.clone()];
+                for d in detected {
+                    if !list.contains(&d) {
+                        list.push(d);
+                    }
+                }
+                list
+            }
+            _ => vec![
+                configured_upstream.clone(),
+                "8.8.8.8".to_string(),
+                "9.9.9.9".to_string(),
+            ],
+        };
+        let dns_balancer = Arc::new(famshield_dns::NumaDnsBalancer::new(&upstreams));
+
+        let is_updating = Arc::new(std::sync::atomic::AtomicBool::new(false));
+
         let local_admin_svc = Arc::new(famshield_local_admin::LocalAdminService::new(
             storage.clone(),
         ));
@@ -107,7 +134,9 @@ impl ServiceController {
                 local_admin_svc,
                 Some(dns_blocklist.clone()),
             )
-            .with_dns_cache(dns_cache.clone()),
+            .with_dns_cache(dns_cache.clone())
+            .with_dns_balancer(dns_balancer.clone())
+            .with_terminating_flag(is_updating.clone()),
         );
 
         let telemetry_pipeline = Arc::new(TelemetryPipeline::new(device_id, storage.clone()));
@@ -126,13 +155,12 @@ impl ServiceController {
             Some(dns_blocklist.clone()),
         ));
 
-        let is_updating = Arc::new(std::sync::atomic::AtomicBool::new(false));
-
         Self {
             storage,
             ipc_dispatcher,
             dns_blocklist,
             dns_cache,
+            dns_balancer,
             process_monitor,
             nats_dispatcher,
             local_admin_server,
@@ -301,7 +329,7 @@ impl ServiceController {
             self.dns_blocklist.clone(),
             self.dns_cache.clone(),
         )
-        .with_upstreams(upstreams)
+        .with_balancer(self.dns_balancer.clone())
         .with_log_sender(dns_log_tx);
 
         let dns_storage = self.storage.clone();

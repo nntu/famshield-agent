@@ -14,6 +14,7 @@ export interface StatusResponse {
   total_queries_today: number;
   rules_count: number;
   evidence_count: number;
+  app_version?: string;
 }
 
 export interface LocalRuleRecord {
@@ -61,6 +62,7 @@ export interface SetupStatusResponse {
   is_configured: boolean;
   operating_mode: string;
   device_id: string;
+  app_version?: string;
 }
 
 export interface InitializeSetupRequest {
@@ -159,6 +161,20 @@ export interface AppActivityItem {
   status: 'Active' | 'Normal' | 'QuotaWarning' | 'Exceeded';
 }
 
+export interface AppUsageSummary {
+  app_name: string;
+  app_title: string;
+  category: string;
+  total_duration_minutes: number;
+  total_duration_formatted: string;
+  percentage: number;
+  session_count: number;
+  first_seen_at: string;
+  last_seen_at: string;
+  is_active_now: boolean;
+  status: 'Active' | 'QuotaWarning' | 'Normal';
+}
+
 export interface WebActivityItem {
   id: number;
   domain: string;
@@ -218,17 +234,42 @@ export interface ActivitySummaryResponse {
   monitored_events_count: number;
   keyword_violations_count: number;
   app_activities: AppActivityItem[];
+  grouped_apps?: AppUsageSummary[];
   web_activities: WebActivityItem[];
   keyword_violations: KeywordViolation[];
   unified_timeline: UnifiedTimelineItem[];
 }
 
+export interface UpstreamDiagnostic {
+  target: string;
+  addr: string;
+  latency_ms: number;
+  total_queries: number;
+  success_count: number;
+  failure_count: number;
+  consecutive_fails: number;
+  is_optimal: boolean;
+}
+
 export interface DnsConfigResponse {
   detected_system_dns: string[];
   current_upstream: string;
+  optimal_upstream?: string | null;
+  upstream_diagnostics?: UpstreamDiagnostic[];
   cache_entries: number;
   cache_hits: number;
   cache_misses: number;
+}
+
+export interface HourlyFrequency {
+  hour: number;
+  total_count: number;
+  allowed_count: number;
+  blocked_count: number;
+}
+
+export interface CaptureBlurConfig {
+  blur_mode: 'none' | 'reduced' | 'full';
 }
 
 export interface SetDnsConfigResponse {
@@ -268,4 +309,26 @@ export interface DnsRetentionConfig {
   raw_query_logs_count: number;
   aggregated_domains_count: number;
   last_pruned_at: string | null;
+}
+
+export interface ResetReportStats {
+  dns_cleared: number;
+  apps_cleared: number;
+  evidence_cleared: number;
+  keywords_cleared: number;
+}
+
+export interface ResetReportsPayload {
+  master_pin: string;
+  otp_code?: string;
+  scope?: string[];
+}
+
+export interface ResetReportsResponse {
+  success: boolean;
+  message: string;
+  stats?: ResetReportStats;
+  requires_otp?: boolean;
+  invalid_otp?: boolean;
+  locked?: boolean;
 }

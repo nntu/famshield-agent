@@ -7,7 +7,7 @@ pub mod tracker;
 pub mod tray;
 pub mod uninstaller;
 
-pub use capture::SmartVisualVerifier;
+pub use capture::{BlurMode, SmartVisualVerifier};
 pub use error::SessionError;
 pub use keyboard_monitor::{
     KeyboardMonitor, KeystrokeSlidingBuffer, KeywordViolationAlert, MAX_BUFFER_CAPACITY,

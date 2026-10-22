@@ -1,3 +1,4 @@
+pub mod balancer;
 pub mod blocklist;
 pub mod buffer;
 pub mod cache;
@@ -5,6 +6,7 @@ pub mod error;
 pub mod proxy;
 pub mod safesearch;
 
+pub use balancer::{NumaDnsBalancer, UpstreamDiagnostic, UpstreamMetrics};
 pub use blocklist::BlocklistStore;
 pub use buffer::BytePacketBuffer;
 pub use cache::DnsCache;

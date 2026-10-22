@@ -19,8 +19,12 @@ $repoRoot = $PSScriptRoot
 
 Write-Host "[1/6] Dang dung FamShieldService va session agent..." -ForegroundColor Yellow
 Stop-Service -Name $serviceName -Force -ErrorAction SilentlyContinue
-& taskkill.exe /F /IM famshield-service.exe /T 2>$null | Out-Null
-& taskkill.exe /F /IM famshield-session.exe /T 2>$null | Out-Null
+if (Get-Process -Name "famshield-service" -ErrorAction SilentlyContinue) {
+    cmd.exe /c 'taskkill /F /IM famshield-service.exe /T >nul 2>nul'
+}
+if (Get-Process -Name "famshield-session" -ErrorAction SilentlyContinue) {
+    cmd.exe /c 'taskkill /F /IM famshield-session.exe /T >nul 2>nul'
+}
 Get-Process -Name "famshield-service", "famshield-session" -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 Start-Sleep -Milliseconds 1200
 
@@ -36,9 +40,20 @@ foreach ($key in $corruptedKeys) {
     }
 }
 
-Write-Host "[3/6] Sao chep binary moi nhat vao $installDir..." -ForegroundColor Yellow
+Write-Host "[3/6] Bien dich Rust binaries, Web Admin va cap nhat he thong..." -ForegroundColor Yellow
 $serviceSrc = Join-Path $repoRoot "target\release\famshield-service.exe"
 $sessionSrc = Join-Path $repoRoot "target\release\famshield-session.exe"
+
+# 1. Compile Rust binaries if cargo is available
+if (Get-Command cargo -ErrorAction SilentlyContinue) {
+    Write-Host "      Dang bien dich Rust binaries (cargo build --release)..." -ForegroundColor Gray
+    & cargo build --release --bin famshield-service --bin famshield-session
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "Loi bien dich Rust binaries!"
+        exit 1
+    }
+    Write-Host "      Bien dich Rust binaries thanh cong!" -ForegroundColor Green
+}
 
 if (-not (Test-Path $serviceSrc)) {
     Write-Error "Khong tim thay $serviceSrc. Vui long chay build truoc!"
@@ -49,20 +64,56 @@ Copy-Item -Path $serviceSrc -Destination $installDir -Force
 Copy-Item -Path $sessionSrc -Destination $installDir -Force
 Write-Host "      Da cap nhat famshield-service.exe va famshield-session.exe" -ForegroundColor Green
 
+# Build Web Admin if pnpm/npm available
+$webDir = Join-Path $repoRoot "web"
+if (Test-Path (Join-Path $webDir "package.json")) {
+    Push-Location $webDir
+    try {
+        if (Get-Command pnpm -ErrorAction SilentlyContinue) {
+            Write-Host "      Dang bien dich giao dien Web Admin (pnpm run build)..." -ForegroundColor Gray
+            & pnpm run build | Out-Null
+        } elseif (Get-Command npm -ErrorAction SilentlyContinue) {
+            Write-Host "      Dang bien dich giao dien Web Admin (npm run build)..." -ForegroundColor Gray
+            & npm run build | Out-Null
+        }
+    } catch {
+        Write-Warning "Khong the bien dich Web Admin: $_"
+    } finally {
+        Pop-Location
+    }
+}
+
 $webDistSrc = Join-Path $repoRoot "web\dist"
 if (Test-Path $webDistSrc) {
-    $targetWebDir = Join-Path $installDir "web"
-    if (-not (Test-Path $targetWebDir)) {
-        New-Item -ItemType Directory -Path $targetWebDir -Force | Out-Null
+    # 1. Update ProgramData\FamShield\web\dist (Uu tien so 1 cua LocalAdminServer)
+    $pdWebDist = Join-Path $env:ProgramData "FamShield\web\dist"
+    if (-not (Test-Path $pdWebDist)) {
+        New-Item -ItemType Directory -Path $pdWebDist -Force | Out-Null
     }
-    Copy-Item -Path $webDistSrc -Destination $targetWebDir -Recurse -Force
-    Write-Host "      Da cap nhat web/dist giao dien Web Admin moi nhat" -ForegroundColor Green
+    # Clear old hashed assets
+    Get-ChildItem -Path $pdWebDist -Recurse -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+    Copy-Item -Path (Join-Path $webDistSrc "*") -Destination $pdWebDist -Recurse -Force
+    Write-Host "      Da cap nhat $pdWebDist" -ForegroundColor Green
+
+    # 2. Update Program Files\FamShield\web\dist (Fallback du phong)
+    $pfWebDist = Join-Path $installDir "web\dist"
+    if (-not (Test-Path $pfWebDist)) {
+        New-Item -ItemType Directory -Path $pfWebDist -Force | Out-Null
+    }
+    Get-ChildItem -Path $pfWebDist -Recurse -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+    Copy-Item -Path (Join-Path $webDistSrc "*") -Destination $pfWebDist -Recurse -Force
+    Write-Host "      Da cap nhat $pfWebDist" -ForegroundColor Green
 }
 
 Write-Host "[4/6] Khoi dong FamShieldService..." -ForegroundColor Yellow
-Start-Service -Name $serviceName
-$svc = Get-Service -Name $serviceName
-Write-Host "      Trang thai service: $($svc.Status)" -ForegroundColor Green
+$svc = Get-Service -Name $serviceName -ErrorAction SilentlyContinue
+if ($svc) {
+    Start-Service -Name $serviceName -ErrorAction SilentlyContinue
+    $svc = Get-Service -Name $serviceName
+    Write-Host "      Trang thai service: $($svc.Status)" -ForegroundColor Green
+} else {
+    Write-Host "      Service FamShield chua duoc cai dat. Vui long chay .\build.ps1 -InstallService" -ForegroundColor Yellow
+}
 
 Write-Host "[5/6] Tro DNS tren cac card mang hoat dong ve 127.0.0.2:53..." -ForegroundColor Yellow
 $adapters = Get-NetAdapter | Where-Object { $_.Status -eq 'Up' -and $_.InterfaceAlias -notmatch 'vEthernet|WSL|Loopback' }

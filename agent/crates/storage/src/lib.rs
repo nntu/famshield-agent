@@ -3,9 +3,9 @@ pub mod error;
 pub mod schema;
 
 pub use engine::{
-    CustomKeywordRecord, DomainQuerySummary, ErrorLogRecord, KeywordViolationRecord,
-    LocalRuleRecord, OutboxRecord, ParentTotpConfigRecord, QueryLogRecord, StorageEngine,
-    UsageSegmentRecord, VisualEvidenceRecord,
+    AppUsageGroupRecord, CustomKeywordRecord, DomainQuerySummary, ErrorLogRecord, HourlyFrequency,
+    KeywordViolationRecord, LocalRuleRecord, OutboxRecord, ParentTotpConfigRecord, QueryLogFilter,
+    QueryLogRecord, ResetReportStats, StorageEngine, UsageSegmentRecord, VisualEvidenceRecord,
 };
 pub use error::StorageError;
 pub use schema::CURRENT_SCHEMA_VERSION;
