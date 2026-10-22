@@ -180,11 +180,10 @@ impl TelemetrySyncWorker {
             if let Ok(Some(code)) = self.storage.get_meta("enrollment_code") {
                 let code = code.trim();
                 if code.len() == 6 {
-                    let enroll_manager = crate::EnrollmentManager::new(
-                        self.storage.clone(),
-                        self.client.base_url(),
-                    );
-                    let device_name = std::env::var("COMPUTERNAME").unwrap_or_else(|_| "Windows-PC".to_string());
+                    let enroll_manager =
+                        crate::EnrollmentManager::new(self.storage.clone(), self.client.base_url());
+                    let device_name =
+                        std::env::var("COMPUTERNAME").unwrap_or_else(|_| "Windows-PC".to_string());
                     let req = crate::EnrollmentRequest {
                         enrollment_code: code.to_string(),
                         device_name,
@@ -265,15 +264,34 @@ impl TelemetrySyncWorker {
                 // Dynamically sync updated server URL or version check URL from Server
                 if let Some(ref s_url) = resp.server_url {
                     let s_url = s_url.trim();
-                    if !s_url.is_empty() && self.storage.get_meta("server_url").ok().flatten().as_deref() != Some(s_url) {
+                    if !s_url.is_empty()
+                        && self
+                            .storage
+                            .get_meta("server_url")
+                            .ok()
+                            .flatten()
+                            .as_deref()
+                            != Some(s_url)
+                    {
                         info!("Server instructed update of server_url to: {}", s_url);
                         let _ = self.storage.set_meta("server_url", s_url);
                     }
                 }
                 if let Some(ref v_url) = resp.version_check_url {
                     let v_url = v_url.trim();
-                    if !v_url.is_empty() && self.storage.get_meta("version_check_url").ok().flatten().as_deref() != Some(v_url) {
-                        info!("Server instructed update of version_check_url to: {}", v_url);
+                    if !v_url.is_empty()
+                        && self
+                            .storage
+                            .get_meta("version_check_url")
+                            .ok()
+                            .flatten()
+                            .as_deref()
+                            != Some(v_url)
+                    {
+                        info!(
+                            "Server instructed update of version_check_url to: {}",
+                            v_url
+                        );
                         let _ = self.storage.set_meta("version_check_url", v_url);
                     }
                 }

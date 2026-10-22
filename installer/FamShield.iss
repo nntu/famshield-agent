@@ -5,7 +5,7 @@
 ; ==============================================================================
 
 #define MyAppName "FamShield"
-#define MyAppVersion "1.0.1"
+#define MyAppVersion "1.0.2"
 #define MyAppPublisher "FamShield Security Team"
 #define MyAppURL "https://famshield.cloud"
 #define MyAppExeName "famshield-service.exe"

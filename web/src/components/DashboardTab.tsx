@@ -231,7 +231,7 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
           <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between text-2xs text-slate-500">
             <span>{lang === 'vi' ? 'Phiên bản Agent' : 'Agent Version'}</span>
             <span className="font-mono font-semibold text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded">
-              v{status?.app_version || '1.0.1'}
+              v{status?.app_version || '1.0.2'}
             </span>
           </div>
         </div>

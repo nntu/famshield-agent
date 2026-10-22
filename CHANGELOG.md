@@ -8,6 +8,8 @@ Tất cả các thay đổi quan trọng của dự án **FamShield Windows Agen
 
 ## [Unreleased]
 
+## [1.0.2] - 2026-10-22
+
 ### Changed
 - **Đồng Bộ Hóa Toàn Diện Tài Liệu Kỹ Thuật & Cẩm Nang Sử Dụng (`README.md`, `README.en.md`, `docs/*`)**:
   - Cập nhật song ngữ (`README.md` & `README.en.md`) phản ánh đầy đủ các tính năng hiện tại: kênh điều khiển hai chiều NATS WebSocket (`wss://`) trên cổng 443 tương thích Cloudflare Tunnel, giao thức Telemetry Protocol v1.1, quản lý database chuyên nghiệp với Refinery 0.10 và SQLite Online Backup API snapshot safeguard, bảo mật 2FA TOTP (Google/Microsoft Authenticator) và giao diện Local Web Admin.

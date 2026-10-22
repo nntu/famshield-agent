@@ -381,7 +381,7 @@ export const PinModal: React.FC<PinModalProps> = ({ isOpen, lang, onSuccess, app
         <div className="mt-5 pt-3 border-t border-slate-100 flex items-center justify-between text-2xs text-slate-400 font-medium">
           <span>FamShield Windows Agent</span>
           <span className="font-mono text-slate-500 bg-slate-100 px-2 py-0.5 rounded border border-slate-200/60 font-semibold">
-            v{appVersion || '1.0.1'}
+            v{appVersion || '1.0.2'}
           </span>
         </div>
       </div>

@@ -318,13 +318,20 @@ impl NatsDispatcher {
             }
 
             "update_config" => {
-                info!("Remote configuration update command received: {:?}", cmd.payload);
+                info!(
+                    "Remote configuration update command received: {:?}",
+                    cmd.payload
+                );
                 if let Some(s_url) = cmd.payload.get("server_url").and_then(|v| v.as_str()) {
-                    let _ = self.storage.set_meta("server_url", s_url.trim())?;
+                    self.storage.set_meta("server_url", s_url.trim())?;
                     info!("Remote command updated server_url to: {}", s_url);
                 }
-                if let Some(v_url) = cmd.payload.get("version_check_url").and_then(|v| v.as_str()) {
-                    let _ = self.storage.set_meta("version_check_url", v_url.trim())?;
+                if let Some(v_url) = cmd
+                    .payload
+                    .get("version_check_url")
+                    .and_then(|v| v.as_str())
+                {
+                    self.storage.set_meta("version_check_url", v_url.trim())?;
                     info!("Remote command updated version_check_url to: {}", v_url);
                 }
                 Ok(())
