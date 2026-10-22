@@ -1,5 +1,5 @@
 use crate::error::StorageError;
-use crate::schema::initialize_database;
+use crate::schema::{initialize_database, initialize_database_with_guard};
 use chrono::{DateTime, Utc};
 use famshield_core::policy::Policy;
 use rusqlite::{params, Connection};
@@ -136,8 +136,9 @@ pub struct CustomKeywordRecord {
 
 impl StorageEngine {
     pub fn open<P: AsRef<Path>>(path: P) -> Result<Self, StorageError> {
-        let mut conn = Connection::open(path)?;
-        initialize_database(&mut conn)?;
+        let p = path.as_ref();
+        let mut conn = Connection::open(p)?;
+        initialize_database_with_guard(&mut conn, Some(p))?;
         Ok(Self {
             conn: Arc::new(Mutex::new(conn)),
         })

@@ -1,184 +1,41 @@
 use crate::error::StorageError;
 use rusqlite::Connection;
-use rusqlite_migration::{Migrations, M};
+use std::path::Path;
+use tracing::{error, info, warn};
+
+refinery::embed_migrations!("migrations");
 
 pub const CURRENT_SCHEMA_VERSION: usize = 6;
 
-const V1_SQL: &str = r#"
--- Agent metadata
-CREATE TABLE IF NOT EXISTS agent_meta (
-    key TEXT PRIMARY KEY,
-    value TEXT NOT NULL
-);
+/// Create a zero-copy, lock-free SQLite online backup snapshot before running migrations.
+pub fn create_pre_migration_snapshot(
+    conn: &mut Connection,
+    db_path: &Path,
+) -> Result<Option<std::path::PathBuf>, StorageError> {
+    if !db_path.exists() {
+        return Ok(None);
+    }
 
--- Verified active policy
-CREATE TABLE IF NOT EXISTS policies (
-    version INTEGER PRIMARY KEY,
-    content_hash TEXT NOT NULL,
-    envelope TEXT NOT NULL,
-    verified_at TEXT NOT NULL,
-    active INTEGER NOT NULL DEFAULT 0
-);
+    let backup_path = db_path.with_extension("migration_backup.db");
+    info!("Creating pre-migration snapshot at {:?}", backup_path);
 
--- Local rules (created in Local Standalone Mode)
-CREATE TABLE IF NOT EXISTS local_rules (
-    rule_id TEXT PRIMARY KEY,
-    rule_type TEXT NOT NULL, -- 'application' or 'domain'
-    payload TEXT NOT NULL,
-    enabled INTEGER NOT NULL DEFAULT 1,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
-);
+    let mut backup_conn = Connection::open(&backup_path)?;
+    let backup = rusqlite::backup::Backup::new(conn, &mut backup_conn)?;
+    backup.run_to_completion(100, std::time::Duration::from_millis(20), None)?;
 
--- Local admin credentials (Master PIN, DPAPI protected)
-CREATE TABLE IF NOT EXISTS local_admin_auth (
-    id INTEGER PRIMARY KEY CHECK (id = 1),
-    hash_algorithm TEXT NOT NULL,
-    salt BLOB NOT NULL,
-    credential_hash TEXT NOT NULL,
-    failed_attempts INTEGER NOT NULL DEFAULT 0,
-    locked_until TEXT,
-    updated_at TEXT NOT NULL
-);
-
--- Monotonic usage checkpoints
-CREATE TABLE IF NOT EXISTS usage_segments (
-    segment_id TEXT PRIMARY KEY,
-    child_id TEXT NOT NULL,
-    rule_id TEXT NOT NULL,
-    start_utc TEXT NOT NULL,
-    duration_ms INTEGER NOT NULL,
-    state TEXT NOT NULL -- 'accumulating' or 'committed'
-);
-CREATE INDEX IF NOT EXISTS idx_usage_segments_child_rule ON usage_segments(child_id, rule_id);
-
--- DNS query observations (RAM-buffered flush to SQLite)
-CREATE TABLE IF NOT EXISTS query_logs (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    domain TEXT NOT NULL,
-    qtype TEXT NOT NULL,
-    action TEXT NOT NULL, -- 'allow' or 'block'
-    reason TEXT NOT NULL,
-    rule_id TEXT,
-    occurred_at TEXT NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_query_logs_time ON query_logs(occurred_at);
-
--- Visual evidence frames (max 10 MiB quota, 48-hour purge)
-CREATE TABLE IF NOT EXISTS visual_evidence (
-    evidence_id TEXT PRIMARY KEY,
-    event_id TEXT NOT NULL,
-    occurred_at TEXT NOT NULL,
-    trigger TEXT NOT NULL,
-    image_payload BLOB NOT NULL,
-    size_bytes INTEGER NOT NULL,
-    uploaded INTEGER NOT NULL DEFAULT 0,
-    expires_at TEXT NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_visual_evidence_expires ON visual_evidence(expires_at);
-
--- Durable outbox for Online Mode sync
-CREATE TABLE IF NOT EXISTS outbox (
-    event_id TEXT PRIMARY KEY,
-    event_type TEXT NOT NULL,
-    occurred_at TEXT NOT NULL,
-    payload TEXT NOT NULL,
-    attempts INTEGER NOT NULL DEFAULT 0,
-    next_attempt_at TEXT NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_outbox_next_attempt ON outbox(next_attempt_at);
-"#;
-
-const V2_SQL: &str = r#"
--- Centralized Error & Exception logs with Smart Fingerprinting & Deduplication
-CREATE TABLE IF NOT EXISTS error_logs (
-    error_id TEXT PRIMARY KEY,
-    module TEXT NOT NULL,
-    severity TEXT NOT NULL,
-    message TEXT NOT NULL,
-    stack_trace TEXT,
-    occurrence_count INTEGER NOT NULL DEFAULT 1,
-    first_seen_at TEXT NOT NULL,
-    last_seen_at TEXT NOT NULL,
-    synced INTEGER NOT NULL DEFAULT 0
-);
-CREATE INDEX IF NOT EXISTS idx_error_logs_synced ON error_logs(synced);
-CREATE INDEX IF NOT EXISTS idx_error_logs_last_seen ON error_logs(last_seen_at);
-"#;
-
-const V3_SQL: &str = r#"
--- Monitored keyword violation events
-CREATE TABLE IF NOT EXISTS keyword_violations (
-    id TEXT PRIMARY KEY,
-    timestamp_utc TEXT NOT NULL,
-    app_name TEXT NOT NULL,
-    keyword_matched TEXT NOT NULL,
-    category TEXT NOT NULL,
-    severity TEXT NOT NULL,
-    snippet_masked TEXT NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_keyword_violations_time ON keyword_violations(timestamp_utc);
-
--- Custom keyword rules configured by parents
-CREATE TABLE IF NOT EXISTS custom_keywords (
-    id TEXT PRIMARY KEY,
-    pattern TEXT NOT NULL,
-    category TEXT NOT NULL,
-    severity TEXT NOT NULL,
-    enabled INTEGER NOT NULL DEFAULT 1,
-    created_at TEXT NOT NULL
-);
-"#;
-
-const V4_SQL: &str = r#"
--- Optimize domain query summary and domain drill-down queries
-CREATE INDEX IF NOT EXISTS idx_query_logs_domain ON query_logs(domain);
-"#;
-
-const V5_SQL: &str = r#"
--- Two-Factor Authentication (2FA TOTP RFC 6238) for Parents
-CREATE TABLE IF NOT EXISTS parent_2fa_config (
-    id INTEGER PRIMARY KEY CHECK (id = 1),
-    enabled INTEGER NOT NULL DEFAULT 0,
-    encrypted_secret TEXT NOT NULL,
-    created_at TEXT NOT NULL,
-    last_verified_at TEXT
-);
-
-CREATE TABLE IF NOT EXISTS parent_backup_codes (
-    code_hash TEXT PRIMARY KEY,
-    used INTEGER NOT NULL DEFAULT 0,
-    used_at TEXT
-);
-"#;
-
-const V6_SQL: &str = r#"
--- Persistent domain query aggregates for long-term storage & disk optimization
-CREATE TABLE IF NOT EXISTS domain_query_aggregates (
-    domain TEXT PRIMARY KEY,
-    total_queries INTEGER NOT NULL DEFAULT 0,
-    allowed_count INTEGER NOT NULL DEFAULT 0,
-    blocked_count INTEGER NOT NULL DEFAULT 0,
-    monitored_count INTEGER NOT NULL DEFAULT 0,
-    error_count INTEGER NOT NULL DEFAULT 0,
-    first_seen_at TEXT NOT NULL,
-    last_seen_at TEXT NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_domain_aggregates_total ON domain_query_aggregates(total_queries DESC);
-"#;
-
-pub fn migrations() -> Migrations<'static> {
-    Migrations::new(vec![
-        M::up(V1_SQL),
-        M::up(V2_SQL),
-        M::up(V3_SQL),
-        M::up(V4_SQL),
-        M::up(V5_SQL),
-        M::up(V6_SQL),
-    ])
+    Ok(Some(backup_path))
 }
 
+/// Initialize SQLite database pragmas and apply migrations with refinery.
 pub fn initialize_database(conn: &mut Connection) -> Result<(), StorageError> {
+    initialize_database_with_guard(conn, None)
+}
+
+/// Initialize SQLite database pragmas and apply migrations with pre-migration snapshot guard.
+pub fn initialize_database_with_guard(
+    conn: &mut Connection,
+    db_path: Option<&Path>,
+) -> Result<(), StorageError> {
     // 1. Configure SQLite pragmas for high resilience, concurrency and performance
     conn.execute_batch(
         "
@@ -189,10 +46,35 @@ pub fn initialize_database(conn: &mut Connection) -> Result<(), StorageError> {
         ",
     )?;
 
-    // 2. Apply migrations atomically using rusqlite_migration
-    migrations()
-        .to_latest(conn)
-        .map_err(|e| StorageError::Migration(e.to_string()))?;
+    // 2. Pre-migration snapshot if operating on a persistent disk database
+    let backup_path = if let Some(path) = db_path {
+        create_pre_migration_snapshot(conn, path).unwrap_or(None)
+    } else {
+        None
+    };
+
+    // 3. Apply migrations using refinery with checksum verification
+    if let Err(err) = migrations::runner().run(conn) {
+        error!(
+            "Refinery migration failed: {}. Initiating auto-recovery...",
+            err
+        );
+        if let Some(ref bkp) = backup_path {
+            if let Some(path) = db_path {
+                warn!(
+                    "Restoring pre-migration snapshot from {:?} to {:?}",
+                    bkp, path
+                );
+                let _ = std::fs::copy(bkp, path);
+            }
+        }
+        return Err(StorageError::Migration(err.to_string()));
+    }
+
+    // 4. Cleanup temporary backup snapshot on successful migration
+    if let Some(ref bkp) = backup_path {
+        let _ = std::fs::remove_file(bkp);
+    }
 
     Ok(())
 }
@@ -202,7 +84,70 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_migrations_are_valid() {
-        assert!(migrations().validate().is_ok());
+    fn test_refinery_migrations_in_memory() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        assert!(initialize_database(&mut conn).is_ok());
+
+        // Verify core tables exist
+        let tables: Vec<String> = conn
+            .prepare("SELECT name FROM sqlite_master WHERE type='table'")
+            .unwrap()
+            .query_map([], |row| row.get(0))
+            .unwrap()
+            .filter_map(|r| r.ok())
+            .collect();
+
+        assert!(tables.contains(&"agent_meta".to_string()));
+        assert!(tables.contains(&"local_rules".to_string()));
+        assert!(tables.contains(&"local_admin_auth".to_string()));
+        assert!(tables.contains(&"query_logs".to_string()));
+        assert!(tables.contains(&"usage_segments".to_string()));
+        assert!(tables.contains(&"visual_evidence".to_string()));
+        assert!(tables.contains(&"outbox".to_string()));
+        assert!(tables.contains(&"error_logs".to_string()));
+        assert!(tables.contains(&"keyword_violations".to_string()));
+        assert!(tables.contains(&"parent_2fa_config".to_string()));
+        assert!(tables.contains(&"domain_query_aggregates".to_string()));
+        assert!(tables.contains(&"refinery_schema_history".to_string()));
+    }
+
+    #[test]
+    fn test_pre_migration_snapshot_and_recovery() {
+        let temp_dir = std::env::temp_dir().join(format!(
+            "famshield_test_{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&temp_dir).unwrap();
+        let db_path = temp_dir.join("test.db");
+
+        // 1. Initialize first time
+        {
+            let mut conn = Connection::open(&db_path).unwrap();
+            assert!(initialize_database_with_guard(&mut conn, Some(&db_path)).is_ok());
+            conn.execute(
+                "INSERT INTO agent_meta (key, value) VALUES ('test_key', '12345')",
+                [],
+            )
+            .unwrap();
+        }
+
+        // 2. Open again with snapshot guard (file exists)
+        {
+            let mut conn = Connection::open(&db_path).unwrap();
+            assert!(initialize_database_with_guard(&mut conn, Some(&db_path)).is_ok());
+            let val: String = conn
+                .query_row(
+                    "SELECT value FROM agent_meta WHERE key='test_key'",
+                    [],
+                    |r| r.get(0),
+                )
+                .unwrap();
+            assert_eq!(val, "12345");
+        }
+
+        let _ = std::fs::remove_dir_all(&temp_dir);
     }
 }
