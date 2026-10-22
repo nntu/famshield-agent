@@ -33,7 +33,12 @@ pub enum IpcMessage {
         image_jpeg_bytes: Vec<u8>,
     },
     /// Request session helper to capture blurred evidence frame (e.g. upon malicious DNS block).
-    CaptureEvidenceCommand { event_id: String, trigger: String },
+    CaptureEvidenceCommand {
+        event_id: String,
+        trigger: String,
+        #[serde(default)]
+        silent: bool,
+    },
     /// Child requests additional time or rule exception.
     TimeExtensionRequest {
         session_id: u32,
@@ -57,6 +62,8 @@ pub enum IpcMessage {
     GetKeywordRulesResponse {
         enabled: bool,
         rules: Vec<famshield_core::keyword::KeywordRule>,
+        #[serde(default)]
+        silent_mode: bool,
     },
     /// Service response / acknowledgement.
     Response {
@@ -152,6 +159,7 @@ impl NamedPipeServer {
                         }
                         Err(e) => {
                             warn!("Named Pipe connection error: {}", e);
+                            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
                         }
                     }
                 }

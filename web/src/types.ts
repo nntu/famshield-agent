@@ -1,6 +1,8 @@
 export interface StatusResponse {
   protection_active: boolean;
   monitor_mode: boolean;
+  silent_mode?: boolean;
+  dns_block_action?: string;
   session_helper_running: boolean;
   session_helper_status: string;
   dns_proxy_addr: string;
@@ -126,6 +128,7 @@ export interface BackupSettings {
   sync_interval_secs: number;
   tls_verify: boolean;
   monitor_mode: boolean;
+  silent_mode?: boolean;
 }
 
 export interface BackupPayload {
@@ -147,6 +150,8 @@ export interface RestoreResponse {
 export interface ProtectionModeResponse {
   success: boolean;
   monitor_mode: boolean;
+  silent_mode?: boolean;
+  dns_block_action?: string;
 }
 
 export interface AppActivityItem {

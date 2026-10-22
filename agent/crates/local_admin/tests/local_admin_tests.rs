@@ -806,6 +806,23 @@ async fn test_api_protection_mode_and_backup_endpoints() {
     assert!(service.is_monitor_mode());
     assert!(dns_blocklist.is_monitor_mode());
 
+    // 2.5. POST /api/settings/silent-mode (enable silent monitoring mode)
+    let res = server
+        .router()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/settings/silent-mode")
+                .header("X-FamShield-Token", &token)
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(r#"{"silent_mode": true}"#))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    assert!(service.is_silent_mode());
+
     // 3. GET /api/backup/export
     let res = server
         .router()
@@ -1395,4 +1412,24 @@ async fn test_parent_2fa_totp_full_lifecycle() {
     let bytes = res.into_body().collect().await.unwrap().to_bytes();
     let status_disabled: Value = serde_json::from_slice(&bytes).unwrap();
     assert_eq!(status_disabled["enabled"], false);
+}
+
+#[tokio::test]
+async fn test_protection_mode_and_dns_block_action_persistence() {
+    let storage = StorageEngine::in_memory().unwrap();
+    let service = LocalAdminService::new(storage);
+
+    // Initial defaults
+    assert_eq!(service.get_dns_block_action(), "nxdomain");
+    assert!(!service.is_silent_mode());
+    assert!(!service.is_monitor_mode());
+
+    // Update settings
+    service.set_dns_block_action("zero_ip").unwrap();
+    service.set_silent_mode(true).unwrap();
+    service.set_monitor_mode(true).unwrap();
+
+    assert_eq!(service.get_dns_block_action(), "zero_ip");
+    assert!(service.is_silent_mode());
+    assert!(service.is_monitor_mode());
 }

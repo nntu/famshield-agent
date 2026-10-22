@@ -8,6 +8,37 @@ Tất cả các thay đổi quan trọng của dự án **FamShield Windows Agen
 
 ## [Unreleased]
 
+### Added
+- **Cơ Chế Giám Sát Yên Lặng Toàn Diện (Silent Monitoring / Stealth Mode, `famshield-session`, `famshield-service`, `famshield-local-admin`, `web`)**:
+  - **Giám sát ngầm không làm gián đoạn ("Vẫn ghi nhận nhưng không thông báo")**: Toàn bộ dữ liệu nhật ký truy vấn DNS (`QueryLogRecord`), cảnh báo vi phạm từ khóa nhạy cảm (`KeywordViolation`), bằng chứng ảnh chụp làm mờ an toàn (`VisualEvidenceRecord`), và thời lượng ứng dụng vẫn được ghi nhận đầy đủ 100% vào SQLite cục bộ và hàng đợi Telemetry đồng bộ lên máy chủ.
+  - **Triệt tiêu thông báo Toast (`FriendlyToast::set_silent_mode`)**: Khi bật chế độ giám sát yên lặng (`silent_mode = true`), tất cả thông báo Toast/Balloon trên khay hệ thống (nhắc nhở từ khóa, thông báo chặn web, cảnh báo hạn mức thời gian, thông báo chào) bị vô hiệu hóa triệt để, không hiển thị bất kỳ pop-up nào trên màn hình máy trạm của con trẻ.
+  - **Đồng bộ trạng thái qua Windows Named Pipe IPC**: Trường `silent_mode` và `silent` được truyền tự động trong `IpcMessage::GetKeywordRulesResponse` và `IpcMessage::CaptureEvidenceCommand`, đảm bảo tiến trình giao diện người dùng (`famshield-session`) phản ánh tức thì cấu hình từ Windows Service chạy ngầm.
+  - **API & Bảng Điều Khiển Quản Trị**:
+    - Bổ sung cấu hình `silent_mode` trong `LocalAdminService` (lưu trữ metadata SQLite, tích hợp vào bản sao lưu `BackupSettings`).
+    - Bổ sung các endpoint REST API: `GET/POST /api/settings/silent-mode` và cập nhật `GET/POST /api/settings/protection-mode`.
+    - Giao diện người dùng Web Local Admin (`SecurityTab.tsx`): Bổ sung card điều khiển "Chế độ Giám Sát Yên Lặng" với toggle kích hoạt trực quan, huy hiệu trạng thái và giải thích chi tiết song ngữ (VI & EN).
+
+### Changed
+- **Chuẩn Hóa Cơ Chế Chặn DNS Tàng Hình (Stealth DNS Blocking via RFC NXDOMAIN - Website Coi Như Không Tồn Tại, `famshield-dns`, `famshield-session`, `famshield-service`)**:
+  - **Website bị chặn coi như không tồn tại**: Khi máy trạm gửi truy vấn tên miền nằm trong danh sách đen (`blocklist`), bộ lọc DNS proxy (`DnsProxy::build_blocked_response`) phản hồi mã trạng thái `NXDOMAIN` (Non-Existent Domain, RCODE 3) chuẩn RFC 1035 thông qua `hickory-proto` và bộ đệm nhị phân dự phòng.
+  - **Không hiện thông báo chặn làm lộ việc can thiệp**: Trình duyệt web (Chrome, Edge, Firefox) tự động hiển thị lỗi mạng bản địa `DNS_PROBE_FINISHED_NXDOMAIN` ("Không thể truy cập trang web này - Không tìm thấy địa chỉ máy chủ"), hoàn toàn y hệt như website không hề tồn tại trên Internet.
+  - **Loại bỏ pop-up Toast đối với sự kiện chặn web**: Loại bỏ hoàn toàn thông báo Toast "FamShield - Chặn an toàn" khi DNS chặn truy cập web, giữ trọn tính bảo mật và tự nhiên cho môi trường máy tính con trẻ trong khi vẫn thu thập bằng chứng visual evidence ngầm cho phụ huynh.
+  - **Cập nhật WebFilterPolicyDto & OpenAPI Contract**: Bổ sung `silent_mode`, `monitor_only_mode` và `dns_block_action = "nxdomain"` tương thích hợp đồng `contracts/openapi.yaml`.
+- **Tái Cấu Trúc & Loại Bỏ Mã Trùng Lặp (Refactoring & Code Duplication Elimination, `famshield-core`, `famshield-updater`, `famshield-local-admin`, `famshield-service`, `famshield-sync`)**:
+  - **Mô-đun hóa Hex Encoding/Decoding (`famshield-core::hex`)**: Tạo mô-đun chuẩn `hex.rs` zero-heap allocation trong `famshield-core`, tái sử dụng thống nhất cho `famshield-local-admin` (Secret DPAPI Protection) và `famshield-updater` (Binary Signature Verification), triệt tiêu hoàn toàn các hàm `decode_hex` và `decode_nibble` sao chép lặp lại.
+  - **Hợp nhất `get_data_dir()` (`famshield-service`)**: Re-export `get_data_dir()` từ `famshield_service::controller` sang `main.rs`, xóa bỏ hàm định nghĩa trùng lặp.
+  - **Chuẩn hóa hằng số định danh đám mây (`famshield-sync`)**: Tái sử dụng hằng số `META_ENROLLED_DEVICE_ID` và `META_ENROLLED_TENANT_ID` trong `worker.rs` và `nats_worker.rs` thay vì hardcoded string.
+  - **Re-index toàn bộ dự án vào Codebase Knowledge Graph (`codebase-memory-mcp`)**: Cập nhật toàn diện đồ thị tri thức với 3,242 nodes và 10,608 edges, lưu trữ bền vững vào `.codebase-memory/graph.db.zst`.
+
+### Fixed
+- **Triệt Tiêu Nguy Cơ Spin Loop / 100% CPU trên `tokio::select!` (`famshield-service::controller`)**: Khắc phục lỗi mẫu pattern `Some(entry) = dns_log_rx.recv()` khiến tác vụ nền rơi vào vòng lặp spin loop vô tận khi kênh `dns_log_rx` bị đóng. Chuyển sang `entry_opt = dns_log_rx.recv() => match entry_opt` với thao tác flush batch và break dứt điểm.
+- **Chống Spin Loop Khi Lỗi Kết Nối Named Pipe IPC (`famshield-service::ipc`)**: Bổ sung cơ chế giãn cách `50ms` khi kết nối Named Pipe trả về lỗi thay vì lặp tức thì, bảo vệ CPU máy trạm không bị chiếm dụng khi client ngắt đột ngột hoặc xảy ra lỗi pipe.
+- **Phòng Ngừa Spin Loop Trên UDP DNS Proxy (`famshield-dns::proxy`)**: Bổ sung backoff `25ms` khi `recv_from` gặp lỗi liên tục (đặc biệt mã lỗi `WSAECONNRESET` phổ biến trên Windows UDP socket).
+- **Ngăn Chặn Vòng Lặp Gửi HTTP Vô Tận & Độc Chiếm Luồng Async (`famshield-sync::worker`)**: Khắc phục lỗi `while let Ok(Some(envelope)) = prepare_next_batch` tiếp tục gửi lặp lại đúng gói tin cũ khi hàm `acknowledge_batch` thất bại. Bổ sung `break` ngắt vòng lặp an toàn và giới hạn tối đa 10 batch mỗi chu kỳ đồng bộ để tránh nghẽn luồng xử lý async.
+- **Khắc Phục Lỗi Logic Trùng Lặp Error Log Telemetry (`famshield-service::controller`)**: Đánh dấu `mark_errors_synced` độc lập ngay sau khi đưa vào hàng đợi telemetry, ngăn lỗi logic khiến nhật ký lỗi bị đẩy trùng lặp vô tận sau mỗi 15 giây nếu NATS batch format gặp trục trặc hoặc không được sử dụng.
+- **Khử Trùng Lặp Truy Vấn Quota Tiến Trình (`famshield-service::controller`)**: Gom nhóm và loại bỏ trùng lặp tên tiến trình chạy ngầm trước khi gọi `check_and_enforce_app_quota`, loại bỏ hàng loạt truy vấn SQLite thừa khi các ứng dụng đa tiến trình (như Chrome, Edge) khởi chạy đồng thời nhiều PID.
+- **Lưu Trữ & Phản Ánh Bền Vững Cấu Hình Hành Vi Chặn DNS (`famshield-local-admin`)**: Bổ sung `get_dns_block_action` và `set_dns_block_action` trong `LocalAdminService`, đồng bộ nhất quán giữa Local Web Admin và cấu hình máy chủ.
+
 ## [1.0.2] - 2026-10-22
 
 ### Changed

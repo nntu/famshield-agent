@@ -55,4 +55,13 @@ fn test_friendly_toast_and_pin_dialog_exports() {
     FriendlyToast::notify_quota_expired(0);
     FriendlyToast::notify_content_blocked(0, "game.example.com");
     FriendlyToast::notify_time_extended(0, 15);
+
+    // Test silent monitoring mode toggle & suppression
+    assert!(!FriendlyToast::is_silent_mode());
+    FriendlyToast::set_silent_mode(true);
+    assert!(FriendlyToast::is_silent_mode());
+    // Should be no-op under silent mode
+    FriendlyToast::notify_content_blocked(0, "stealth.example.com");
+    FriendlyToast::set_silent_mode(false);
+    assert!(!FriendlyToast::is_silent_mode());
 }

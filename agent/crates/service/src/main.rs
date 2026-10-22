@@ -1,18 +1,9 @@
-use famshield_service::ServiceController;
+use famshield_service::{get_data_dir, ServiceController};
 use famshield_storage::StorageEngine;
 use std::path::PathBuf;
 use tracing::{debug, info};
 
 pub const SERVICE_NAME: &str = "FamShieldService";
-
-fn get_data_dir() -> PathBuf {
-    let data_dir = std::env::var("ProgramData")
-        .map(PathBuf::from)
-        .unwrap_or_else(|_| PathBuf::from("."))
-        .join("FamShield");
-    let _ = std::fs::create_dir_all(&data_dir);
-    data_dir
-}
 
 fn handle_reset_pin(args: &[String]) -> Result<bool, Box<dyn std::error::Error>> {
     if let Some(pos) = args.iter().position(|a| a == "--reset-pin") {

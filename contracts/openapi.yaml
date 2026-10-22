@@ -146,6 +146,101 @@ paths:
         '200':
           description: Result stored or matched an existing idempotent result
         '409': { $ref: '#/components/responses/Error' }
+  /taxonomy/domains:
+    get:
+      summary: Retrieve domain classification or list pending unclassified domains
+      parameters:
+        - name: domain
+          in: query
+          schema: { type: string }
+        - name: pending
+          in: query
+          schema: { type: boolean }
+      responses:
+        '200':
+          description: Domain classification details or pending domain list
+        '404': { $ref: '#/components/responses/Error' }
+    post:
+      summary: Upsert verified domain classification (by AI worker or admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/GlobalDomainClassification' }
+      responses:
+        '200':
+          description: Classification saved
+  /taxonomy/batch:
+    post:
+      summary: Batch lookup classifications for a list of domains
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [domains]
+              properties:
+                domains:
+                  type: array
+                  items: { type: string }
+      responses:
+        '200':
+          description: Map of resolved classifications
+  /filter/overrides:
+    get:
+      summary: List custom domain overrides for a family tenant
+      parameters:
+        - name: tenant_id
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: List of tenant domain overrides
+    post:
+      summary: Set a custom parent domain override
+      parameters:
+        - name: tenant_id
+          in: query
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TenantDomainOverride' }
+      responses:
+        '200':
+          description: Override created or updated
+    delete:
+      summary: Remove a custom domain override
+      parameters:
+        - name: domain
+          in: query
+          required: true
+          schema: { type: string }
+        - name: tenant_id
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: Override removed
+  /filter/resolve:
+    get:
+      summary: Evaluate single domain decision under family policy and overrides
+      parameters:
+        - name: domain
+          in: query
+          required: true
+          schema: { type: string }
+        - name: tenant_id
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: Resolved domain policy decision
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ResolvedDomainPolicy' }
 components:
   securitySchemes:
     deviceMtls:
@@ -308,3 +403,67 @@ components:
             message: { type: string }
             request_id: { type: string }
             retryable: { type: boolean }
+    GlobalDomainClassification:
+      type: object
+      required: [domain, primary_category, categories, source]
+      properties:
+        domain: { type: string }
+        primary_category: { type: string }
+        categories:
+          type: array
+          items: { type: string }
+        confidence_score: { type: number, format: float }
+        safety_score: { type: integer }
+        source: { type: string, enum: [ai_verified, system_seed, manual_curated, agent_proposed] }
+        title: { type: string }
+        meta_description: { type: string }
+        analyzed_at: { type: string, format: date-time }
+    TenantDomainOverride:
+      type: object
+      required: [tenant_id, domain, action]
+      properties:
+        tenant_id: { type: string }
+        domain: { type: string }
+        custom_category: { type: string }
+        action: { type: string, enum: [allow, block, schedule, default] }
+        reason: { type: string }
+        source: { type: string }
+        updated_by: { type: string }
+        updated_at: { type: string, format: date-time }
+    ResolvedDomainPolicy:
+      type: object
+      required: [domain, tenant_id, action, effective_category, source]
+      properties:
+        domain: { type: string }
+        tenant_id: { type: string }
+        action: { type: string, enum: [allow, block, schedule, monitor] }
+        effective_category: { type: string }
+        categories:
+          type: array
+          items: { type: string }
+        source: { type: string }
+        reason: { type: string }
+    WebFilterPolicy:
+      type: object
+      required: [tenant_id, version]
+      properties:
+        tenant_id: { type: string }
+        version: { type: integer }
+        block_adult: { type: boolean }
+        block_gambling: { type: boolean }
+        block_violence: { type: boolean }
+        block_social: { type: boolean }
+        block_gaming: { type: boolean }
+        safesearch_enabled: { type: boolean }
+        youtube_restricted: { type: boolean }
+        silent_mode: { type: boolean, description: "Disable all toast popups on child endpoint" }
+        monitor_only_mode: { type: boolean, description: "Log observed web domains without blocking" }
+        dns_block_action: { type: string, enum: [nxdomain, zero_ip, refused], default: nxdomain, description: "DNS response: nxdomain mimics site not existing" }
+        custom_blocked_domains:
+          type: array
+          items: { type: string }
+        custom_allowed_domains:
+          type: array
+          items: { type: string }
+
+

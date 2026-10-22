@@ -116,13 +116,13 @@ impl TelemetrySyncWorker {
     fn is_enrolled(&self) -> (bool, String, String) {
         let dev_id = self
             .storage
-            .get_meta("enrolled_device_id")
+            .get_meta(crate::enrollment::META_ENROLLED_DEVICE_ID)
             .ok()
             .flatten()
             .unwrap_or_default();
         let tenant_id = self
             .storage
-            .get_meta("enrolled_tenant_id")
+            .get_meta(crate::enrollment::META_ENROLLED_TENANT_ID)
             .ok()
             .flatten()
             .unwrap_or_default();
@@ -143,30 +143,44 @@ impl TelemetrySyncWorker {
         let pending = self.pipeline.pending_count().unwrap_or(0);
         let batch_size = if pending > 100 { 100 } else { 50 };
 
-        // Loop as long as there are pending batches ready to send
-        while let Ok(Some(envelope)) = self.pipeline.prepare_next_batch(batch_size) {
-            let event_count = envelope.event_count;
-            let batch_id = envelope.batch_id.clone();
+        // Process up to MAX_BATCHES_PER_CYCLE per interval to prevent task starvation
+        const MAX_BATCHES_PER_CYCLE: usize = 10;
+        let mut batches_sent = 0;
 
-            match self.client.send_batch_events(&envelope).await {
-                Ok(resp) => {
-                    if let Err(e) = self.pipeline.acknowledge_batch(&envelope) {
-                        warn!("Failed to acknowledge sent telemetry batch: {}", e);
-                    } else {
-                        info!(
-                            "Successfully synchronized telemetry batch {} ({} events accepted)",
-                            batch_id,
-                            resp.accepted.len()
-                        );
+        while batches_sent < MAX_BATCHES_PER_CYCLE {
+            match self.pipeline.prepare_next_batch(batch_size) {
+                Ok(Some(envelope)) => {
+                    let event_count = envelope.event_count;
+                    let batch_id = envelope.batch_id.clone();
+
+                    match self.client.send_batch_events(&envelope).await {
+                        Ok(resp) => {
+                            if let Err(e) = self.pipeline.acknowledge_batch(&envelope) {
+                                warn!("Failed to acknowledge sent telemetry batch: {}", e);
+                                break; // Halt to avoid resending the same batch in an infinite loop
+                            } else {
+                                info!(
+                                    "Successfully synchronized telemetry batch {} ({} events accepted)",
+                                    batch_id,
+                                    resp.accepted.len()
+                                );
+                                batches_sent += 1;
+                            }
+                        }
+                        Err(e) => {
+                            warn!(
+                                "Failed to upload telemetry batch {} ({} events): {}. Will retry later.",
+                                batch_id, event_count, e
+                            );
+                            let _ = self.pipeline.report_batch_failure(&envelope, 30);
+                            break; // Back off on network error
+                        }
                     }
                 }
+                Ok(None) => break,
                 Err(e) => {
-                    warn!(
-                        "Failed to upload telemetry batch {} ({} events): {}. Will retry later.",
-                        batch_id, event_count, e
-                    );
-                    let _ = self.pipeline.report_batch_failure(&envelope, 30);
-                    break; // Back off on network error
+                    warn!("Failed to prepare telemetry batch from outbox: {}", e);
+                    break;
                 }
             }
         }
@@ -360,11 +374,25 @@ impl TelemetrySyncWorker {
                     blocklist.set_safesearch_enabled(pol.safesearch_enabled);
                     blocklist.set_youtube_restricted(pol.youtube_restricted);
                     info!(
-                        "Dynamic DNS blocklist refreshed with {} domains (safesearch={}, youtube_restricted={})",
+                        "Dynamic DNS blocklist refreshed with {} domains (safesearch={}, youtube_restricted={}, silent_mode={})",
                         block_domains.len(),
                         pol.safesearch_enabled,
-                        pol.youtube_restricted
+                        pol.youtube_restricted,
+                        pol.silent_mode
                     );
+                }
+
+                // Persist silent_mode in storage
+                let _ = self.storage.set_meta(
+                    "silent_mode",
+                    if pol.silent_mode { "true" } else { "false" },
+                );
+
+                if pol.monitor_only_mode {
+                    let _ = self.storage.set_meta("monitor_mode", "true");
+                    if let Some(blocklist) = &self.dns_blocklist {
+                        blocklist.set_monitor_mode(true);
+                    }
                 }
 
                 // Persist new policy version in storage

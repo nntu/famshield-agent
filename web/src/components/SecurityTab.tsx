@@ -1,6 +1,7 @@
 import {
   Activity,
   AlertTriangle,
+  BellOff,
   Check,
   CheckCircle2,
   Cloud,
@@ -597,6 +598,33 @@ export const SecurityTab: React.FC<SecurityTabProps> = ({
       );
     } finally {
       setIsUpdatingMode(false);
+    }
+  };
+
+  // Silent Monitoring Mode State
+  const [silentMode, setSilentMode] = useState<boolean>(status?.silent_mode || false);
+  const [isUpdatingSilentMode, setIsUpdatingSilentMode] = useState(false);
+
+  useEffect(() => {
+    if (status && status.silent_mode !== undefined) {
+      setSilentMode(status.silent_mode);
+    }
+  }, [status?.silent_mode]);
+
+  const handleToggleSilentMode = async (newSilent: boolean) => {
+    setIsUpdatingSilentMode(true);
+    try {
+      await api.setSilentMode(newSilent);
+      setSilentMode(newSilent);
+      onShowToast(t.silent_mode_updated, 'success');
+      onRefresh();
+    } catch (e: any) {
+      onShowToast(
+        e.message || (isVi ? 'Lỗi cập nhật chế độ giám sát yên lặng' : 'Failed to update silent mode'),
+        'error'
+      );
+    } finally {
+      setIsUpdatingSilentMode(false);
     }
   };
 
@@ -1643,6 +1671,119 @@ export const SecurityTab: React.FC<SecurityTabProps> = ({
             <p style={{ fontSize: '0.82rem', color: '#94a3b8', margin: 0, lineHeight: 1.5 }}>
               {t.mode_monitor_desc}
             </p>
+          </div>
+        </div>
+
+        {/* Silent Monitoring Mode & Stealth DNS Blocking Sub-Panel */}
+        <div
+          style={{
+            marginTop: 20,
+            background: 'rgba(15, 23, 42, 0.6)',
+            border: '1px solid #1e293b',
+            borderRadius: 14,
+            padding: 20,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 16,
+          }}
+        >
+          {/* Row 1: Silent Mode Toggle */}
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              gap: 12,
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 280 }}>
+              <div
+                style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: 10,
+                  background: silentMode ? 'rgba(168, 85, 247, 0.15)' : 'rgba(148, 163, 184, 0.1)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: silentMode ? '#c084fc' : '#94a3b8',
+                }}
+              >
+                <BellOff size={20} />
+              </div>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: '0.95rem', fontWeight: 700, color: '#f8fafc' }}>
+                    {t.title_silent_mode}
+                  </span>
+                  <span
+                    style={{
+                      fontSize: '0.72rem',
+                      fontWeight: 600,
+                      padding: '2px 8px',
+                      borderRadius: 12,
+                      background: silentMode ? 'rgba(168, 85, 247, 0.2)' : 'rgba(100, 116, 139, 0.2)',
+                      color: silentMode ? '#d8b4fe' : '#94a3b8',
+                      border: `1px solid ${silentMode ? 'rgba(168, 85, 247, 0.4)' : '#334155'}`,
+                    }}
+                  >
+                    {silentMode ? (isVi ? 'Đang Bật' : 'Enabled') : (isVi ? 'Đang Tắt' : 'Disabled')}
+                  </span>
+                </div>
+                <p style={{ fontSize: '0.8rem', color: '#94a3b8', margin: '4px 0 0', lineHeight: 1.4 }}>
+                  {t.desc_silent_mode}
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              disabled={isUpdatingSilentMode}
+              onClick={() => handleToggleSilentMode(!silentMode)}
+              style={{
+                background: silentMode ? '#9333ea' : '#1e293b',
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: 10,
+                padding: '10px 18px',
+                fontSize: '0.85rem',
+                fontWeight: 600,
+                cursor: isUpdatingSilentMode ? 'not-allowed' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                transition: 'all 0.2s ease',
+              }}
+            >
+              <BellOff size={16} />
+              {silentMode
+                ? (isVi ? 'Tắt Giám Sát Yên Lặng' : 'Disable Silent Mode')
+                : (isVi ? 'Bật Giám Sát Yên Lặng' : 'Enable Silent Mode')}
+            </button>
+          </div>
+
+          {/* Row 2: Stealth DNS Blocking Mechanism Notice */}
+          <div
+            style={{
+              background: 'rgba(56, 189, 248, 0.05)',
+              border: '1px solid rgba(56, 189, 248, 0.2)',
+              borderRadius: 10,
+              padding: '12px 16px',
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: 12,
+            }}
+          >
+            <Globe size={18} color="#38bdf8" style={{ marginTop: 2, flexShrink: 0 }} />
+            <div>
+              <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#38bdf8', marginBottom: 2 }}>
+                {t.dns_nxdomain_title}
+              </div>
+              <div style={{ fontSize: '0.8rem', color: '#cbd5e1', lineHeight: 1.45 }}>
+                {t.dns_nxdomain_desc}
+              </div>
+            </div>
           </div>
         </div>
       </div>

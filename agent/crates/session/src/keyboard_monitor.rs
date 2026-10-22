@@ -94,6 +94,7 @@ pub struct KeyboardMonitor {
     buffer: Arc<Mutex<KeystrokeSlidingBuffer>>,
     matcher: Arc<Mutex<KeywordMatcher>>,
     enabled: AtomicBool,
+    silent_mode: AtomicBool,
 }
 
 impl Default for KeyboardMonitor {
@@ -108,7 +109,17 @@ impl KeyboardMonitor {
             buffer: Arc::new(Mutex::new(KeystrokeSlidingBuffer::default())),
             matcher: Arc::new(Mutex::new(matcher)),
             enabled: AtomicBool::new(true),
+            silent_mode: AtomicBool::new(false),
         }
+    }
+
+    pub fn set_silent_mode(&self, silent: bool) {
+        self.silent_mode.store(silent, Ordering::Relaxed);
+        crate::toast::FriendlyToast::set_silent_mode(silent);
+    }
+
+    pub fn is_silent_mode(&self) -> bool {
+        self.silent_mode.load(Ordering::Relaxed)
     }
 
     pub fn set_enabled(&self, enabled: bool) {
@@ -549,15 +560,17 @@ pub async fn sync_keyword_rules_from_service(monitor: Arc<KeyboardMonitor>) {
         {
             return;
         }
-        if let Ok(Some(IpcMessage::GetKeywordRulesResponse { enabled, rules })) =
+        if let Ok(Some(IpcMessage::GetKeywordRulesResponse { enabled, rules, silent_mode })) =
             read_framed_message(&mut client).await
         {
             monitor.set_enabled(enabled);
+            monitor.set_silent_mode(silent_mode);
             let new_matcher = famshield_core::keyword::KeywordMatcher::new(rules);
             monitor.update_matcher(new_matcher);
             tracing::info!(
-                "Synchronized keyword rules from service (enabled: {})",
-                enabled
+                "Synchronized keyword rules from service (enabled: {}, silent_mode: {})",
+                enabled,
+                silent_mode
             );
         }
     }
@@ -605,12 +618,14 @@ pub fn start_keyboard_monitor_hook(monitor: Arc<KeyboardMonitor>) {
                             violation.app_name
                         );
 
-                        // Trigger friendly educational toast
-                        let tray_hwnd = crate::tray::SystemTray::get_tray_hwnd();
-                        crate::toast::FriendlyToast::notify_sensitive_keyword_reminder(
-                            tray_hwnd,
-                            &format!("{:?}", violation.category),
-                        );
+                        // Trigger friendly educational toast only if NOT in silent mode
+                        if !worker_monitor.is_silent_mode() && !crate::toast::FriendlyToast::is_silent_mode() {
+                            let tray_hwnd = crate::tray::SystemTray::get_tray_hwnd();
+                            crate::toast::FriendlyToast::notify_sensitive_keyword_reminder(
+                                tray_hwnd,
+                                &format!("{:?}", violation.category),
+                            );
+                        }
 
                         let v_app = violation.app_name.clone();
                         let v_pat = violation.pattern.clone();

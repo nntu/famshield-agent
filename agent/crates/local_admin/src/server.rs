@@ -88,6 +88,8 @@ pub struct VerifyResponse {
 pub struct StatusResponse {
     pub protection_active: bool,
     pub monitor_mode: bool,
+    pub silent_mode: bool,
+    pub dns_block_action: String,
     pub session_helper_running: bool,
     pub session_helper_status: String,
     pub dns_proxy_addr: String,
@@ -104,15 +106,34 @@ pub struct StatusResponse {
     pub app_version: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Default)]
 pub struct ProtectionModeRequest {
-    pub monitor_mode: bool,
+    #[serde(default)]
+    pub monitor_mode: Option<bool>,
+    #[serde(default)]
+    pub silent_mode: Option<bool>,
+    #[serde(default)]
+    pub dns_block_action: Option<String>,
 }
 
 #[derive(Serialize)]
 pub struct ProtectionModeResponse {
     pub success: bool,
     pub monitor_mode: bool,
+    pub silent_mode: bool,
+    pub dns_block_action: String,
+}
+
+#[derive(Deserialize)]
+pub struct SilentModeRequest {
+    pub silent_mode: bool,
+}
+
+#[derive(Serialize)]
+pub struct SilentModeResponse {
+    pub success: bool,
+    pub silent_mode: bool,
+}
 }
 
 #[derive(Serialize)]
@@ -310,6 +331,10 @@ impl LocalAdminServer {
             .route(
                 "/api/settings/protection-mode",
                 get(handle_get_protection_mode).post(handle_set_protection_mode),
+            )
+            .route(
+                "/api/settings/silent-mode",
+                get(handle_get_silent_mode).post(handle_set_silent_mode),
             )
             .route("/api/backup/export", get(handle_export_backup))
             .route("/api/backup/restore", post(handle_restore_backup))
@@ -1140,6 +1165,7 @@ async fn handle_status(
 
     let active_app = state.active_app.lock().await.clone();
     let monitor_mode = state.service.is_monitor_mode();
+    let silent_mode = state.service.is_silent_mode();
 
     let session_helper_running = famshield_windows::SessionManager::is_session_helper_running();
     let session_helper_status = if session_helper_running {
@@ -1151,6 +1177,8 @@ async fn handle_status(
     Ok(Json(StatusResponse {
         protection_active: true,
         monitor_mode,
+        silent_mode,
+        dns_block_action: state.service.get_dns_block_action(),
         session_helper_running,
         session_helper_status,
         dns_proxy_addr: "127.0.0.2:53".to_string(),
@@ -1944,9 +1972,13 @@ async fn handle_get_protection_mode(
         return Err(StatusCode::UNAUTHORIZED);
     }
     let monitor_mode = state.service.is_monitor_mode();
+    let silent_mode = state.service.is_silent_mode();
+    let dns_block_action = state.service.get_dns_block_action();
     Ok(Json(ProtectionModeResponse {
         success: true,
         monitor_mode,
+        silent_mode,
+        dns_block_action,
     }))
 }
 
@@ -1960,21 +1992,80 @@ async fn handle_set_protection_mode(
         return Err(StatusCode::UNAUTHORIZED);
     }
 
-    if let Err(e) = state.service.set_monitor_mode(req.monitor_mode) {
-        warn!("Failed to set monitor mode: {}", e);
-        return Err(StatusCode::INTERNAL_SERVER_ERROR);
+    if let Some(m_mode) = req.monitor_mode {
+        if let Err(e) = state.service.set_monitor_mode(m_mode) {
+            warn!("Failed to set monitor mode: {}", e);
+            return Err(StatusCode::INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    if let Some(s_mode) = req.silent_mode {
+        if let Err(e) = state.service.set_silent_mode(s_mode) {
+            warn!("Failed to set silent mode: {}", e);
+            return Err(StatusCode::INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    if let Some(action) = req.dns_block_action.as_deref() {
+        if let Err(e) = state.service.set_dns_block_action(action) {
+            warn!("Failed to set dns block action: {}", e);
+            return Err(StatusCode::INTERNAL_SERVER_ERROR);
+        }
     }
 
     sync_dns_blocklist(&state);
 
+    let monitor_mode = state.service.is_monitor_mode();
+    let silent_mode = state.service.is_silent_mode();
+    let dns_block_action = state.service.get_dns_block_action();
+
     info!(
-        "Protection mode updated: monitor_mode = {}",
-        req.monitor_mode
+        "Protection mode updated: monitor_mode = {}, silent_mode = {}, dns_block_action = {}",
+        monitor_mode,
+        silent_mode,
+        dns_block_action
     );
 
     Ok(Json(ProtectionModeResponse {
         success: true,
-        monitor_mode: req.monitor_mode,
+        monitor_mode,
+        silent_mode,
+        dns_block_action,
+    }))
+}
+
+async fn handle_get_silent_mode(
+    State(state): State<ServerState>,
+    headers: HeaderMap,
+    Query(query): Query<QueryParams>,
+) -> Result<Json<SilentModeResponse>, StatusCode> {
+    if !check_auth(&state, &headers, query.token.as_deref()).await {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+    let silent_mode = state.service.is_silent_mode();
+    Ok(Json(SilentModeResponse {
+        success: true,
+        silent_mode,
+    }))
+}
+
+async fn handle_set_silent_mode(
+    State(state): State<ServerState>,
+    headers: HeaderMap,
+    Query(query): Query<QueryParams>,
+    Json(req): Json<SilentModeRequest>,
+) -> Result<Json<SilentModeResponse>, StatusCode> {
+    if !check_auth(&state, &headers, query.token.as_deref()).await {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+    if let Err(e) = state.service.set_silent_mode(req.silent_mode) {
+        warn!("Failed to set silent mode: {}", e);
+        return Err(StatusCode::INTERNAL_SERVER_ERROR);
+    }
+    info!("Silent mode updated: silent_mode = {}", req.silent_mode);
+    Ok(Json(SilentModeResponse {
+        success: true,
+        silent_mode: req.silent_mode,
     }))
 }
 

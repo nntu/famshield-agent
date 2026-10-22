@@ -35,7 +35,7 @@ impl NatsConnectionWorker {
     fn is_enrolled(&self) -> bool {
         let dev_id = self
             .storage
-            .get_meta("enrolled_device_id")
+            .get_meta(crate::enrollment::META_ENROLLED_DEVICE_ID)
             .ok()
             .flatten()
             .unwrap_or_default();

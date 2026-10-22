@@ -303,11 +303,22 @@ export const api = {
     return apiRequest<ProtectionModeResponse>('/api/settings/protection-mode');
   },
 
-  async setProtectionMode(monitorMode: boolean): Promise<ProtectionModeResponse> {
+  async setProtectionMode(monitorMode?: boolean, silentMode?: boolean): Promise<ProtectionModeResponse> {
+    const body: Record<string, any> = {};
+    if (monitorMode !== undefined) body.monitor_mode = monitorMode;
+    if (silentMode !== undefined) body.silent_mode = silentMode;
     return apiRequest<ProtectionModeResponse>('/api/settings/protection-mode', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ monitor_mode: monitorMode }),
+      body: JSON.stringify(body),
+    });
+  },
+
+  async setSilentMode(silentMode: boolean): Promise<any> {
+    return apiRequest<any>('/api/settings/silent-mode', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ silent_mode: silentMode }),
     });
   },
 

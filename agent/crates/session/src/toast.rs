@@ -1,3 +1,5 @@
+use std::sync::atomic::{AtomicBool, Ordering};
+
 #[cfg(windows)]
 use windows::Win32::{
     Foundation::HWND,
@@ -6,9 +8,21 @@ use windows::Win32::{
     },
 };
 
+static SUPPRESS_TOASTS: AtomicBool = AtomicBool::new(false);
+
 pub struct FriendlyToast;
 
 impl FriendlyToast {
+    /// Configure silent monitoring mode (suppress all balloon/toast popups)
+    pub fn set_silent_mode(silent: bool) {
+        SUPPRESS_TOASTS.store(silent, Ordering::Relaxed);
+    }
+
+    /// Check if silent monitoring mode is active
+    pub fn is_silent_mode() -> bool {
+        SUPPRESS_TOASTS.load(Ordering::Relaxed)
+    }
+
     /// Helper: populate fixed size UTF-16 array
     #[cfg(windows)]
     fn copy_to_u16_slice<const N: usize>(src: &str, dest: &mut [u16; N]) {
@@ -23,6 +37,11 @@ impl FriendlyToast {
     /// Show toast notification using the existing Tray Icon HWND
     #[cfg(windows)]
     pub fn show(hwnd: HWND, title: &str, message: &str, is_warning: bool) {
+        if Self::is_silent_mode() {
+            tracing::debug!("Toast popup suppressed by silent monitoring mode: title='{}'", title);
+            return;
+        }
+
         let mut nid = NOTIFYICONDATAW {
             cbSize: std::mem::size_of::<NOTIFYICONDATAW>() as u32,
             hWnd: hwnd,
@@ -37,6 +56,13 @@ impl FriendlyToast {
 
         unsafe {
             let _ = Shell_NotifyIconW(NIM_MODIFY, &nid);
+        }
+    }
+
+    #[cfg(not(windows))]
+    pub fn show(#[allow(unused)] hwnd: isize, #[allow(unused)] title: &str, #[allow(unused)] message: &str, #[allow(unused)] is_warning: bool) {
+        if Self::is_silent_mode() {
+            tracing::debug!("Toast popup suppressed by silent monitoring mode: title='{}'", title);
         }
     }
 

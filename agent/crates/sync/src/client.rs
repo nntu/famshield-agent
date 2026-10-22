@@ -84,9 +84,19 @@ pub struct WebFilterPolicyDto {
     #[serde(default)]
     pub youtube_restricted: bool,
     #[serde(default)]
+    pub silent_mode: bool,
+    #[serde(default)]
+    pub monitor_only_mode: bool,
+    #[serde(default = "default_dns_block_action")]
+    pub dns_block_action: String,
+    #[serde(default)]
     pub custom_blocked_domains: Vec<String>,
     #[serde(default)]
     pub custom_allowed_domains: Vec<String>,
+}
+
+fn default_dns_block_action() -> String {
+    "nxdomain".to_string()
 }
 
 /// High-performance HTTP client for communicating with FamShield Cloud Server.

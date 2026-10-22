@@ -11,7 +11,7 @@ type ActiveAppSession = (String, chrono::DateTime<Utc>, i64);
 
 pub struct IpcDispatcher {
     storage: StorageEngine,
-    pending_captures: Arc<Mutex<VecDeque<(String, String)>>>,
+    pending_captures: Arc<Mutex<VecDeque<(String, String, bool)>>>,
     recent_triggers: Arc<Mutex<HashMap<String, Instant>>>,
     active_tracker: Arc<Mutex<Option<ActiveAppSession>>>,
     telemetry_pipeline: Arc<Mutex<Option<Arc<famshield_sync::TelemetryPipeline>>>>,
@@ -36,6 +36,18 @@ impl IpcDispatcher {
 
     /// Queues a visual evidence capture trigger (e.g. from malicious DNS block) with throttling.
     pub fn queue_capture_trigger(&self, event_id: String, trigger: String) -> bool {
+        let is_silent = self
+            .storage
+            .get_meta("silent_mode")
+            .unwrap_or(None)
+            .map(|s| s == "true" || s == "1")
+            .unwrap_or(false)
+            || trigger.starts_with("WEB_BLOCK");
+        self.queue_capture_trigger_with_options(event_id, trigger, is_silent)
+    }
+
+    /// Queues a visual evidence capture trigger with explicit silent control.
+    pub fn queue_capture_trigger_with_options(&self, event_id: String, trigger: String, silent: bool) -> bool {
         let now = Instant::now();
         let mut recents = match self.recent_triggers.lock() {
             Ok(g) => g,
@@ -59,8 +71,8 @@ impl IpcDispatcher {
         };
 
         if queue.len() < 5 {
-            info!("Queued visual evidence capture trigger: '{}'", trigger);
-            queue.push_back((event_id, trigger));
+            info!("Queued visual evidence capture trigger: '{}' (silent: {})", trigger, silent);
+            queue.push_back((event_id, trigger, silent));
             true
         } else {
             false
@@ -202,12 +214,12 @@ impl IpcDispatcher {
                     queue.pop_front()
                 };
 
-                if let Some((event_id, trigger)) = next_capture {
+                if let Some((event_id, trigger, silent)) = next_capture {
                     info!(
-                        "Dispatching CaptureEvidenceCommand to session helper for trigger: '{}'",
-                        trigger
+                        "Dispatching CaptureEvidenceCommand to session helper for trigger: '{}' (silent: {})",
+                        trigger, silent
                     );
-                    IpcMessage::CaptureEvidenceCommand { event_id, trigger }
+                    IpcMessage::CaptureEvidenceCommand { event_id, trigger, silent }
                 } else {
                     IpcMessage::Response {
                         request_id: "heartbeat".into(),
@@ -351,7 +363,14 @@ impl IpcDispatcher {
                     }
                 }
 
-                IpcMessage::GetKeywordRulesResponse { enabled, rules }
+                let silent_mode = self
+                    .storage
+                    .get_meta("silent_mode")
+                    .unwrap_or(None)
+                    .map(|s| s == "true" || s == "1")
+                    .unwrap_or(false);
+
+                IpcMessage::GetKeywordRulesResponse { enabled, rules, silent_mode }
             }
             IpcMessage::GetKeywordRulesResponse { .. } => IpcMessage::Response {
                 request_id: "none".into(),

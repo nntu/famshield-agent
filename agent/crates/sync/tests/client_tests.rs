@@ -92,6 +92,8 @@ fn test_web_filter_policy_deserialization() {
     assert!(pol.block_gambling);
     assert!(pol.block_gaming);
     assert!(!pol.block_social);
+    assert!(!pol.silent_mode);
+    assert_eq!(pol.dns_block_action, "nxdomain");
     assert_eq!(pol.custom_blocked_domains.len(), 2);
     assert_eq!(pol.custom_allowed_domains.len(), 1);
 }

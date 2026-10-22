@@ -339,6 +339,7 @@ impl DnsProxy {
                 Ok(res) => res,
                 Err(e) => {
                     warn!("UDP recv error: {}", e);
+                    tokio::time::sleep(tokio::time::Duration::from_millis(25)).await;
                     continue;
                 }
             };

@@ -74,6 +74,8 @@ pub struct BackupSettings {
     pub sync_interval_secs: u32,
     pub tls_verify: bool,
     pub monitor_mode: bool,
+    #[serde(default)]
+    pub silent_mode: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -706,12 +708,45 @@ impl LocalAdminService {
         Ok(())
     }
 
+    /// Check whether silent monitoring mode is active (suppress all toast popups).
+    pub fn is_silent_mode(&self) -> bool {
+        self.storage
+            .get_meta("silent_mode")
+            .ok()
+            .flatten()
+            .map(|s| s == "true" || s == "1")
+            .unwrap_or(false)
+    }
+
+    /// Enable or disable silent monitoring mode.
+    pub fn set_silent_mode(&self, enabled: bool) -> Result<(), LocalAdminError> {
+        self.storage
+            .set_meta("silent_mode", if enabled { "true" } else { "false" })?;
+        Ok(())
+    }
+
+    /// Retrieve configured DNS blocking action (e.g. "nxdomain", "refused", "zero_ip").
+    pub fn get_dns_block_action(&self) -> String {
+        self.storage
+            .get_meta("dns_block_action")
+            .ok()
+            .flatten()
+            .unwrap_or_else(|| "nxdomain".to_string())
+    }
+
+    /// Set DNS blocking action.
+    pub fn set_dns_block_action(&self, action: &str) -> Result<(), LocalAdminError> {
+        self.storage.set_meta("dns_block_action", action)?;
+        Ok(())
+    }
+
     /// Create complete backup snapshot payload with SHA-256 integrity checksum.
     pub fn create_backup(&self) -> Result<BackupPayload, LocalAdminError> {
         let now = Utc::now().to_rfc3339();
         let rules = self.storage.list_local_rules()?;
         let server_cfg = self.get_server_config()?;
         let monitor_mode = self.is_monitor_mode();
+        let silent_mode = self.is_silent_mode();
 
         let settings = BackupSettings {
             operating_mode: server_cfg.operating_mode,
@@ -721,6 +756,7 @@ impl LocalAdminService {
             sync_interval_secs: server_cfg.sync_interval_secs,
             tls_verify: server_cfg.tls_verify,
             monitor_mode,
+            silent_mode,
         };
 
         let settings_json = serde_json::to_string(&settings)
@@ -767,6 +803,7 @@ impl LocalAdminService {
         }
 
         self.set_monitor_mode(payload.settings.monitor_mode)?;
+        let _ = self.set_silent_mode(payload.settings.silent_mode);
         self.storage
             .set_meta("operating_mode", &payload.settings.operating_mode)?;
         self.storage

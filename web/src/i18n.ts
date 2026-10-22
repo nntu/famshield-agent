@@ -203,6 +203,17 @@ export const translations = {
       'Hệ thống đang ở CHẾ ĐỘ GIÁM SÁT (Quan sát & Ghi nhận vi phạm, không chặn kết nối mạng).',
     protection_mode_updated: 'Đã cập nhật chế độ bảo vệ thành công!',
 
+    // Silent Monitoring Mode & Stealth DNS Blocking
+    title_silent_mode: 'Chế Độ Giám Sát Yên Lặng (Silent Monitoring / Stealth Mode)',
+    desc_silent_mode:
+      'Ghi nhận ngầm toàn bộ truy vấn DNS, từ khóa nhạy cảm và bằng chứng hình ảnh visual evidence nhưng TẮT HOÀN TOÀN thông báo Toast popup trên màn hình máy trạm con trẻ.',
+    silent_mode_active: 'Đang Bật Giám Sát Yên Lặng (Hoàn toàn không có popup thông báo)',
+    silent_mode_inactive: 'Đang Tắt Giám Sát Yên Lặng (Hiển thị popup nhắc nhở văn minh)',
+    dns_nxdomain_title: 'Cơ Chế Chặn DNS: Phản Hồi NXDOMAIN (Tàng Hình)',
+    dns_nxdomain_desc:
+      'Khi tên miền bị chặn, DNS phản hồi mã lỗi NXDOMAIN chuẩn RFC (Website coi như không tồn tại trên Internet). Trình duyệt hiển thị lỗi Server Not Found tự nhiên, không lộ thông báo can thiệp của phần mềm.',
+    silent_mode_updated: 'Đã cập nhật chế độ giám sát yên lặng!',
+
     // Backup & Restore
     title_backup_restore: 'Sao Lưu & Phục Hồi Hệ Thống (Backup & Restore)',
     desc_backup_restore:
@@ -509,6 +520,17 @@ export const translations = {
       'Does not block access. Violations are observed and logged with evidence for parental/admin review.',
     banner_monitor_mode: 'System is operating in MONITOR MODE (Observe & Log Only - No Blocking).',
     protection_mode_updated: 'Protection mode updated successfully!',
+
+    // Silent Monitoring Mode & Stealth DNS Blocking
+    title_silent_mode: 'Silent Monitoring Mode (Stealth Observation)',
+    desc_silent_mode:
+      'Stealthily records all DNS queries, sensitive keyword violations, and visual evidence in the background while COMPLETELY DISABLING all desktop Toast popups on the child endpoint.',
+    silent_mode_active: 'Silent Monitoring Active (Zero desktop toast popups)',
+    silent_mode_inactive: 'Silent Monitoring Inactive (Educational toast popups enabled)',
+    dns_nxdomain_title: 'DNS Blocking Mechanism: RFC NXDOMAIN (Stealth)',
+    dns_nxdomain_desc:
+      'When a domain is blocked, DNS returns standard RFC NXDOMAIN (mimics site not existing on Internet). Browsers show native "Server Not Found", concealing software interception.',
+    silent_mode_updated: 'Silent monitoring mode updated successfully!',
 
     // Backup & Restore
     title_backup_restore: 'Data Backup & Disaster Recovery',

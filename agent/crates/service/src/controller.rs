@@ -411,41 +411,53 @@ impl ServiceController {
             let mut interval = tokio::time::interval(std::time::Duration::from_millis(500));
             loop {
                 tokio::select! {
-                    Some(entry) = dns_log_rx.recv() => {
-                        let now = chrono::Utc::now();
-                        let record = famshield_storage::QueryLogRecord {
-                            domain: entry.domain.clone(),
-                            qtype: entry.qtype.clone(),
-                            action: entry.action.clone(),
-                            reason: entry.reason.clone(),
-                            rule_id: entry.rule_id.clone(),
-                            occurred_at: now,
-                        };
-                        batch.push(record);
-                        if batch.len() >= 32 {
-                            let _ = dns_storage.insert_query_logs_batch(&batch);
-                            batch.clear();
-                        }
+                    entry_opt = dns_log_rx.recv() => {
+                        match entry_opt {
+                            Some(entry) => {
+                                let now = chrono::Utc::now();
+                                let record = famshield_storage::QueryLogRecord {
+                                    domain: entry.domain.clone(),
+                                    qtype: entry.qtype.clone(),
+                                    action: entry.action.clone(),
+                                    reason: entry.reason.clone(),
+                                    rule_id: entry.rule_id.clone(),
+                                    occurred_at: now,
+                                };
+                                batch.push(record);
+                                if batch.len() >= 32 {
+                                    let _ = dns_storage.insert_query_logs_batch(&batch);
+                                    batch.clear();
+                                }
 
-                        if entry.action == "BLOCK" {
-                            let event_id = format!("dns-block-{}", now.timestamp_micros());
-                            let alert_payload = serde_json::json!({
-                                "domain": entry.domain,
-                                "qtype": entry.qtype,
-                                "action": entry.action,
-                                "reason": entry.reason,
-                                "timestamp": now.to_rfc3339(),
-                            });
-                            let _ = dns_telemetry.queue_event(&TelemetryEvent::new(
-                                event_id.clone(),
-                                "dns_query",
-                                now,
-                                alert_payload,
-                            ));
+                                if entry.action == "BLOCK" {
+                                    let event_id = format!("dns-block-{}", now.timestamp_micros());
+                                    let alert_payload = serde_json::json!({
+                                        "domain": entry.domain,
+                                        "qtype": entry.qtype,
+                                        "action": entry.action,
+                                        "reason": entry.reason,
+                                        "timestamp": now.to_rfc3339(),
+                                    });
+                                    let _ = dns_telemetry.queue_event(&TelemetryEvent::new(
+                                        event_id.clone(),
+                                        "dns_query",
+                                        now,
+                                        alert_payload,
+                                    ));
 
-                            // Queue visual evidence capture trigger for user session helper
-                            let trigger_desc = format!("WEB_BLOCK: {} ({})", entry.domain, entry.reason);
-                            dns_dispatcher.queue_capture_trigger(event_id, trigger_desc);
+                                    // Queue visual evidence capture trigger for user session helper
+                                    let trigger_desc = format!("WEB_BLOCK: {} ({})", entry.domain, entry.reason);
+                                    dns_dispatcher.queue_capture_trigger(event_id, trigger_desc);
+                                }
+                            }
+                            None => {
+                                // Channel closed, flush remaining log batch and terminate cleanly
+                                if !batch.is_empty() {
+                                    let _ = dns_storage.insert_query_logs_batch(&batch);
+                                    batch.clear();
+                                }
+                                break;
+                            }
                         }
                     }
                     _ = interval.tick() => {
@@ -589,12 +601,15 @@ impl ServiceController {
                             if let Ok(rules) = storage.list_local_rules() {
                                 if rules.iter().any(|r| r.rule_type == "application" && r.enabled) {
                                     if let Ok(procs) = famshield_windows::ProcessMonitor::enumerate_processes() {
+                                        let mut checked_procs = std::collections::HashSet::new();
                                         for p in procs {
-                                            check_and_enforce_app_quota(
-                                                &p.name,
-                                                &storage,
-                                                &telemetry_pipeline,
-                                            );
+                                            if checked_procs.insert(p.name.to_lowercase()) {
+                                                check_and_enforce_app_quota(
+                                                    &p.name,
+                                                    &storage,
+                                                    &telemetry_pipeline,
+                                                );
+                                            }
                                         }
                                     }
                                 }
@@ -615,9 +630,9 @@ impl ServiceController {
                                     }
                                     if let Ok(err_batch) = nats.format_error_logs_batch(&unsynced_errors) {
                                         info!("Queued error logs telemetry batch for NATS JetStream: {} bytes", err_batch.len());
-                                        let error_ids: Vec<String> = unsynced_errors.into_iter().map(|e| e.error_id).collect();
-                                        let _ = storage.mark_errors_synced(&error_ids);
                                     }
+                                    let error_ids: Vec<String> = unsynced_errors.into_iter().map(|e| e.error_id).collect();
+                                    let _ = storage.mark_errors_synced(&error_ids);
                                 }
                             }
                         }
