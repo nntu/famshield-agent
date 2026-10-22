@@ -20,3 +20,5 @@ serde_json = { workspace = true }
 chrono = { workspace = true }
 sha2 = { workspace = true }
 reqwest = { workspace = true }
+async-nats = { workspace = true }
+futures-util = { workspace = true }

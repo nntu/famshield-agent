@@ -2,6 +2,7 @@ pub mod client;
 pub mod enrollment;
 pub mod error;
 pub mod nats_dispatcher;
+pub mod nats_worker;
 pub mod telemetry;
 pub mod worker;
 
@@ -15,6 +16,7 @@ pub use enrollment::{
 };
 pub use error::SyncError;
 pub use nats_dispatcher::{compute_command_hmac, NatsDispatcher, RemoteCommand};
+pub use nats_worker::NatsConnectionWorker;
 pub use telemetry::{
     AppUsagePayload, DnsQueryPayload, HeartbeatPayload, SecurityAlertPayload, TelemetryEnvelope,
     TelemetryEvent, TelemetryEventType, TelemetryPipeline, CURRENT_TELEMETRY_VERSION,
