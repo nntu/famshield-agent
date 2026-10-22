@@ -84,8 +84,7 @@ fn encode_hex(bytes: &[u8]) -> String {
 }
 
 fn decode_hex(encoded: &str) -> Result<Vec<u8>, AuthError> {
-    famshield_core::decode_hex(encoded)
-        .map_err(|e| AuthError::Protection(e.to_string()))
+    famshield_core::decode_hex(encoded).map_err(|e| AuthError::Protection(e.to_string()))
 }
 
 #[cfg(windows)]

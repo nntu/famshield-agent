@@ -129,7 +129,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                         // 1. Show notification toast to user only if NOT silent AND NOT a web block
                         // Web blocks strictly mimic non-existent websites (NXDOMAIN) without revealing FamShield interception.
-                        if !silent && !trigger.starts_with("WEB_BLOCK") && !famshield_session::FriendlyToast::is_silent_mode() {
+                        if !silent
+                            && !trigger.starts_with("WEB_BLOCK")
+                            && !famshield_session::FriendlyToast::is_silent_mode()
+                        {
                             let tray_hwnd = SystemTray::get_tray_hwnd();
                             famshield_session::FriendlyToast::notify_content_blocked(
                                 tray_hwnd, &trigger,

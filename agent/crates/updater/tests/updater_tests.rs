@@ -43,7 +43,7 @@ fn test_staged_update_success_and_rollback() {
         version: "0.2.0".into(),
         channel: "stable".into(),
         sha256,
-        binary_url: "https://dl.famshield.cloud/0.2.0.bin".into(),
+        binary_url: "https://famshield.ttcantho.io.vn/download/0.2.0.bin".into(),
         signature_hex: String::new(),
         key_id: "release-key-2026".into(),
         min_supported_version: "0.1.0".into(),
@@ -144,10 +144,10 @@ fn test_online_update_client_check_and_stage() {
     )
     .unwrap();
 
-    let client = OnlineUpdateClient::new("https://updates.famshield.cloud", "stable", engine);
+    let client = OnlineUpdateClient::new("https://famshield.ttcantho.io.vn", "stable", engine);
     assert_eq!(
         client.manifest_url(),
-        "https://updates.famshield.cloud/v1/channels/stable/manifest.json"
+        "https://famshield.ttcantho.io.vn/v1/channels/stable/manifest.json"
     );
 
     let payload = b"FamShield Service v0.2.0 Online Payload";
@@ -160,7 +160,7 @@ fn test_online_update_client_check_and_stage() {
         version: "0.2.0".into(),
         channel: "stable".into(),
         sha256,
-        binary_url: "https://dl.famshield.cloud/binaries/famshield-service.exe".into(),
+        binary_url: "https://famshield.ttcantho.io.vn/download/binaries/famshield-service.exe".into(),
         signature_hex: String::new(),
         key_id: "key-cloud-2026".into(),
         min_supported_version: "0.1.0".into(),
@@ -243,7 +243,7 @@ fn test_offline_update_engine_check_and_apply() {
         version: "0.2.0".into(),
         channel: "stable".into(),
         sha256,
-        binary_url: "https://dl.famshield.cloud/famshield-service.exe".into(),
+        binary_url: "https://famshield.ttcantho.io.vn/download/famshield-service.exe".into(),
         signature_hex: String::new(),
         key_id: "key-offline-2026".into(),
         min_supported_version: "0.1.0".into(),
@@ -333,7 +333,7 @@ fn test_offline_update_tampered_payload_rejected() {
         version: "0.2.0".into(),
         channel: "stable".into(),
         sha256,
-        binary_url: "https://dl.famshield.cloud/famshield-service.exe".into(),
+        binary_url: "https://famshield.ttcantho.io.vn/download/famshield-service.exe".into(),
         signature_hex: String::new(),
         key_id: "key-offline-2026".into(),
         min_supported_version: "0.1.0".into(),

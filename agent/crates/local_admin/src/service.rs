@@ -555,7 +555,7 @@ impl LocalAdminService {
             .storage
             .get_meta("server_url")?
             .filter(|s| !s.is_empty())
-            .unwrap_or_else(|| "https://api.famshield.cloud".to_string());
+            .unwrap_or_else(|| "https://famshield.ttcantho.io.vn".to_string());
 
         let tenant_id = self
             .storage

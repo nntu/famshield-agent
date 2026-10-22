@@ -7,7 +7,7 @@
 #define MyAppName "FamShield"
 #define MyAppVersion "1.0.2"
 #define MyAppPublisher "FamShield Security Team"
-#define MyAppURL "https://famshield.cloud"
+#define MyAppURL "https://famshield.ttcantho.io.vn"
 #define MyAppExeName "famshield-service.exe"
 
 [Setup]

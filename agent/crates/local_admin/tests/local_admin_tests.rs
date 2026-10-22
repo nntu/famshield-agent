@@ -530,7 +530,7 @@ async fn test_centralized_server_settings_lifecycle() {
     // 1. Initial state: StandaloneFree, default URL
     let cfg = service.get_server_config().unwrap();
     assert_eq!(cfg.operating_mode, "StandaloneFree");
-    assert_eq!(cfg.server_url, "https://api.famshield.cloud");
+    assert_eq!(cfg.server_url, "https://famshield.ttcantho.io.vn");
     assert_eq!(cfg.sync_interval_secs, 60);
     assert!(cfg.tls_verify);
     assert_eq!(cfg.connection_status, "Disconnected");
@@ -581,7 +581,7 @@ async fn test_centralized_server_settings_lifecycle() {
                 .header("X-FamShield-Token", &token)
                 .header(header::CONTENT_TYPE, "application/json")
                 .body(Body::from(
-                    r#"{"server_url":"https://api.famshield.cloud"}"#,
+                    r#"{"server_url":"https://famshield.ttcantho.io.vn"}"#,
                 ))
                 .unwrap(),
         )

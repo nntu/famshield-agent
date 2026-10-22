@@ -560,8 +560,11 @@ pub async fn sync_keyword_rules_from_service(monitor: Arc<KeyboardMonitor>) {
         {
             return;
         }
-        if let Ok(Some(IpcMessage::GetKeywordRulesResponse { enabled, rules, silent_mode })) =
-            read_framed_message(&mut client).await
+        if let Ok(Some(IpcMessage::GetKeywordRulesResponse {
+            enabled,
+            rules,
+            silent_mode,
+        })) = read_framed_message(&mut client).await
         {
             monitor.set_enabled(enabled);
             monitor.set_silent_mode(silent_mode);
@@ -619,7 +622,9 @@ pub fn start_keyboard_monitor_hook(monitor: Arc<KeyboardMonitor>) {
                         );
 
                         // Trigger friendly educational toast only if NOT in silent mode
-                        if !worker_monitor.is_silent_mode() && !crate::toast::FriendlyToast::is_silent_mode() {
+                        if !worker_monitor.is_silent_mode()
+                            && !crate::toast::FriendlyToast::is_silent_mode()
+                        {
                             let tray_hwnd = crate::tray::SystemTray::get_tray_hwnd();
                             crate::toast::FriendlyToast::notify_sensitive_keyword_reminder(
                                 tray_hwnd,

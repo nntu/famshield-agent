@@ -2020,9 +2020,7 @@ async fn handle_set_protection_mode(
 
     info!(
         "Protection mode updated: monitor_mode = {}, silent_mode = {}, dns_block_action = {}",
-        monitor_mode,
-        silent_mode,
-        dns_block_action
+        monitor_mode, silent_mode, dns_block_action
     );
 
     Ok(Json(ProtectionModeResponse {

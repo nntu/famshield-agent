@@ -19,7 +19,7 @@ fn test_nats_worker_initialization_and_mode_check() {
 
     let _worker = NatsConnectionWorker::new(
         "dev-test-nats-01",
-        "wss://nats.famshield.cloud/nats",
+        "wss://famshield.ttcantho.io.vn/nats",
         dispatcher,
         storage.clone(),
     );
@@ -47,7 +47,7 @@ async fn test_nats_worker_shutdown_signal_immediate_exit() {
 
     let worker = Arc::new(NatsConnectionWorker::new(
         "dev-test-nats-02",
-        "wss://nats.famshield.cloud/nats",
+        "wss://famshield.ttcantho.io.vn/nats",
         dispatcher,
         storage,
     ));

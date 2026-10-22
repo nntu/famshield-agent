@@ -38,7 +38,10 @@ impl FriendlyToast {
     #[cfg(windows)]
     pub fn show(hwnd: HWND, title: &str, message: &str, is_warning: bool) {
         if Self::is_silent_mode() {
-            tracing::debug!("Toast popup suppressed by silent monitoring mode: title='{}'", title);
+            tracing::debug!(
+                "Toast popup suppressed by silent monitoring mode: title='{}'",
+                title
+            );
             return;
         }
 
@@ -60,9 +63,17 @@ impl FriendlyToast {
     }
 
     #[cfg(not(windows))]
-    pub fn show(#[allow(unused)] hwnd: isize, #[allow(unused)] title: &str, #[allow(unused)] message: &str, #[allow(unused)] is_warning: bool) {
+    pub fn show(
+        #[allow(unused)] hwnd: isize,
+        #[allow(unused)] title: &str,
+        #[allow(unused)] message: &str,
+        #[allow(unused)] is_warning: bool,
+    ) {
         if Self::is_silent_mode() {
-            tracing::debug!("Toast popup suppressed by silent monitoring mode: title='{}'", title);
+            tracing::debug!(
+                "Toast popup suppressed by silent monitoring mode: title='{}'",
+                title
+            );
         }
     }
 

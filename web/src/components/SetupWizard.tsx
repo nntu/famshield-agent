@@ -21,7 +21,7 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ lang, onComplete }) =>
     'StandaloneFree'
   );
   const [enrollmentCode, setEnrollmentCode] = useState<string>('');
-  const [serverUrl, setServerUrl] = useState<string>('https://api.famshield.cloud');
+  const [serverUrl, setServerUrl] = useState<string>('https://famshield.ttcantho.io.vn');
 
   const [loading, setLoading] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string>('');
@@ -868,7 +868,7 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ lang, onComplete }) =>
                         type="text"
                         value={serverUrl}
                         onChange={(e) => setServerUrl(e.target.value)}
-                        placeholder="https://api.famshield.cloud"
+                        placeholder="https://famshield.ttcantho.io.vn"
                         style={{
                           width: '100%',
                           background: '#ffffff',

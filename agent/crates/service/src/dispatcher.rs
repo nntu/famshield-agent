@@ -47,7 +47,12 @@ impl IpcDispatcher {
     }
 
     /// Queues a visual evidence capture trigger with explicit silent control.
-    pub fn queue_capture_trigger_with_options(&self, event_id: String, trigger: String, silent: bool) -> bool {
+    pub fn queue_capture_trigger_with_options(
+        &self,
+        event_id: String,
+        trigger: String,
+        silent: bool,
+    ) -> bool {
         let now = Instant::now();
         let mut recents = match self.recent_triggers.lock() {
             Ok(g) => g,
@@ -71,7 +76,10 @@ impl IpcDispatcher {
         };
 
         if queue.len() < 5 {
-            info!("Queued visual evidence capture trigger: '{}' (silent: {})", trigger, silent);
+            info!(
+                "Queued visual evidence capture trigger: '{}' (silent: {})",
+                trigger, silent
+            );
             queue.push_back((event_id, trigger, silent));
             true
         } else {
@@ -219,7 +227,11 @@ impl IpcDispatcher {
                         "Dispatching CaptureEvidenceCommand to session helper for trigger: '{}' (silent: {})",
                         trigger, silent
                     );
-                    IpcMessage::CaptureEvidenceCommand { event_id, trigger, silent }
+                    IpcMessage::CaptureEvidenceCommand {
+                        event_id,
+                        trigger,
+                        silent,
+                    }
                 } else {
                     IpcMessage::Response {
                         request_id: "heartbeat".into(),
@@ -370,7 +382,11 @@ impl IpcDispatcher {
                     .map(|s| s == "true" || s == "1")
                     .unwrap_or(false);
 
-                IpcMessage::GetKeywordRulesResponse { enabled, rules, silent_mode }
+                IpcMessage::GetKeywordRulesResponse {
+                    enabled,
+                    rules,
+                    silent_mode,
+                }
             }
             IpcMessage::GetKeywordRulesResponse { .. } => IpcMessage::Response {
                 request_id: "none".into(),

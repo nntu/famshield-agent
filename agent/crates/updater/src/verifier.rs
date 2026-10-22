@@ -44,6 +44,5 @@ impl UpdatePackageVerifier {
 }
 
 fn decode_hex(encoded: &str) -> Result<Vec<u8>, UpdateError> {
-    famshield_core::decode_hex(encoded)
-        .map_err(|e| UpdateError::ManifestInvalid(e.to_string()))
+    famshield_core::decode_hex(encoded).map_err(|e| UpdateError::ManifestInvalid(e.to_string()))
 }

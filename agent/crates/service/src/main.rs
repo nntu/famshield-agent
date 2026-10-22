@@ -1,6 +1,5 @@
 use famshield_service::{get_data_dir, ServiceController};
 use famshield_storage::StorageEngine;
-use std::path::PathBuf;
 use tracing::{debug, info};
 
 pub const SERVICE_NAME: &str = "FamShieldService";

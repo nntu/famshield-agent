@@ -68,7 +68,7 @@ export const SecurityTab: React.FC<SecurityTabProps> = ({
 
   // Centralized Server Config State
   const [serverConfig, setServerConfig] = useState<ServerConfig | null>(null);
-  const [serverUrl, setServerUrl] = useState('https://api.famshield.cloud');
+  const [serverUrl, setServerUrl] = useState('https://famshield.ttcantho.io.vn');
   const [tenantId, setTenantId] = useState('tenant-default');
   const [deviceName, setDeviceName] = useState('DESKTOP-FAMSHIELD');
   const [enrollCode, setEnrollCode] = useState('');
@@ -414,7 +414,7 @@ export const SecurityTab: React.FC<SecurityTabProps> = ({
     try {
       const cfg = await api.getServerConfig();
       setServerConfig(cfg);
-      setServerUrl(cfg.server_url || 'https://api.famshield.cloud');
+      setServerUrl(cfg.server_url || 'https://famshield.ttcantho.io.vn');
       setTenantId(cfg.tenant_id || 'tenant-default');
       setDeviceName(cfg.device_name || 'DESKTOP-FAMSHIELD');
       setEnrollCode(cfg.enrollment_code || '');
@@ -1254,7 +1254,7 @@ export const SecurityTab: React.FC<SecurityTabProps> = ({
               <div style={{ display: 'flex', gap: 8 }}>
                 <button
                   type="button"
-                  onClick={() => setServerUrl('https://api.famshield.cloud')}
+                  onClick={() => setServerUrl('https://famshield.ttcantho.io.vn')}
                   style={{
                     background: '#1e293b',
                     border: '1px solid #334155',
@@ -1288,7 +1288,7 @@ export const SecurityTab: React.FC<SecurityTabProps> = ({
               type="text"
               value={serverUrl}
               onChange={(e) => setServerUrl(e.target.value)}
-              placeholder="https://api.famshield.cloud"
+              placeholder="https://famshield.ttcantho.io.vn"
               style={{
                 width: '100%',
                 background: '#070b14',

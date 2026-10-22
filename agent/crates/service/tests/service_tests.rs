@@ -72,10 +72,17 @@ async fn test_ipc_dispatcher_capture_command_on_heartbeat() {
     // 3. Next heartbeat should receive CaptureEvidenceCommand
     let reply2 = dispatcher.dispatch(heartbeat.clone()).await;
     match reply2 {
-        IpcMessage::CaptureEvidenceCommand { event_id, trigger, silent } => {
+        IpcMessage::CaptureEvidenceCommand {
+            event_id,
+            trigger,
+            silent,
+        } => {
             assert_eq!(event_id, "dns-block-123");
             assert!(trigger.contains("malware.test"));
-            assert!(silent, "WEB_BLOCK triggers should be marked silent so web mimics non-existence");
+            assert!(
+                silent,
+                "WEB_BLOCK triggers should be marked silent so web mimics non-existence"
+            );
         }
         _ => panic!("Expected CaptureEvidenceCommand"),
     }

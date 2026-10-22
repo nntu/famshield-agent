@@ -37,7 +37,7 @@ fn test_heartbeat_payload_serialization_and_deserialization() {
             "channel": "stable",
             "min_supported_version": "0.1.0",
             "service_sha256": "abcdef1234567890",
-            "service_binary_url": "https://dl.famshield.cloud/releases/v0.1.2/famshield-service.exe",
+            "service_binary_url": "https://famshield.ttcantho.io.vn/download/releases/v0.1.2/famshield-service.exe",
             "signature_hex": "3045022100..."
         }
     }"#;
@@ -142,6 +142,9 @@ async fn test_web_filter_policy_update_dto_serialization() {
         block_gaming: true,
         safesearch_enabled: true,
         youtube_restricted: true,
+        silent_mode: false,
+        monitor_only_mode: false,
+        dns_block_action: "nxdomain".to_string(),
         custom_blocked_domains: vec!["tiktok.com".to_string(), "roblox.com".to_string()],
         custom_allowed_domains: vec!["wikipedia.org".to_string()],
     };

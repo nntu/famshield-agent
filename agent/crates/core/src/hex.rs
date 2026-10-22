@@ -17,7 +17,7 @@ pub fn encode_hex(bytes: &[u8]) -> String {
 /// Decodes an even-length hexadecimal string into raw binary bytes.
 pub fn decode_hex(encoded: &str) -> Result<Vec<u8>, CoreError> {
     let bytes = encoded.as_bytes();
-    if bytes.len() % 2 != 0 {
+    if !bytes.len().is_multiple_of(2) {
         return Err(CoreError::Serialization(
             "hexadecimal string must contain an even number of characters".into(),
         ));
