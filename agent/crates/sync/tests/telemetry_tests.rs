@@ -1,8 +1,8 @@
 use chrono::Utc;
 use famshield_storage::StorageEngine;
 use famshield_sync::{
-    DnsQueryPayload, HeartbeatPayload, SecurityAlertPayload, TelemetryEnvelope, TelemetryEvent,
-    TelemetryEventType, TelemetryPipeline, CURRENT_TELEMETRY_VERSION,
+    AppUsagePayload, DnsQueryPayload, HeartbeatPayload, SecurityAlertPayload, TelemetryEnvelope,
+    TelemetryEvent, TelemetryEventType, TelemetryPipeline, CURRENT_TELEMETRY_VERSION,
 };
 
 #[test]
@@ -20,6 +20,8 @@ fn test_telemetry_envelope_serialization_roundtrip() {
                 dns_active: true,
                 pending_outbox_count: 0,
                 status: "HEALTHY".to_string(),
+                dns_upstream_optimal: Some("1.1.1.1".to_string()),
+                dns_avg_rtt_ms: Some(12),
             })
             .unwrap(),
         ),
@@ -45,6 +47,22 @@ fn test_telemetry_envelope_serialization_roundtrip() {
                 action: "block".to_string(),
                 reason: "blocklist_match".to_string(),
                 rule_id: Some("rule-malware-01".to_string()),
+                latency_ms: Some(15),
+                upstream: Some("1.1.1.1".to_string()),
+            })
+            .unwrap(),
+        ),
+        TelemetryEvent::new(
+            "evt-04",
+            TelemetryEventType::AppUsage.as_str(),
+            now,
+            serde_json::to_value(AppUsagePayload {
+                app_name: "chrome.exe".to_string(),
+                duration_ms: 120_000,
+                session_count: 3,
+                start_time: now - chrono::Duration::minutes(10),
+                end_time: now,
+                category: Some("browsers".to_string()),
             })
             .unwrap(),
         ),
@@ -52,8 +70,9 @@ fn test_telemetry_envelope_serialization_roundtrip() {
 
     let envelope = TelemetryEnvelope::new("dev-pc-01", events);
     assert_eq!(envelope.version, CURRENT_TELEMETRY_VERSION);
+    assert_eq!(envelope.version, "1.1");
     assert_eq!(envelope.device_id, "dev-pc-01");
-    assert_eq!(envelope.event_count, 3);
+    assert_eq!(envelope.event_count, 4);
     assert!(envelope.batch_id.starts_with("batch-dev-pc-01-"));
 
     let json = envelope.to_json().unwrap();
@@ -76,7 +95,16 @@ fn test_telemetry_pipeline_outbox_queue_and_batching() {
 
     let now = Utc::now();
     let dns_id = pipeline
-        .queue_dns_query("example.com", "A", "allow", "no_match", None, now)
+        .queue_dns_query_detailed(
+            "example.com",
+            "A",
+            "allow",
+            "no_match",
+            None,
+            Some(8),
+            Some("1.1.1.1"),
+            now,
+        )
         .unwrap();
     assert!(dns_id.starts_with("dns-dev-pc-99-"));
 
@@ -90,7 +118,19 @@ fn test_telemetry_pipeline_outbox_queue_and_batching() {
         .unwrap();
     assert!(sec_id.starts_with("sec-dev-pc-99-"));
 
-    assert_eq!(pipeline.pending_count().unwrap(), 3);
+    let app_id = pipeline
+        .queue_app_usage(
+            "code.exe",
+            180_000,
+            2,
+            now - chrono::Duration::minutes(15),
+            now,
+            Some("development"),
+        )
+        .unwrap();
+    assert!(app_id.starts_with("app-dev-pc-99-"));
+
+    assert_eq!(pipeline.pending_count().unwrap(), 4);
 
     // 3. Prepare next batch with limit 2
     let batch1 = pipeline
@@ -102,17 +142,18 @@ fn test_telemetry_pipeline_outbox_queue_and_batching() {
     assert_eq!(batch1.events[0].event_id, hb_id);
     assert_eq!(batch1.events[1].event_id, dns_id);
 
-    // 4. Acknowledge batch1 -> 1 event remains
+    // 4. Acknowledge batch1 -> 2 events remain
     pipeline.acknowledge_batch(&batch1).unwrap();
-    assert_eq!(pipeline.pending_count().unwrap(), 1);
+    assert_eq!(pipeline.pending_count().unwrap(), 2);
 
-    // 5. Prepare next batch -> gets the remaining security alert
+    // 5. Prepare next batch -> gets the remaining security alert & app usage
     let batch2 = pipeline
         .prepare_next_batch(2)
         .unwrap()
         .expect("Batch should exist");
-    assert_eq!(batch2.event_count, 1);
+    assert_eq!(batch2.event_count, 2);
     assert_eq!(batch2.events[0].event_id, sec_id);
+    assert_eq!(batch2.events[1].event_id, app_id);
 
     // 6. Simulate transmission failure on batch2 with retry backoff
     pipeline.report_batch_failure(&batch2, 60).unwrap();
@@ -122,7 +163,7 @@ fn test_telemetry_pipeline_outbox_queue_and_batching() {
     assert!(nothing_ready.is_none());
 
     // Still in outbox awaiting retry
-    assert_eq!(pipeline.pending_count().unwrap(), 1);
+    assert_eq!(pipeline.pending_count().unwrap(), 2);
 
     // Acknowledge after successful retry
     pipeline.acknowledge_batch(&batch2).unwrap();

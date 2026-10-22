@@ -19,6 +19,10 @@ pub struct HeartbeatRequest {
     pub wfp_active: bool,
     pub dns_active: bool,
     pub outbox_depth: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dns_upstream_optimal: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dns_avg_rtt_ms: Option<u64>,
 }
 
 /// Metadata for available OTA software release from server

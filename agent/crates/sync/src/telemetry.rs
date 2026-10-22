@@ -5,7 +5,7 @@ use tracing::{info, warn};
 
 use crate::error::SyncError;
 
-pub const CURRENT_TELEMETRY_VERSION: &str = "1.0";
+pub const CURRENT_TELEMETRY_VERSION: &str = "1.1";
 pub const DEFAULT_BATCH_SIZE: usize = 50;
 pub const DEFAULT_RETRY_BACKOFF_SECS: i64 = 30;
 
@@ -16,6 +16,7 @@ pub enum TelemetryEventType {
     Heartbeat,
     DnsQuery,
     ProcessEvent,
+    AppUsage,
     ErrorLog,
     VisualEvidence,
     SecurityAlert,
@@ -29,6 +30,7 @@ impl TelemetryEventType {
             Self::Heartbeat => "heartbeat",
             Self::DnsQuery => "dns_query",
             Self::ProcessEvent => "process_event",
+            Self::AppUsage => "app_usage",
             Self::ErrorLog => "error_log",
             Self::VisualEvidence => "visual_evidence",
             Self::SecurityAlert => "security_alert",
@@ -108,6 +110,10 @@ pub struct HeartbeatPayload {
     pub dns_active: bool,
     pub pending_outbox_count: usize,
     pub status: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dns_upstream_optimal: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dns_avg_rtt_ms: Option<u64>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -118,6 +124,21 @@ pub struct DnsQueryPayload {
     pub reason: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub rule_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub latency_ms: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub upstream: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct AppUsagePayload {
+    pub app_name: String,
+    pub duration_ms: i64,
+    pub session_count: usize,
+    pub start_time: DateTime<Utc>,
+    pub end_time: DateTime<Utc>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub category: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -176,6 +197,8 @@ impl TelemetryPipeline {
             dns_active,
             pending_outbox_count: count,
             status: "HEALTHY".to_string(),
+            dns_upstream_optimal: None,
+            dns_avg_rtt_ms: None,
         };
 
         let now = Utc::now();
@@ -201,12 +224,38 @@ impl TelemetryPipeline {
         rule_id: Option<&str>,
         occurred_at: DateTime<Utc>,
     ) -> Result<String, SyncError> {
+        self.queue_dns_query_detailed(
+            domain,
+            qtype,
+            action,
+            reason,
+            rule_id,
+            None,
+            None,
+            occurred_at,
+        )
+    }
+
+    /// Helper to queue a detailed DNS query log event with upstream and latency.
+    pub fn queue_dns_query_detailed(
+        &self,
+        domain: &str,
+        qtype: &str,
+        action: &str,
+        reason: &str,
+        rule_id: Option<&str>,
+        latency_ms: Option<u64>,
+        upstream: Option<&str>,
+        occurred_at: DateTime<Utc>,
+    ) -> Result<String, SyncError> {
         let payload = DnsQueryPayload {
             domain: domain.to_string(),
             qtype: qtype.to_string(),
             action: action.to_string(),
             reason: reason.to_string(),
             rule_id: rule_id.map(|s| s.to_string()),
+            latency_ms,
+            upstream: upstream.map(|s| s.to_string()),
         };
 
         let event_id = format!(
@@ -220,6 +269,38 @@ impl TelemetryPipeline {
             &event_id,
             TelemetryEventType::DnsQuery.as_str(),
             occurred_at,
+            serde_json::to_value(&payload)?,
+        );
+
+        self.queue_event(&event)?;
+        Ok(event_id)
+    }
+
+    /// Helper to queue an application screen time usage event.
+    pub fn queue_app_usage(
+        &self,
+        app_name: &str,
+        duration_ms: i64,
+        session_count: usize,
+        start_time: DateTime<Utc>,
+        end_time: DateTime<Utc>,
+        category: Option<&str>,
+    ) -> Result<String, SyncError> {
+        let payload = AppUsagePayload {
+            app_name: app_name.to_string(),
+            duration_ms,
+            session_count,
+            start_time,
+            end_time,
+            category: category.map(|s| s.to_string()),
+        };
+
+        let now = Utc::now();
+        let event_id = format!("app-{}-{}", self.device_id, now.timestamp_micros());
+        let event = TelemetryEvent::new(
+            &event_id,
+            TelemetryEventType::AppUsage.as_str(),
+            now,
             serde_json::to_value(&payload)?,
         );
 

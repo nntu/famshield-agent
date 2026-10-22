@@ -16,7 +16,7 @@ pub use enrollment::{
 pub use error::SyncError;
 pub use nats_dispatcher::{compute_command_hmac, NatsDispatcher, RemoteCommand};
 pub use telemetry::{
-    DnsQueryPayload, HeartbeatPayload, SecurityAlertPayload, TelemetryEnvelope, TelemetryEvent,
-    TelemetryEventType, TelemetryPipeline, CURRENT_TELEMETRY_VERSION,
+    AppUsagePayload, DnsQueryPayload, HeartbeatPayload, SecurityAlertPayload, TelemetryEnvelope,
+    TelemetryEvent, TelemetryEventType, TelemetryPipeline, CURRENT_TELEMETRY_VERSION,
 };
 pub use worker::TelemetrySyncWorker;
