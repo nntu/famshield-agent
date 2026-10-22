@@ -139,8 +139,12 @@ impl TelemetrySyncWorker {
             return;
         }
 
+        // Dynamically scale batch size based on pending outbox depth
+        let pending = self.pipeline.pending_count().unwrap_or(0);
+        let batch_size = if pending > 100 { 100 } else { 50 };
+
         // Loop as long as there are pending batches ready to send
-        while let Ok(Some(envelope)) = self.pipeline.prepare_next_batch(50) {
+        while let Ok(Some(envelope)) = self.pipeline.prepare_next_batch(batch_size) {
             let event_count = envelope.event_count;
             let batch_id = envelope.batch_id.clone();
 

@@ -99,7 +99,12 @@ impl CloudSyncClient {
             url.pop();
         }
         let client = reqwest::Client::builder()
+            .connect_timeout(Duration::from_secs(5))
             .timeout(Duration::from_secs(15))
+            .tcp_keepalive(Some(Duration::from_secs(30)))
+            .tcp_nodelay(true)
+            .pool_idle_timeout(Some(Duration::from_secs(90)))
+            .pool_max_idle_per_host(8)
             .build()
             .unwrap_or_else(|_| reqwest::Client::new());
 

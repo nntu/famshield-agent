@@ -23,6 +23,8 @@ Tất cả các thay đổi quan trọng của dự án **FamShield Windows Agen
   - **Đối chiếu chéo & Kiểm thử Cloud Server (`famshield-server`)**:
     - Cập nhật mô hình `HeartbeatRequest` trên Go Cloud Server tiếp nhận các trường mới và phát sóng thời gian thực qua Server-Sent Events (SSE).
     - Bộ test đối chiếu chéo `TestTelemetryClientReconciliation` mở rộng và đạt chuẩn 100% PASS trên cả hai nền tảng.
+  - **Tối ưu hóa TCP Connection Pool & HTTP Keep-Alive**: Cấu hình `connect_timeout(5s)`, `tcp_keepalive(30s)`, vô hiệu hóa thuật toán Nagle (`tcp_nodelay: true`), duy trì kết nối rỗi `pool_idle_timeout(90s)` và giới hạn `pool_max_idle_per_host(8)`. Loại bỏ chi phí bắt tay TLS cho các chu kỳ Heartbeat (60s) và đồng bộ outbox (15s).
+  - **Gom cụm hàng đợi ngoại tuyến thích ứng (Adaptive Outbox Batching)**: Tự động nhân đôi kích thước lô gói tin (50 lên 100 sự kiện/lần) khi độ sâu hàng đợi outbox vượt quá 100 bản ghi, giúp xả nhanh dữ liệu tích lũy sau thời gian dài mất mạng.
 - **Cơ Chế Đặt Lại Báo Cáo & Số Liệu Hoạt Động Về 0 An Toàn (Secure Activity & Telemetry Report Reset, `famshield-storage`, `famshield-local-admin`, `web`)**:
   - **Khởi tạo và làm sạch tầng cơ sở dữ liệu (`famshield-storage`)**:
     - Bổ sung cấu trúc phản hồi `ResetReportStats` và hàm thực thi giao dịch nguyên tử `StorageEngine::reset_reports(&self, scopes: &[String])`.
