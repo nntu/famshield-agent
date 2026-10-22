@@ -203,6 +203,8 @@ components:
         policy_version: { type: [integer, 'null'], format: int64 }
         outbox_depth: { type: integer, minimum: 0 }
         active_session_ids: { type: array, items: { type: integer, minimum: 0 } }
+        dns_upstream_optimal: { type: [string, 'null'] }
+        dns_avg_rtt_ms: { type: [integer, 'null'], minimum: 0 }
         health: { type: array, maxItems: 64, items: { $ref: '#/components/schemas/HealthStatus' } }
         capabilities: { type: array, maxItems: 128, items: { type: string } }
     HeartbeatResponse:
@@ -239,7 +241,7 @@ components:
         schema_version: { type: integer, minimum: 1 }
         type:
           type: string
-          enum: [agent.health, policy.applied, app.discovered, app.lifecycle, app.usage, app.blocked, domain.observed, domain.blocked, time.requested, visual.verification, command.completed, security.alert]
+          enum: [agent.health, heartbeat, policy.applied, app.discovered, app.lifecycle, app.usage, app_usage, app.blocked, domain.observed, domain.blocked, dns_query, time.requested, visual.verification, visual_evidence, command.completed, security.alert, security_alert]
         occurred_at: { type: string, format: date-time }
         boot_id: { type: string, maxLength: 128 }
         sequence: { type: integer, format: int64, minimum: 0 }

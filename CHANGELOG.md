@@ -9,6 +9,20 @@ Tất cả các thay đổi quan trọng của dự án **FamShield Windows Agen
 ## [Unreleased]
 
 ### Added
+- **Nâng Cấp Giao Thức Telemetry v1.1 & Đồng Bộ Giám Sát Thời Lượng Ứng Dụng (Telemetry v1.1 Protocol Upgrade, App Usage Screen Time & NUMA DNS Telemetry, `famshield-sync`, `famshield-service`, `contracts`)**:
+  - **Tăng phiên bản Telemetry (Version Bump)**: Nâng cấp `CURRENT_TELEMETRY_VERSION` từ `"1.0"` lên `"1.1"` trong `TelemetryEnvelope` và cấu trúc gói tin hàng đợi ngoại tuyến.
+  - **Sự kiện Giám sát Thời lượng Màn hình Ứng dụng (`AppUsagePayload`)**:
+    - Bổ sung `TelemetryEventType::AppUsage` (`app_usage`) cùng cấu trúc dữ liệu `AppUsagePayload` ghi nhận tên ứng dụng (`app_name`), thời lượng sử dụng (`duration_ms`), số phiên mở (`session_count`), khung thời gian (`start_time`, `end_time`) và danh mục phân loại (`category`).
+    - Tích hợp pipeline tự động đẩy dữ liệu từ bộ điều phối IPC (`IpcDispatcher`) vào SQLite outbox ngoại tuyến mỗi khi hoàn tất hoặc chuyển đổi phân đoạn ứng dụng đang hoạt động (`active_tracker`).
+  - **Chỉ số Telemetry DNS Mở Rộng & NUMA Balancer Observability (`DnsQueryPayload`, `HeartbeatPayload`, `HeartbeatRequest`)**:
+    - `DnsQueryPayload`: Bổ sung tùy chọn độ trễ phản hồi phân giải (`latency_ms`) và máy chủ đích phục vụ (`upstream`).
+    - `HeartbeatPayload` & `HeartbeatRequest`: Bổ sung thông tin máy chủ DNS tối ưu nhất được bộ cân bằng tải NUMA tự động chọn (`dns_upstream_optimal`) và độ trễ trung bình (`dns_avg_rtt_ms`).
+  - **Đồng bộ Hợp đồng OpenAPI Chuẩn (`contracts/openapi.yaml`)**:
+    - Cập nhật định nghĩa schema `HeartbeatRequest` bổ sung `dns_upstream_optimal` và `dns_avg_rtt_ms`.
+    - Mở rộng enum `DeviceEvent.type` hỗ trợ đầy đủ các định dạng sự kiện `app_usage`, `dns_query`, `security_alert`, `heartbeat` đồng bộ 100% giữa Client Agent và Cloud Server.
+  - **Đối chiếu chéo & Kiểm thử Cloud Server (`famshield-server`)**:
+    - Cập nhật mô hình `HeartbeatRequest` trên Go Cloud Server tiếp nhận các trường mới và phát sóng thời gian thực qua Server-Sent Events (SSE).
+    - Bộ test đối chiếu chéo `TestTelemetryClientReconciliation` mở rộng và đạt chuẩn 100% PASS trên cả hai nền tảng.
 - **Cơ Chế Đặt Lại Báo Cáo & Số Liệu Hoạt Động Về 0 An Toàn (Secure Activity & Telemetry Report Reset, `famshield-storage`, `famshield-local-admin`, `web`)**:
   - **Khởi tạo và làm sạch tầng cơ sở dữ liệu (`famshield-storage`)**:
     - Bổ sung cấu trúc phản hồi `ResetReportStats` và hàm thực thi giao dịch nguyên tử `StorageEngine::reset_reports(&self, scopes: &[String])`.

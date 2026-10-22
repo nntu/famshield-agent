@@ -237,6 +237,7 @@ impl TelemetryPipeline {
     }
 
     /// Helper to queue a detailed DNS query log event with upstream and latency.
+    #[allow(clippy::too_many_arguments)]
     pub fn queue_dns_query_detailed(
         &self,
         domain: &str,

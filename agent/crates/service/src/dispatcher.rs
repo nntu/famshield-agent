@@ -135,7 +135,14 @@ impl IpcDispatcher {
                             );
                             if let Ok(guard) = self.telemetry_pipeline.lock() {
                                 if let Some(ref tel) = *guard {
-                                    let _ = tel.queue_app_usage(&cur_app, *dur_ms, 1, *start_time, now, None);
+                                    let _ = tel.queue_app_usage(
+                                        cur_app,
+                                        *dur_ms,
+                                        1,
+                                        *start_time,
+                                        now,
+                                        None,
+                                    );
                                 }
                             }
                             *tracker_guard = Some((executable_name.clone(), now, 2000));
@@ -173,7 +180,14 @@ impl IpcDispatcher {
                         );
                         if let Ok(guard) = self.telemetry_pipeline.lock() {
                             if let Some(ref tel) = *guard {
-                                let _ = tel.queue_app_usage(&cur_app, dur_ms, 1, start_time, Utc::now(), None);
+                                let _ = tel.queue_app_usage(
+                                    &cur_app,
+                                    dur_ms,
+                                    1,
+                                    start_time,
+                                    Utc::now(),
+                                    None,
+                                );
                             }
                         }
                     }
