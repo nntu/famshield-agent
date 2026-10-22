@@ -219,6 +219,8 @@ components:
           properties:
             version: { type: string }
             manifest_url: { type: string, format: uri }
+        server_url: { type: string, format: uri }
+        version_check_url: { type: string, format: uri }
     SignedPolicyEnvelope:
       type: object
       additionalProperties: false

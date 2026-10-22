@@ -143,11 +143,50 @@ impl ServiceController {
         let telemetry_pipeline = Arc::new(TelemetryPipeline::new(&device_id, storage.clone()));
         ipc_dispatcher.set_telemetry(telemetry_pipeline.clone());
 
-        let server_url = storage
+        let data_dir = get_data_dir();
+        let server_url_file = data_dir.join("server_url.txt");
+        let bootstrap_file = data_dir.join("bootstrap.json");
+
+        let mut server_url = storage
             .get_meta("server_url")
             .ok()
             .flatten()
-            .unwrap_or_else(|| "http://127.0.0.1:8080".to_string());
+            .unwrap_or_default();
+
+        if server_url.is_empty() {
+            if let Ok(content) = std::fs::read_to_string(&server_url_file) {
+                let trimmed = content.trim().to_string();
+                if !trimmed.is_empty() {
+                    server_url = trimmed.clone();
+                    let _ = storage.set_meta("server_url", &trimmed);
+                }
+            }
+        }
+
+        if bootstrap_file.exists() {
+            if let Ok(content) = std::fs::read_to_string(&bootstrap_file) {
+                if let Ok(val) = serde_json::from_str::<serde_json::Value>(&content) {
+                    if let Some(url) = val.get("server_url").and_then(|v| v.as_str()) {
+                        let trimmed = url.trim().to_string();
+                        if !trimmed.is_empty() {
+                            server_url = trimmed.clone();
+                            let _ = storage.set_meta("server_url", &trimmed);
+                        }
+                    }
+                    if let Some(code) = val.get("enrollment_code").and_then(|v| v.as_str()) {
+                        let trimmed = code.trim().to_string();
+                        if trimmed.len() == 6 {
+                            let _ = storage.set_meta("enrollment_code", &trimmed);
+                        }
+                    }
+                }
+            }
+            let _ = std::fs::rename(&bootstrap_file, data_dir.join("bootstrap.json.done"));
+        }
+
+        if server_url.is_empty() {
+            server_url = "http://127.0.0.1:8080".to_string();
+        }
         let cloud_client = Arc::new(CloudSyncClient::new(&server_url));
 
         let sync_worker = Arc::new(TelemetrySyncWorker::new(

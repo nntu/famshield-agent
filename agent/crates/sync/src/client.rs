@@ -47,6 +47,10 @@ pub struct HeartbeatResponse {
     pub command_wait_seconds: u32,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub available_release: Option<AvailableReleaseDto>,
+    #[serde(default)]
+    pub server_url: Option<String>,
+    #[serde(default)]
+    pub version_check_url: Option<String>,
 }
 
 /// Batch events response from `POST /v1/device/events:batch`

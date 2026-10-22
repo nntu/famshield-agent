@@ -110,6 +110,109 @@ Type: files; Name: "{app}\*.cer"
 Type: filesandordirs; Name: "{commonappdata}\FamShield"
 
 [Code]
+var
+  ConfigPage: TInputQueryWizardPage;
+
+// Initialize custom wizard page for Server URL and Enrollment Code configuration
+procedure InitializeWizard;
+var
+  DefaultServerUrl: String;
+  DefaultCode: String;
+begin
+  // Support silent/command-line parameter overrides: /SERVER="https://..." /CODE="123456"
+  DefaultServerUrl := ExpandConstant('{param:SERVER|https://famshield.ttcantho.io.vn}');
+  DefaultCode := ExpandConstant('{param:CODE|}');
+
+  // Create wizard page right after Destination Directory page
+  ConfigPage := CreateInputQueryPage(wpSelectDir,
+    'Cấu hình Máy chủ Cập nhật & Ghép nối',
+    'Thiết lập địa chỉ máy chủ Cloud Server và mã ghép nối bảo vệ thiết bị',
+    'FamShield hỗ trợ cả hai chế độ: Cloud Managed (kết nối máy chủ) và Standalone Free (chạy độc lập).'#13#10 +
+    'Vui lòng nhập địa chỉ máy chủ cập nhật (Update / Cloud Server URL) và mã ghép nối bên dưới:');
+
+  ConfigPage.Add('Địa chỉ máy chủ (Server URL / Update Check):', False);
+  ConfigPage.Values[0] := DefaultServerUrl;
+
+  ConfigPage.Add('Mã ghép nối thiết bị (Enrollment Code - 6 số, để trống nếu dùng Standalone Free):', False);
+  ConfigPage.Values[1] := DefaultCode;
+end;
+
+// Validate user input before proceeding to next wizard page
+function NextButtonClick(CurPageID: Integer): Boolean;
+var
+  ServerUrlInput: String;
+  CodeInput: String;
+  I: Integer;
+begin
+  Result := True;
+  if CurPageID = ConfigPage.ID then
+  begin
+    ServerUrlInput := Trim(ConfigPage.Values[0]);
+    if ServerUrlInput = '' then
+    begin
+      MsgBox('Vui lòng nhập địa chỉ máy chủ hợp lệ (ví dụ: https://famshield.ttcantho.io.vn hoặc https://cloud.famshield.vn)', mbError, MB_OK);
+      Result := False;
+      Exit;
+    end;
+
+    if (Pos('http://', Lowercase(ServerUrlInput)) <> 1) and (Pos('https://', Lowercase(ServerUrlInput)) <> 1) then
+    begin
+      MsgBox('Địa chỉ máy chủ phải bắt đầu bằng http:// hoặc https://', mbError, MB_OK);
+      Result := False;
+      Exit;
+    end;
+
+    CodeInput := Trim(ConfigPage.Values[1]);
+    if CodeInput <> '' then
+    begin
+      if Length(CodeInput) <> 6 then
+      begin
+        MsgBox('Mã ghép nối phải đúng 6 chữ số (hoặc để trống nếu dùng chế độ Standalone Free)', mbError, MB_OK);
+        Result := False;
+        Exit;
+      end;
+
+      for I := 1 to Length(CodeInput) do
+      begin
+        if (CodeInput[I] < '0') or (CodeInput[I] > '9') then
+        begin
+          MsgBox('Mã ghép nối chỉ được chứa các ký tự số (0-9)', mbError, MB_OK);
+          Result := False;
+          Exit;
+        end;
+      end;
+    end;
+  end;
+end;
+
+// Write bootstrap configuration and server_url.txt after installation files are extracted
+procedure CurStepChanged(CurStep: TSetupStep);
+var
+  DataDir: String;
+  ServerUrlVal: String;
+  EnrollCodeVal: String;
+  BootstrapJson: String;
+begin
+  if CurStep = ssPostInstall then
+  begin
+    DataDir := ExpandConstant('{commonappdata}\FamShield');
+    ForceDirectories(DataDir);
+
+    ServerUrlVal := Trim(ConfigPage.Values[0]);
+    if ServerUrlVal = '' then
+      ServerUrlVal := 'https://famshield.ttcantho.io.vn';
+
+    EnrollCodeVal := Trim(ConfigPage.Values[1]);
+
+    // Save server_url.txt for immediate resolution by agent and local admin
+    SaveStringToFile(DataDir + '\server_url.txt', ServerUrlVal, False);
+
+    // Save bootstrap.json for auto-enrollment by agent on first start
+    BootstrapJson := '{"server_url":"' + ServerUrlVal + '","enrollment_code":"' + EnrollCodeVal + '"}';
+    SaveStringToFile(DataDir + '\bootstrap.json', BootstrapJson, False);
+  end;
+end;
+
 // Clean up existing service and terminate running processes before files extraction
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 var
