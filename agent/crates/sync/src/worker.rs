@@ -187,6 +187,7 @@ impl TelemetrySyncWorker {
             .and_then(|s| s.parse::<u32>().ok())
             .unwrap_or(1);
 
+        let optimal_upstream = self.storage.get_meta("dns_upstream").ok().flatten();
         let hb_req = HeartbeatRequest {
             device_id: dev_id.clone(),
             agent_version: agent_version.clone(),
@@ -197,6 +198,8 @@ impl TelemetrySyncWorker {
             wfp_active: true,
             dns_active: true,
             outbox_depth,
+            dns_upstream_optimal: optimal_upstream,
+            dns_avg_rtt_ms: None,
         };
 
         match self.client.send_heartbeat(&hb_req).await {

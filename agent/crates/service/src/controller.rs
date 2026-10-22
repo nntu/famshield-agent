@@ -140,6 +140,7 @@ impl ServiceController {
         );
 
         let telemetry_pipeline = Arc::new(TelemetryPipeline::new(device_id, storage.clone()));
+        ipc_dispatcher.set_telemetry(telemetry_pipeline.clone());
 
         let server_url = storage
             .get_meta("server_url")

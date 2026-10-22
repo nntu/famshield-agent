@@ -14,6 +14,7 @@ pub struct IpcDispatcher {
     pending_captures: Arc<Mutex<VecDeque<(String, String)>>>,
     recent_triggers: Arc<Mutex<HashMap<String, Instant>>>,
     active_tracker: Arc<Mutex<Option<ActiveAppSession>>>,
+    telemetry_pipeline: Arc<Mutex<Option<Arc<famshield_sync::TelemetryPipeline>>>>,
 }
 
 impl IpcDispatcher {
@@ -23,6 +24,13 @@ impl IpcDispatcher {
             pending_captures: Arc::new(Mutex::new(VecDeque::new())),
             recent_triggers: Arc::new(Mutex::new(HashMap::new())),
             active_tracker: Arc::new(Mutex::new(None)),
+            telemetry_pipeline: Arc::new(Mutex::new(None)),
+        }
+    }
+
+    pub fn set_telemetry(&self, telemetry: Arc<famshield_sync::TelemetryPipeline>) {
+        if let Ok(mut guard) = self.telemetry_pipeline.lock() {
+            *guard = Some(telemetry);
         }
     }
 
@@ -125,6 +133,11 @@ impl IpcDispatcher {
                                     state: "committed".to_string(),
                                 },
                             );
+                            if let Ok(guard) = self.telemetry_pipeline.lock() {
+                                if let Some(ref tel) = *guard {
+                                    let _ = tel.queue_app_usage(&cur_app, *dur_ms, 1, *start_time, now, None);
+                                }
+                            }
                             *tracker_guard = Some((executable_name.clone(), now, 2000));
                         }
                     } else {
@@ -152,12 +165,17 @@ impl IpcDispatcher {
                             &famshield_storage::UsageSegmentRecord {
                                 segment_id: seg_id,
                                 child_id: "local_child".to_string(),
-                                rule_id: cur_app,
+                                rule_id: cur_app.clone(),
                                 start_utc: start_time,
                                 duration_ms: dur_ms,
                                 state: "committed".to_string(),
                             },
                         );
+                        if let Ok(guard) = self.telemetry_pipeline.lock() {
+                            if let Some(ref tel) = *guard {
+                                let _ = tel.queue_app_usage(&cur_app, dur_ms, 1, start_time, Utc::now(), None);
+                            }
+                        }
                     }
                 }
 
