@@ -35,6 +35,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'activity', label: t.nav_activity, icon: '⏱️' },
     { id: 'rules', label: t.nav_rules, icon: '🛡️' },
     { id: 'logs', label: t.nav_logs, icon: '📋' },
+    { id: 'system_logs', label: t.nav_system_logs, icon: '🖥️' },
     { id: 'evidence', label: t.nav_evidence, icon: '🖼️' },
     { id: 'security', label: t.nav_security, icon: '⚙️' },
   ];

@@ -151,6 +151,7 @@ impl SystemTray {
         let header_item = MenuItem::new("🛡️ FamShield - Đang bảo vệ 24/7", false, None);
         let sep1 = PredefinedMenuItem::separator();
         let open_admin = MenuItem::new("🌐 Mở Bảng Quản Trị Web (Local Admin)", true, None);
+        let view_logs = MenuItem::new("📄 Xem Nhật Ký Dịch Vụ (Đọc Logs)", true, None);
         let admin_pin = MenuItem::new("🔑 Xác Thực Master PIN (Desktop Dialog)", true, None);
         let request_time = MenuItem::new("⏳ Xin Thêm Thời Gian (+30 phút)", true, None);
         let sep2 = PredefinedMenuItem::separator();
@@ -170,6 +171,7 @@ impl SystemTray {
             &header_item,
             &sep1,
             &open_admin,
+            &view_logs,
             &admin_pin,
             &request_time,
             &sep2,
@@ -180,6 +182,7 @@ impl SystemTray {
         ]);
 
         let open_admin_id = open_admin.id().clone();
+        let view_logs_id = view_logs.id().clone();
         let admin_pin_id = admin_pin.id().clone();
         let request_time_id = request_time.id().clone();
         let uninstall_item_id = uninstall_item.id().clone();
@@ -190,6 +193,21 @@ impl SystemTray {
             if event.id == open_admin_id {
                 let port = famshield_service::get_active_admin_port();
                 let url_str = format!("http://127.0.0.1:{}\0", port);
+                let wide_url: Vec<u16> = url_str.encode_utf16().collect();
+                let open_op = w!("open");
+                unsafe {
+                    let _ = ShellExecuteW(
+                        None,
+                        open_op,
+                        PCWSTR::from_raw(wide_url.as_ptr()),
+                        PCWSTR::null(),
+                        PCWSTR::null(),
+                        SW_SHOWNORMAL,
+                    );
+                }
+            } else if event.id == view_logs_id {
+                let port = famshield_service::get_active_admin_port();
+                let url_str = format!("http://127.0.0.1:{}/#system_logs\0", port);
                 let wide_url: Vec<u16> = url_str.encode_utf16().collect();
                 let open_op = w!("open");
                 unsafe {

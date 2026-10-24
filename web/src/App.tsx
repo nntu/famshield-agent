@@ -3,6 +3,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { api, setSessionToken } from './api';
 import { ActivityTab } from './components/ActivityTab';
 import { DashboardTab } from './components/DashboardTab';
+import { ErrorManagementView } from './components/ErrorManagementView';
+import { SystemLogsView } from './components/SystemLogsView';
 import { EvidenceTab } from './components/EvidenceTab';
 import { LogsTab } from './components/LogsTab';
 import { Navbar } from './components/Navbar';
@@ -80,6 +82,23 @@ export const App: React.FC = () => {
 
   // Check URL token and setup status
   useEffect(() => {
+    const handleHash = () => {
+      const hash = window.location.hash.replace('#', '');
+      if (
+        hash === 'system_logs' ||
+        hash === 'logs' ||
+        hash === 'rules' ||
+        hash === 'evidence' ||
+        hash === 'security' ||
+        hash === 'activity' ||
+        hash === 'dashboard'
+      ) {
+        setCurrentTab(hash as TabType);
+      }
+    };
+    handleHash();
+    window.addEventListener('hashchange', handleHash);
+
     const params = new URLSearchParams(window.location.search);
     const urlToken = params.get('token') || params.get('auth_token');
     if (urlToken) {
@@ -241,6 +260,13 @@ export const App: React.FC = () => {
             onToggleAutoRefresh={() => setAutoRefresh(!autoRefresh)}
             onShowToast={showToast}
           />
+        )}
+
+        {currentTab === 'system_logs' && (
+          <div className="flex flex-col gap-6">
+            <SystemLogsView lang={lang} onShowToast={showToast} />
+            <ErrorManagementView lang={lang} onShowToast={showToast} />
+          </div>
         )}
 
         {currentTab === 'evidence' && (

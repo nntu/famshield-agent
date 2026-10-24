@@ -8,6 +8,7 @@ export const translations = {
     nav_activity: 'Hoạt động Giám sát',
     nav_rules: 'Quy tắc & Giới hạn',
     nav_logs: 'Nhật ký DNS',
+    nav_system_logs: 'Đọc Logs & Lỗi',
     nav_evidence: 'Bằng chứng Vi phạm',
     nav_security: 'Bảo mật & Ghép nối',
 
@@ -364,6 +365,7 @@ export const translations = {
     nav_activity: 'Activity Monitor',
     nav_rules: 'Rules & Limits',
     nav_logs: 'DNS Logs',
+    nav_system_logs: 'System Logs & Errors',
     nav_evidence: 'Visual Evidence',
     nav_security: 'Security & Cloud',
 

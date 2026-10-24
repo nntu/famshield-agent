@@ -88,7 +88,7 @@ export interface PushErrorsNatsResponse {
   nats_url?: string;
 }
 
-export type TabType = 'dashboard' | 'activity' | 'rules' | 'logs' | 'evidence' | 'security';
+export type TabType = 'dashboard' | 'activity' | 'rules' | 'logs' | 'system_logs' | 'evidence' | 'security';
 export type Language = 'vi' | 'en';
 
 export interface SetupStatusResponse {
