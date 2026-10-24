@@ -358,7 +358,7 @@ impl TelemetrySyncWorker {
                 );
 
                 // Merge category seeds into active domain list
-                let mut block_domains: Vec<String> = pol.custom_blocked_domains;
+                let mut block_domains: Vec<String> = pol.custom_blocked_domains.clone();
 
                 // Merge local custom rules from endpoint storage to preserve parent rules
                 if let Ok(local_rules) = self.storage.list_local_rules() {
@@ -391,7 +391,7 @@ impl TelemetrySyncWorker {
                 // If allowlist has domains, exclude them
                 if !pol.custom_allowed_domains.is_empty() {
                     let allows: std::collections::HashSet<String> =
-                        pol.custom_allowed_domains.into_iter().collect();
+                        pol.custom_allowed_domains.iter().cloned().collect();
                     block_domains.retain(|d| !allows.contains(d));
                 }
 
@@ -420,6 +420,11 @@ impl TelemetrySyncWorker {
                     if let Some(blocklist) = &self.dns_blocklist {
                         blocklist.set_monitor_mode(true);
                     }
+                }
+
+                // Cache full cloud policy object in storage for local UI and DNS sync
+                if let Ok(policy_str) = serde_json::to_string(&pol) {
+                    let _ = self.storage.set_meta("cached_cloud_policy", &policy_str);
                 }
 
                 // Persist new policy version in storage

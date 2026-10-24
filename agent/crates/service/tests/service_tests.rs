@@ -168,6 +168,7 @@ async fn test_check_and_enforce_app_quota() {
             rule_id: "game.exe".into(),
             rule_type: "application".into(),
             payload: r#"{"max_minutes_per_day":30}"#.into(),
+            source: "local".into(),
             enabled: true,
             created_at: chrono::Utc::now(),
             updated_at: chrono::Utc::now(),

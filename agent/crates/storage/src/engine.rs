@@ -58,6 +58,12 @@ pub struct LocalRuleRecord {
     pub enabled: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    #[serde(default = "default_local_source")]
+    pub source: String,
+}
+
+fn default_local_source() -> String {
+    "local".to_string()
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -219,6 +225,7 @@ impl StorageEngine {
                 updated_at: DateTime::parse_from_rfc3339(&updated_str)
                     .unwrap()
                     .with_timezone(&Utc),
+                source: "local".to_string(),
             })
         })?;
 

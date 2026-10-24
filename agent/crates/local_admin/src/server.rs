@@ -414,6 +414,11 @@ impl LocalAdminServer {
             )
             .route("/api/rules/bulk", post(handle_bulk_create_rules))
             .route("/api/rules/sync-to-cloud", post(handle_sync_rules_to_cloud))
+            .route(
+                "/api/rules/pull-from-cloud",
+                post(handle_pull_rules_from_cloud),
+            )
+            .route("/api/policy/cloud", get(handle_get_cloud_policy))
             .route("/api/rules/:rule_id", delete(handle_delete_rule))
             .route("/api/logs/dns", get(handle_list_logs))
             .route("/api/logs/dns/summary", get(handle_get_dns_summary))
@@ -660,15 +665,33 @@ fn sync_dns_blocklist(state: &ServerState) {
     if let Some(blocklist) = &state.dns_blocklist {
         blocklist.set_monitor_mode(state.service.is_monitor_mode());
 
+        let mut active_domains: Vec<String> = Vec::new();
         if let Ok(rules) = state.service.list_rules() {
-            let active_domains: Vec<String> = rules
-                .into_iter()
-                .filter(|r| r.rule_type == "domain" && r.enabled)
-                .map(|r| r.rule_id)
-                .collect();
-
-            blocklist.replace_blocklist(active_domains);
+            for r in rules {
+                if r.rule_type == "domain" && r.enabled {
+                    active_domains.push(r.rule_id);
+                }
+            }
         }
+
+        if let Ok(Some(cached)) = state.service.storage().get_meta("cached_cloud_policy") {
+            if let Ok(cloud_policy) = serde_json::from_str::<serde_json::Value>(&cached) {
+                if let Some(domains) = cloud_policy
+                    .get("custom_blocked_domains")
+                    .and_then(|v| v.as_array())
+                {
+                    for d_val in domains {
+                        if let Some(d) = d_val.as_str() {
+                            active_domains.push(d.to_lowercase());
+                        }
+                    }
+                }
+            }
+        }
+
+        active_domains.sort();
+        active_domains.dedup();
+        blocklist.replace_blocklist(active_domains);
     }
 
     if let Some(cache) = &state.dns_cache {
@@ -1579,15 +1602,55 @@ async fn handle_list_rules(
         return Err(StatusCode::UNAUTHORIZED);
     }
 
-    match state.service.list_rules() {
-        Ok(rules) => Ok(Json(rules)),
-
+    let mut rules = match state.service.list_rules() {
+        Ok(rules) => rules,
         Err(e) => {
             warn!("Failed to query local rules: {}", e);
+            return Err(StatusCode::INTERNAL_SERVER_ERROR);
+        }
+    };
 
-            Err(StatusCode::INTERNAL_SERVER_ERROR)
+    // Enrich with cloud custom blocked domains from cached_cloud_policy
+    if let Ok(Some(cached)) = state.service.storage().get_meta("cached_cloud_policy") {
+        if let Ok(cloud_policy) = serde_json::from_str::<serde_json::Value>(&cached) {
+            let ver = cloud_policy
+                .get("version")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(1);
+            if let Some(domains) = cloud_policy
+                .get("custom_blocked_domains")
+                .and_then(|v| v.as_array())
+            {
+                let local_set: std::collections::HashSet<String> = rules
+                    .iter()
+                    .filter(|r| r.rule_type == "domain")
+                    .map(|r| r.rule_id.to_lowercase())
+                    .collect();
+
+                let now = Utc::now();
+                for d_val in domains {
+                    if let Some(domain) = d_val.as_str() {
+                        let trimmed = domain.trim().to_lowercase();
+                        if !trimmed.is_empty() && !local_set.contains(&trimmed) {
+                            rules.push(LocalRuleRecord {
+                                rule_id: trimmed,
+                                rule_type: "domain".to_string(),
+                                payload: serde_json::json!({
+                                    "reason": format!("Chính sách từ Máy chủ Đám mây (Cloud Policy v{})", ver)
+                                }).to_string(),
+                                enabled: true,
+                                created_at: now,
+                                updated_at: now,
+                                source: "cloud".to_string(),
+                            });
+                        }
+                    }
+                }
+            }
         }
     }
+
+    Ok(Json(rules))
 }
 
 async fn handle_create_rule(
@@ -1684,6 +1747,155 @@ async fn handle_delete_rule(
             Err(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }
+}
+
+async fn handle_pull_rules_from_cloud(
+    State(state): State<ServerState>,
+    headers: HeaderMap,
+    Query(query): Query<QueryParams>,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    if !check_auth(&state, &headers, query.token.as_deref()).await {
+        return Err((
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({ "error": "Unauthorized" })),
+        ));
+    }
+
+    let server_url = state
+        .service
+        .storage()
+        .get_meta("server_url")
+        .ok()
+        .flatten()
+        .unwrap_or_default();
+
+    let tenant_id = state
+        .service
+        .storage()
+        .get_meta("enrolled_tenant_id")
+        .ok()
+        .flatten()
+        .unwrap_or_else(|| "tenant-default".to_string());
+
+    if server_url.trim().is_empty() {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({
+                "error": "Thiết bị chưa được cấu hình địa chỉ FamShield Server."
+            })),
+        ));
+    }
+
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(10))
+        .build()
+        .unwrap_or_else(|_| reqwest::Client::new());
+
+    let policy_url = format!(
+        "{}/v1/filter/policy?tenant_id={}",
+        server_url.trim_end_matches('/'),
+        tenant_id
+    );
+
+    let res = client.get(&policy_url).send().await.map_err(|e| {
+        (
+            StatusCode::BAD_GATEWAY,
+            Json(serde_json::json!({
+                "error": format!("Không thể kết nối đến Cloud Server để kéo chính sách: {}", e)
+            })),
+        )
+    })?;
+
+    if !res.status().is_success() {
+        return Err((
+            StatusCode::BAD_GATEWAY,
+            Json(serde_json::json!({
+                "error": format!("Máy chủ phản hồi mã lỗi: {}", res.status())
+            })),
+        ));
+    }
+
+    let policy_json: serde_json::Value = res.json().await.map_err(|e| {
+        (
+            StatusCode::BAD_GATEWAY,
+            Json(serde_json::json!({
+                "error": format!("Dữ liệu chính sách từ máy chủ không hợp lệ: {}", e)
+            })),
+        )
+    })?;
+
+    // Cache the policy in storage
+    let policy_str = policy_json.to_string();
+    let _ = state
+        .service
+        .storage()
+        .set_meta("cached_cloud_policy", &policy_str);
+
+    let ver = policy_json
+        .get("version")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(1);
+    let _ = state
+        .service
+        .storage()
+        .set_meta("policy_version", &ver.to_string());
+    let _ = state
+        .service
+        .storage()
+        .set_meta("last_policy_sync", &chrono::Utc::now().to_rfc3339());
+
+    let domains_count = policy_json
+        .get("custom_blocked_domains")
+        .and_then(|v| v.as_array())
+        .map(|a| a.len())
+        .unwrap_or(0);
+
+    // Refresh active DNS sinkhole blocklist
+    sync_dns_blocklist(&state);
+
+    info!(
+        "Successfully pulled latest cloud policy v{} ({} custom domains) for tenant '{}'",
+        ver, domains_count, tenant_id
+    );
+
+    Ok(Json(serde_json::json!({
+        "success": true,
+        "policy_version": ver,
+        "cloud_domains_count": domains_count,
+        "policy": policy_json,
+        "message": format!("Đã kéo và áp dụng thành công Chính sách Cloud v{} ({} tên miền)", ver, domains_count)
+    })))
+}
+
+async fn handle_get_cloud_policy(
+    State(state): State<ServerState>,
+    headers: HeaderMap,
+    Query(query): Query<QueryParams>,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    if !check_auth(&state, &headers, query.token.as_deref()).await {
+        return Err((
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({ "error": "Unauthorized" })),
+        ));
+    }
+
+    if let Ok(Some(cached)) = state.service.storage().get_meta("cached_cloud_policy") {
+        if let Ok(val) = serde_json::from_str::<serde_json::Value>(&cached) {
+            return Ok(Json(val));
+        }
+    }
+
+    Ok(Json(serde_json::json!({
+        "version": 1,
+        "block_adult": false,
+        "block_gambling": false,
+        "block_violence": false,
+        "block_social": false,
+        "block_gaming": false,
+        "safesearch_enabled": false,
+        "youtube_restricted": false,
+        "custom_blocked_domains": []
+    })))
 }
 
 async fn handle_sync_rules_to_cloud(

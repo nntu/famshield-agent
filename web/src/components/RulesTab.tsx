@@ -8,7 +8,10 @@ import {
   FileSpreadsheet,
   FileText,
   Globe,
+  Laptop,
   Plus,
+  RefreshCw,
+  ShieldCheck,
   Smartphone,
   Trash2,
   Upload,
@@ -19,7 +22,8 @@ import type React from 'react';
 import { useMemo, useRef, useState } from 'react';
 import { api } from '../api';
 import { translations } from '../i18n';
-import type { Language, LocalRuleRecord } from '../types';
+import type { CloudPolicyData, Language, LocalRuleRecord } from '../types';
+import { useEffect } from 'react';
 import { DataTable } from './DataTable';
 
 interface RulesTabProps {
@@ -56,8 +60,49 @@ export const RulesTab: React.FC<RulesTabProps> = ({ rules, lang, onRefresh, onSh
   const [importFileName, setImportFileName] = useState('');
   const [isImporting, setIsImporting] = useState(false);
 
+  const [cloudPolicy, setCloudPolicy] = useState<CloudPolicyData | null>(null);
+  const [isPullingCloud, setIsPullingCloud] = useState(false);
+  const [filterOrigin, setFilterOrigin] = useState<'all' | 'cloud' | 'local'>('all');
+
+  useEffect(() => {
+    api.getCloudPolicy().then(setCloudPolicy);
+  }, []);
+
+  const handlePullFromCloud = async () => {
+    try {
+      setIsPullingCloud(true);
+      onShowToast(
+        isVi ? 'Đang kéo chính sách mới nhất từ Cloud Server...' : 'Pulling policy from Cloud Server...',
+        'info'
+      );
+      const res = await api.pullRulesFromCloud();
+      if (res.success) {
+        onShowToast(res.message, 'success');
+        api.getCloudPolicy().then(setCloudPolicy);
+        onRefresh();
+      } else {
+        onShowToast(isVi ? 'Không thể kéo chính sách' : 'Pull failed', 'error');
+      }
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      onShowToast(msg || (isVi ? 'Lỗi kết nối máy chủ' : 'Network error during pull'), 'error');
+    } finally {
+      setIsPullingCloud(false);
+    }
+  };
+
   const domainRules = rules.filter((r) => r.rule_type === 'domain');
   const appRules = rules.filter((r) => r.rule_type === 'application');
+
+  const filteredDomainRules = useMemo(() => {
+    if (filterOrigin === 'cloud') {
+      return domainRules.filter((r) => r.source === 'cloud');
+    }
+    if (filterOrigin === 'local') {
+      return domainRules.filter((r) => r.source !== 'cloud');
+    }
+    return domainRules;
+  }, [domainRules, filterOrigin]);
 
   const handleAddDomain = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -194,6 +239,24 @@ export const RulesTab: React.FC<RulesTabProps> = ({ rules, lang, onRefresh, onSh
         ),
       },
       {
+        accessorKey: 'source',
+        header: isVi ? 'Nguồn Gốc' : 'Origin',
+        cell: ({ row }) => {
+          const isCloud = row.original.source === 'cloud';
+          return isCloud ? (
+            <span className="inline-flex items-center gap-1 bg-sky-50 text-sky-700 border border-sky-200/90 px-2 py-0.5 rounded-full text-2xs font-bold tracking-tight">
+              <Cloud size={11} className="text-sky-600" />
+              <span>{isVi ? 'MÁY CHỦ' : 'CLOUD'}</span>
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-700 border border-slate-200 px-2 py-0.5 rounded-full text-2xs font-semibold tracking-tight">
+              <Laptop size={11} className="text-slate-600" />
+              <span>{isVi ? 'TẠI CHỖ' : 'LOCAL'}</span>
+            </span>
+          );
+        },
+      },
+      {
         accessorKey: 'created_at',
         header: t.th_date_added,
         cell: ({ getValue }) => (
@@ -221,17 +284,34 @@ export const RulesTab: React.FC<RulesTabProps> = ({ rules, lang, onRefresh, onSh
       {
         id: 'actions',
         header: () => <div className="text-right">{t.th_action_col}</div>,
-        cell: ({ row }) => (
-          <div className="text-right">
-            <button
-              onClick={() => handleDeleteRule(row.original.rule_id)}
-              className="text-rose-500 hover:text-rose-700 p-1.5 rounded-md hover:bg-rose-50 cursor-pointer border-0 bg-transparent transition-colors"
-              title={isVi ? 'Xóa quy tắc' : 'Delete rule'}
-            >
-              <Trash2 size={15} />
-            </button>
-          </div>
-        ),
+        cell: ({ row }) => {
+          const isCloud = row.original.source === 'cloud';
+          return (
+            <div className="text-right">
+              {isCloud ? (
+                <span
+                  title={
+                    isVi
+                      ? 'Quy tắc từ Máy chủ Cloud. Để xóa, vui lòng quản trị trên Cloud Console của phụ huynh.'
+                      : 'Managed by Cloud Server. Manage via Parent Cloud Console.'
+                  }
+                  className="text-slate-400 p-1.5 inline-flex items-center text-2xs font-medium cursor-help"
+                >
+                  <ShieldCheck size={14} className="text-sky-500 mr-1" />
+                  <span>{isVi ? 'Từ Server' : 'Cloud'}</span>
+                </span>
+              ) : (
+                <button
+                  onClick={() => handleDeleteRule(row.original.rule_id)}
+                  className="text-rose-500 hover:text-rose-700 p-1.5 rounded-md hover:bg-rose-50 cursor-pointer border-0 bg-transparent transition-colors"
+                  title={isVi ? 'Xóa quy tắc' : 'Delete rule'}
+                >
+                  <Trash2 size={15} />
+                </button>
+              )}
+            </div>
+          );
+        },
       },
     ],
     [t, isVi]
@@ -583,8 +663,81 @@ export const RulesTab: React.FC<RulesTabProps> = ({ rules, lang, onRefresh, onSh
   const previewDomainsCount = previewRules.filter((r) => r.rule_type === 'domain').length;
   const previewAppsCount = previewRules.filter((r) => r.rule_type === 'application').length;
 
+  const cloudDomainCount = domainRules.filter((r) => r.source === 'cloud').length;
+  const localDomainCount = domainRules.filter((r) => r.source !== 'cloud').length;
+
   return (
     <div className="flex flex-col gap-6">
+      {/* 0. CLOUD SERVER POLICY OVERVIEW CARD */}
+      <div className="bg-gradient-to-r from-sky-950 via-slate-900 to-indigo-950 text-white rounded-2xl p-5 sm:p-6 shadow-xs border border-sky-800/40 flex flex-col gap-4">
+        <div className="flex justify-between items-start flex-wrap gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-sky-500/20 border border-sky-400/30 flex items-center justify-center text-sky-300 shrink-0">
+              <Cloud size={22} />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-bold text-base tracking-tight text-white">
+                  {isVi ? 'Chính Sách Bảo Vệ Từ Máy Chủ (Cloud Policy)' : 'Cloud Server Security Policy'}
+                </span>
+                <span className="bg-sky-400/20 text-sky-200 border border-sky-400/30 px-2 py-0.5 rounded-md text-2xs font-mono font-bold">
+                  v{cloudPolicy?.version || 1}
+                </span>
+              </div>
+              <p className="text-xs text-sky-200/80 mt-0.5">
+                {isVi
+                  ? 'Quy tắc lọc web & chặn tên miền tập trung áp xuống từ Cloud Server qua kênh NATS WebSocket'
+                  : 'Centralized web filter policy pushed down from Cloud Server via NATS WebSocket'}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              type="button"
+              onClick={handlePullFromCloud}
+              disabled={isPullingCloud}
+              className="inline-flex items-center gap-1.5 bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold px-3.5 py-2 rounded-xl text-xs cursor-pointer shadow-xs transition-all border-0 disabled:opacity-50"
+            >
+              <RefreshCw size={13} className={isPullingCloud ? 'animate-spin' : ''} />
+              <span>{isVi ? 'Kéo từ Cloud Server' : 'Pull from Cloud'}</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleSyncToCloud}
+              disabled={isSyncingCloud}
+              className="inline-flex items-center gap-1.5 bg-white/10 hover:bg-white/20 text-white font-semibold px-3.5 py-2 rounded-xl text-xs cursor-pointer border border-white/20 transition-all disabled:opacity-50"
+            >
+              <Upload size={13} />
+              <span>{isVi ? 'Đẩy quy tắc lên Cloud' : 'Sync to Cloud'}</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Category Badges */}
+        <div className="flex items-center gap-2 flex-wrap pt-3 border-t border-sky-800/50 text-2xs font-medium">
+          <span className="text-sky-300 font-semibold">{isVi ? 'Danh mục bảo vệ:' : 'Protected categories:'}</span>
+          <span className={`px-2.5 py-1 rounded-lg border ${cloudPolicy?.block_adult ? 'bg-emerald-500/20 text-emerald-200 border-emerald-400/30 font-bold' : 'bg-white/5 text-slate-400 border-white/10'}`}>
+            🔞 {isVi ? 'Người Lớn' : 'Adult'} {cloudPolicy?.block_adult ? '✓' : '✗'}
+          </span>
+          <span className={`px-2.5 py-1 rounded-lg border ${cloudPolicy?.block_gambling ? 'bg-emerald-500/20 text-emerald-200 border-emerald-400/30 font-bold' : 'bg-white/5 text-slate-400 border-white/10'}`}>
+            🎲 {isVi ? 'Cờ Bạc' : 'Gambling'} {cloudPolicy?.block_gambling ? '✓' : '✗'}
+          </span>
+          <span className={`px-2.5 py-1 rounded-lg border ${cloudPolicy?.block_violence ? 'bg-emerald-500/20 text-emerald-200 border-emerald-400/30 font-bold' : 'bg-white/5 text-slate-400 border-white/10'}`}>
+            ⚔️ {isVi ? 'Bạo Lực' : 'Violence'} {cloudPolicy?.block_violence ? '✓' : '✗'}
+          </span>
+          <span className={`px-2.5 py-1 rounded-lg border ${cloudPolicy?.block_social ? 'bg-emerald-500/20 text-emerald-200 border-emerald-400/30 font-bold' : 'bg-white/5 text-slate-400 border-white/10'}`}>
+            💬 {isVi ? 'Mạng Xã Hội' : 'Social'} {cloudPolicy?.block_social ? '✓' : '✗'}
+          </span>
+          <span className={`px-2.5 py-1 rounded-lg border ${cloudPolicy?.block_gaming ? 'bg-emerald-500/20 text-emerald-200 border-emerald-400/30 font-bold' : 'bg-white/5 text-slate-400 border-white/10'}`}>
+            🎮 {isVi ? 'Game' : 'Gaming'} {cloudPolicy?.block_gaming ? '✓' : '✗'}
+          </span>
+          <span className={`px-2.5 py-1 rounded-lg border ${cloudPolicy?.safesearch_enabled ? 'bg-emerald-500/20 text-emerald-200 border-emerald-400/30 font-bold' : 'bg-white/5 text-slate-400 border-white/10'}`}>
+            🔍 SafeSearch {cloudPolicy?.safesearch_enabled ? '✓' : '✗'}
+          </span>
+        </div>
+      </div>
+
       {/* 1. EXCEL IMPORT / EXPORT ACTION BAR */}
       <div className="bg-white border border-slate-200/80 rounded-2xl p-5 sm:p-6 flex items-center justify-between flex-wrap gap-4 shadow-xs">
         <div className="flex items-center gap-3.5">

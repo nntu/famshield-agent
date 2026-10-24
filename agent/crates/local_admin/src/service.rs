@@ -488,6 +488,7 @@ impl LocalAdminService {
             enabled: req.enabled,
             created_at: now,
             updated_at: now,
+            source: "local".to_string(),
         };
 
         self.storage.upsert_local_rule(&record)?;
@@ -509,6 +510,7 @@ impl LocalAdminService {
                 enabled: req.enabled,
                 created_at: now,
                 updated_at: now,
+                source: "local".to_string(),
             };
             self.storage.upsert_local_rule(&record)?;
             count += 1;

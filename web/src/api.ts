@@ -3,6 +3,7 @@ import type {
   AppUsageSummary,
   BackupPayload,
   CaptureBlurConfig,
+  CloudPolicyData,
   DnsConfigResponse,
   DnsRetentionConfig,
   DomainQuerySummary,
@@ -178,6 +179,28 @@ export const api = {
       '/api/rules/sync-to-cloud',
       { method: 'POST' }
     );
+  },
+
+  async pullRulesFromCloud(): Promise<{
+    success: boolean;
+    policy_version: number;
+    cloud_domains_count: number;
+    message: string;
+  }> {
+    return apiRequest<{
+      success: boolean;
+      policy_version: number;
+      cloud_domains_count: number;
+      message: string;
+    }>('/api/rules/pull-from-cloud', { method: 'POST' });
+  },
+
+  async getCloudPolicy(): Promise<CloudPolicyData | null> {
+    try {
+      return await apiRequest<CloudPolicyData>('/api/policy/cloud');
+    } catch {
+      return null;
+    }
   },
 
   async getDnsSummary(

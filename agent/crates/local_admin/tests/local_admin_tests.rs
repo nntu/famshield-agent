@@ -1109,6 +1109,7 @@ async fn test_sync_rules_to_cloud_endpoint() {
             enabled: true,
             created_at: Utc::now(),
             updated_at: Utc::now(),
+            source: "local".to_string(),
         })
         .unwrap();
 

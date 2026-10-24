@@ -26,6 +26,22 @@ export interface LocalRuleRecord {
   enabled: boolean;
   created_at: string;
   updated_at: string;
+  source?: 'local' | 'cloud';
+}
+
+export interface CloudPolicyData {
+  version: number;
+  block_adult: boolean;
+  block_gambling: boolean;
+  block_violence: boolean;
+  block_social: boolean;
+  block_gaming: boolean;
+  safesearch_enabled: boolean;
+  youtube_restricted: boolean;
+  silent_mode?: boolean;
+  custom_blocked_domains?: string[];
+  custom_allowed_domains?: string[];
+  updated_at?: string;
 }
 
 export interface QueryLogRecord {

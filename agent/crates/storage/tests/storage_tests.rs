@@ -28,6 +28,7 @@ fn test_storage_local_rules_crud() {
         rule_type: "application".into(),
         payload: "{}".into(),
         enabled: true,
+        source: "local".into(),
         created_at: Utc::now(),
         updated_at: Utc::now(),
     };

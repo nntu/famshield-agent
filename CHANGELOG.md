@@ -9,6 +9,16 @@ Tất cả các thay đổi quan trọng của dự án **FamShield Windows Agen
 ## [Unreleased]
 
 ### Added
+- **Phân Biệt Nguồn Gốc Chính Sách Chặn Máy Chủ Đám Mây & Cục Bộ Tại Chỗ (`famshield-storage`, `famshield-sync`, `famshield-local-admin`, `web`)**:
+  - **Trường metadata nguồn gốc `source`**: Bổ sung trường `source: "local" | "cloud"` trong schema `LocalRuleRecord` SQLite và REST API `/api/rules`, mặc định quy định `"local"` cho các quy tắc do phụ huynh thiết lập tại máy trạm và `"cloud"` cho các quy tắc do quản trị viên máy chủ áp xuống từ Cloud Server.
+  - **Bộ nhớ đệm chính sách đám mây (`cached_cloud_policy`)**: Lưu trữ toàn bộ cấu trúc `WebFilterPolicy` nhận từ NATS/Cloud Server vào `agent_meta`, hợp nhất tự động các tên miền chặn tùy chỉnh (`custom_blocked_domains`) từ đám mây vào bộ lọc DNS sinkhole runtime song song với các quy tắc cục bộ.
+  - **REST API Endpoints**:
+    - `GET /api/policy/cloud`: Truy xuất dữ liệu chính sách đám mây hiện hành (các hạng mục danh mục adult, gambling, violence, social, gaming, safesearch, youtube restriction, số lượng tên miền chặn/cho phép, phiên bản chính sách).
+    - `POST /api/rules/pull-from-cloud`: Cho phép người dùng hoặc quản trị viên chủ động kéo và áp đặt tức thì chính sách mới nhất từ Cloud Server về máy trạm mà không cần chờ chu kỳ đồng bộ định kỳ.
+  - **Giao diện Web Dashboard Quản Lý Quy Tắc (`RulesTab.tsx`)**:
+    - **Thẻ Tổng Quan Chính Sách Máy Chủ (Cloud Policy Banner)**: Hiển thị trạng thái phân loại danh mục bảo vệ tập trung (Người lớn, Cờ bạc, Bạo lực, Mạng xã hội, Game, SafeSearch, YouTube Restricted) kèm phiên bản chính sách và hai nút hành động: "Kéo từ Cloud Server" và "Đẩy quy tắc lên Cloud".
+    - **Huy Hiệu Nhận Diện Rõ Ràng (Source Badges)**: Cột "Nguồn Gốc" phân biệt trực quan giữa huy hiệu tím `☁️ MÁY CHỦ` (kèm biểu tượng ổ khóa bảo vệ "Quản trị tập trung từ Cloud Console") và huy hiệu xanh lục `💻 TẠI CHỖ` (cho phép bật/tắt hoặc xóa ngay tại máy).
+    - **Bộ Lọc Phân Loại Nguồn (Source Filter Tabs)**: Cho phép phụ huynh dễ dàng lọc hiển thị: `Tất Cả`, `☁️ Từ Máy Chủ` hoặc `💻 Tạo Tại Chỗ`.
 - **Định Danh Phần Cứng & Phương Án Chống Trùng Lặp Tên Máy Tính (`famshield-windows::identity`, `famshield-sync`, `web`)**:
   - **Trích xuất chữ ký máy trạm Windows MachineGuid (`get_machine_guid`)**: Đọc trực tiếp từ khóa Registry `HKLM\SOFTWARE\Microsoft\Cryptography\MachineGuid` (UUID cố định độc nhất cho từng bản cài đặt Windows), lưu trữ bền vững vào `agent_meta.machine_guid` làm định danh máy trạm bất biến qua mọi lần khởi động lại và đổi mạng.
   - **Cơ chế tự động sinh tên chống trùng lặp (`get_disambiguated_device_name`)**: Khi phụ huynh chưa đặt tên riêng cho máy, hệ thống tự động gắn 4 ký tự hex cuối cùng của `MachineGuid` vào tên máy tính (`format!("{base} ({suffix})")`, ví dụ `DESKTOP-FAMSHIELD (688F)` và `DESKTOP-FAMSHIELD (9B12)`), triệt tiêu hoàn toàn nguy cơ trùng tên khi triển khai cho nhiều con cái hoặc cài đặt Windows theo image/ghost chung.
