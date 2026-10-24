@@ -200,23 +200,8 @@ impl ServiceController {
             .get_meta("nats_url")
             .ok()
             .flatten()
-            .unwrap_or_else(|| {
-                if server_url.starts_with("https://") {
-                    let host = server_url
-                        .trim_start_matches("https://")
-                        .trim_end_matches('/');
-                    format!("wss://{}/nats", host)
-                } else if server_url.starts_with("http://") {
-                    let host = server_url
-                        .trim_start_matches("http://")
-                        .split(':')
-                        .next()
-                        .unwrap_or("127.0.0.1");
-                    format!("ws://{}:9222", host)
-                } else {
-                    "wss://famshield.ttcantho.io.vn/nats".to_string()
-                }
-            });
+            .map(|u| famshield_core::normalize_nats_url(&u))
+            .unwrap_or_else(|| famshield_core::normalize_nats_url(&server_url));
 
         let nats_worker = Arc::new(NatsConnectionWorker::new(
             device_id,

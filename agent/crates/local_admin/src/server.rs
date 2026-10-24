@@ -4277,21 +4277,17 @@ fn get_latest_service_log_path() -> Option<(std::path::PathBuf, String)> {
 }
 
 fn resolve_nats_url_from_storage(storage: &famshield_storage::StorageEngine) -> String {
+    if let Ok(Some(nats_url)) = storage.get_meta("nats_url") {
+        let trimmed = nats_url.trim();
+        if !trimmed.is_empty() {
+            return famshield_core::normalize_nats_url(trimmed);
+        }
+    }
+
     if let Ok(Some(server_url)) = storage.get_meta("server_url") {
-        let trimmed = server_url.trim().to_string();
-
-        if trimmed.starts_with("https://") {
-            let host = trimmed.trim_start_matches("https://").trim_end_matches('/');
-
-            return format!("wss://{}/nats", host);
-        } else if trimmed.starts_with("http://") {
-            let host = trimmed
-                .trim_start_matches("http://")
-                .split(':')
-                .next()
-                .unwrap_or("127.0.0.1");
-
-            return format!("ws://{}:9222", host);
+        let trimmed = server_url.trim();
+        if !trimmed.is_empty() {
+            return famshield_core::normalize_nats_url(trimmed);
         }
     }
 

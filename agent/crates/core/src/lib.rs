@@ -6,6 +6,7 @@ pub mod hex;
 pub mod keyword;
 pub mod policy;
 pub mod traits;
+pub mod url;
 pub mod version;
 pub mod vietnamese;
 
@@ -23,5 +24,6 @@ pub use keyword::{
 };
 pub use policy::Policy;
 pub use traits::{Clock, MockClock, SystemClock};
+pub use url::normalize_nats_url;
 pub use version::is_newer_version;
 pub use vietnamese::{canonical_vietnamese, decode_telex, decode_vni, is_word_boundary};

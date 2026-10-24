@@ -45,26 +45,18 @@ impl NatsConnectionWorker {
     /// Resolve NATS URL dynamically from storage (handles runtime enrollment / URL changes)
     fn get_nats_url(&self) -> String {
         if let Ok(Some(url)) = self.storage.get_meta("nats_url") {
-            let trimmed = url.trim().to_string();
+            let trimmed = url.trim();
             if !trimmed.is_empty() {
-                return trimmed;
+                return famshield_core::normalize_nats_url(trimmed);
             }
         }
         if let Ok(Some(server_url)) = self.storage.get_meta("server_url") {
-            let trimmed = server_url.trim().to_string();
-            if trimmed.starts_with("https://") {
-                let host = trimmed.trim_start_matches("https://").trim_end_matches('/');
-                return format!("wss://{}/nats", host);
-            } else if trimmed.starts_with("http://") {
-                let host = trimmed
-                    .trim_start_matches("http://")
-                    .split(':')
-                    .next()
-                    .unwrap_or("127.0.0.1");
-                return format!("ws://{}:9222", host);
+            let trimmed = server_url.trim();
+            if !trimmed.is_empty() {
+                return famshield_core::normalize_nats_url(trimmed);
             }
         }
-        self.nats_url.clone()
+        famshield_core::normalize_nats_url(&self.nats_url)
     }
 
     /// Run the persistent NATS subscription worker loop until shutdown signal.
