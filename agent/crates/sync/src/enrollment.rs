@@ -138,6 +138,10 @@ impl EnrollmentManager {
         self.storage.set_meta(META_ENROLLED_DEVICE_ID, "")?;
         self.storage
             .set_meta(META_ENROLLED_TENANT_ID, &resp.tenant_id)?;
+        self.storage.set_meta("device_name", &req.device_name)?;
+        if let Some(guid) = famshield_windows::get_machine_guid() {
+            let _ = self.storage.set_meta("machine_guid", &guid);
+        }
         self.storage
             .set_meta(META_ENROLLED_CERT_PEM, &resp.client_certificate_pem)?;
         self.storage

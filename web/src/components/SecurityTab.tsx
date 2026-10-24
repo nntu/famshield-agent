@@ -1445,6 +1445,9 @@ export const SecurityTab: React.FC<SecurityTabProps> = ({
                   outline: 'none',
                 }}
               />
+              <span style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: 5, display: 'block' }}>
+                Định dạng chuẩn: tenant-usr-&lt;id&gt;. Tự động cập nhật khi ghép nối với máy chủ.
+              </span>
             </div>
 
             <div>
@@ -1475,6 +1478,9 @@ export const SecurityTab: React.FC<SecurityTabProps> = ({
                   outline: 'none',
                 }}
               />
+              <span style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: 5, display: 'block' }}>
+                Tên hiển thị nhận diện máy tính. Tự động gắn hậu tố Machine GUID chống trùng lặp tên.
+              </span>
             </div>
           </div>
 

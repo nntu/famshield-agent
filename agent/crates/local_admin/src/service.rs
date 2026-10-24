@@ -640,11 +640,10 @@ impl LocalAdminService {
             .filter(|s| !s.is_empty())
             .unwrap_or_else(|| "tenant-default".to_string());
 
-        let device_name = self
-            .storage
-            .get_meta("device_name")?
-            .filter(|s| !s.is_empty())
-            .unwrap_or_else(|| "DESKTOP-FAMSHIELD".to_string());
+        let custom_device_name = self.storage.get_meta("device_name")?;
+        let device_name = famshield_windows::get_disambiguated_device_name(
+            custom_device_name.as_deref().filter(|s| !s.is_empty()),
+        );
 
         let enrollment_code = self
             .storage

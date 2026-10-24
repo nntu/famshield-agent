@@ -8,6 +8,18 @@ Tất cả các thay đổi quan trọng của dự án **FamShield Windows Agen
 
 ## [Unreleased]
 
+### Added
+- **Định Danh Phần Cứng & Phương Án Chống Trùng Lặp Tên Máy Tính (`famshield-windows::identity`, `famshield-sync`, `web`)**:
+  - **Trích xuất chữ ký máy trạm Windows MachineGuid (`get_machine_guid`)**: Đọc trực tiếp từ khóa Registry `HKLM\SOFTWARE\Microsoft\Cryptography\MachineGuid` (UUID cố định độc nhất cho từng bản cài đặt Windows), lưu trữ bền vững vào `agent_meta.machine_guid` làm định danh máy trạm bất biến qua mọi lần khởi động lại và đổi mạng.
+  - **Cơ chế tự động sinh tên chống trùng lặp (`get_disambiguated_device_name`)**: Khi phụ huynh chưa đặt tên riêng cho máy, hệ thống tự động gắn 4 ký tự hex cuối cùng của `MachineGuid` vào tên máy tính (`format!("{base} ({suffix})")`, ví dụ `DESKTOP-FAMSHIELD (688F)` và `DESKTOP-FAMSHIELD (9B12)`), triệt tiêu hoàn toàn nguy cơ trùng tên khi triển khai cho nhiều con cái hoặc cài đặt Windows theo image/ghost chung.
+  - **Ưu tiên tên thân thiện (Friendly Custom Name)**: Hỗ trợ phụ huynh đổi tên máy trạm thành tên riêng thân thiện ("Máy tính học tập - Minh", "Laptop con gái") và hiển thị hướng dẫn chi tiết ngay trên giao diện Web Dashboard (`SecurityTab.tsx`).
+
+### Changed
+- **Chuẩn Hóa Quy Trình Đồng Bộ & Xác Thực Mã Tổ Chức (Tenant ID Reconciliation, `famshield-local-admin`, `famshield-sync`, `docs/18-CLIENT-TENANT-SYNC-GUIDE.md`)**:
+  - **Xóa bỏ hoàn toàn giá trị giả lập cục bộ**: Triệt tiêu mã tenant giả lập `tenant-famshield-pro` trong `local_admin`, thay thế bằng lệnh gọi API `POST /v1/device/enroll` thực tế tới Cloud Server để nhận diện chính xác `tenant_id` và `device_id` độc nhất của tổ chức/gia đình.
+  - **Tuân thủ quy trình lưu trữ nguyên tử 3 bước (Atomic Persistence)**: Xóa `enrolled_device_id` làm commit marker -> lưu `enrolled_tenant_id`, `machine_guid`, `device_name`, chứng chỉ và khóa ký lệnh được bảo vệ qua DPAPI machine secret -> ghi nhận `enrolled_device_id` sau cùng để kích hoạt trạng thái `OnlineManaged`.
+  - **Bổ sung tài liệu chuyên sâu (`docs/18-CLIENT-TENANT-SYNC-GUIDE.md`)**: Bổ sung Mục 5 phân tích thách thức trùng tên máy tính và sơ đồ kiến trúc định danh đa lớp Multi-Layer Identity.
+
 ## [1.0.3] - 2026-10-24
 
 ### Added

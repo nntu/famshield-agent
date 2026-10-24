@@ -210,8 +210,13 @@ impl TelemetrySyncWorker {
                 if code.len() == 6 {
                     let enroll_manager =
                         crate::EnrollmentManager::new(self.storage.clone(), client.base_url());
+                    let custom_name = self.storage.get_meta("device_name").ok().flatten();
                     let device_name =
-                        std::env::var("COMPUTERNAME").unwrap_or_else(|_| "Windows-PC".to_string());
+                        famshield_windows::get_disambiguated_device_name(custom_name.as_deref());
+                    let _ = self.storage.set_meta("device_name", &device_name);
+                    if let Some(guid) = famshield_windows::get_machine_guid() {
+                        let _ = self.storage.set_meta("machine_guid", &guid);
+                    }
                     let req = crate::EnrollmentRequest {
                         enrollment_code: code.to_string(),
                         device_name,
