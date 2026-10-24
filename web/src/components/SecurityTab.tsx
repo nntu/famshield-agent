@@ -19,6 +19,7 @@ import {
   RefreshCw,
   Server,
   ShieldAlert,
+  Sliders,
   ShieldCheck,
   Smartphone,
   Trash2,
@@ -38,6 +39,7 @@ import type {
   KeywordRule,
   Language,
   ServerConfig,
+  SystemSettings,
   StatusResponse,
   TotpSetupResponse,
   TotpStatusResponse,
@@ -69,6 +71,9 @@ export const SecurityTab: React.FC<SecurityTabProps> = ({
   // Centralized Server Config State
   const [serverConfig, setServerConfig] = useState<ServerConfig | null>(null);
   const [serverUrl, setServerUrl] = useState('https://famshield.ttcantho.io.vn');
+  const [versionCheckUrl, setVersionCheckUrl] = useState('');
+  const [showUrlSettings, setShowUrlSettings] = useState(false);
+  const [isUpdatingUrls, setIsUpdatingUrls] = useState(false);
   const [tenantId, setTenantId] = useState('tenant-default');
   const [deviceName, setDeviceName] = useState('DESKTOP-FAMSHIELD');
   const [enrollCode, setEnrollCode] = useState('');
@@ -135,6 +140,9 @@ export const SecurityTab: React.FC<SecurityTabProps> = ({
     release_date?: string;
     changelog?: string[];
     download_url?: string;
+    check_url?: string;
+    sha256?: string;
+    channel?: string;
     message?: string;
   } | null>(null);
   const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
@@ -314,9 +322,49 @@ export const SecurityTab: React.FC<SecurityTabProps> = ({
     }
   };
 
+
+  const [systemSettings, setSystemSettings] = useState<SystemSettings | null>(null);
+  const [isLoadingSettings, setIsLoadingSettings] = useState(false);
+  const [isSavingSettings, setIsSavingSettings] = useState(false);
+
+  const fetchSystemSettings = async () => {
+    setIsLoadingSettings(true);
+    try {
+      const s = await api.getSystemSettings();
+      setSystemSettings(s);
+    } catch {
+      // ignore
+    } finally {
+      setIsLoadingSettings(false);
+    }
+  };
+
+  const handleSaveSystemSettings = async () => {
+    if (!systemSettings) return;
+    setIsSavingSettings(true);
+    try {
+      const updated = await api.updateSystemSettings(systemSettings);
+      setSystemSettings(updated);
+      onShowToast(
+        isVi
+          ? 'Đã cập nhật các tham số hệ thống thành công!'
+          : 'System parameters updated successfully!',
+        'success'
+      );
+    } catch (err: any) {
+      onShowToast(
+        err?.message || (isVi ? 'Không thể lưu tham số hệ thống' : 'Failed to save system parameters'),
+        'error'
+      );
+    } finally {
+      setIsSavingSettings(false);
+    }
+  };
+
   // Fetch current configs on mount
   useEffect(() => {
     fetchServerConfig();
+    fetchSystemSettings();
     fetchKeywordConfig();
     fetchDnsConfig();
     fetchTotpStatus();
@@ -415,6 +463,7 @@ export const SecurityTab: React.FC<SecurityTabProps> = ({
       const cfg = await api.getServerConfig();
       setServerConfig(cfg);
       setServerUrl(cfg.server_url || 'https://famshield.ttcantho.io.vn');
+      setVersionCheckUrl(cfg.version_check_url || '');
       setTenantId(cfg.tenant_id || 'tenant-default');
       setDeviceName(cfg.device_name || 'DESKTOP-FAMSHIELD');
       setEnrollCode(cfg.enrollment_code || '');
@@ -515,6 +564,28 @@ export const SecurityTab: React.FC<SecurityTabProps> = ({
     }
   };
 
+  const handleUpdateCustomUrls = async () => {
+    if (!serverUrl) {
+      onShowToast(isVi ? 'URL máy chủ không được để trống' : 'Server URL cannot be empty', 'error');
+      return;
+    }
+    setIsUpdatingUrls(true);
+    try {
+      const res = await api.updateServerUrl(serverUrl.trim(), versionCheckUrl.trim() || undefined);
+      onShowToast(
+        res.message || (isVi ? 'Đã cập nhật URL máy chủ thành công!' : 'Server URL updated successfully!'),
+        'success'
+      );
+      setShowUrlSettings(false);
+      await fetchServerConfig();
+      await handleCheckUpdate();
+    } catch (err: any) {
+      onShowToast(err?.message || (isVi ? 'Lỗi cập nhật URL máy chủ' : 'Failed to update URL'), 'error');
+    } finally {
+      setIsUpdatingUrls(false);
+    }
+  };
+
   const handleSaveServerConfig = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!serverUrl) {
@@ -526,6 +597,7 @@ export const SecurityTab: React.FC<SecurityTabProps> = ({
     try {
       const updated = await api.updateServerConfig({
         server_url: serverUrl.trim(),
+        version_check_url: versionCheckUrl.trim() || undefined,
         tenant_id: tenantId.trim(),
         device_name: deviceName.trim(),
         enrollment_code: enrollCode.trim() || undefined,
@@ -1301,6 +1373,41 @@ export const SecurityTab: React.FC<SecurityTabProps> = ({
               }}
             />
           </div>
+
+          {/* Version Check URL (Optional / Custom) */}
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <label
+                style={{
+                  fontSize: '0.85rem',
+                  color: '#cbd5e1',
+                  fontWeight: 600,
+                }}
+              >
+                {isVi ? 'URL Kiểm Tra Bản Cập Nhật (Tùy Chọn):' : 'Version Check URL (Optional):'}
+              </label>
+              <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>
+                {isVi ? 'Mặc định: Tự động theo URL Máy Chủ' : 'Default: Auto-derived from Server URL'}
+              </span>
+            </div>
+            <input
+              type="text"
+              value={versionCheckUrl}
+              onChange={(e) => setVersionCheckUrl(e.target.value)}
+              placeholder={isVi ? 'Để trống để tự động sinh từ URL Máy Chủ' : 'Leave empty to auto-derive from Server URL'}
+              style={{
+                width: '100%',
+                background: '#070b14',
+                border: '1px solid #334155',
+                color: '#fff',
+                padding: '11px 14px',
+                borderRadius: 10,
+                fontSize: '0.9rem',
+                outline: 'none',
+              }}
+            />
+          </div>
+
 
           {/* Grid: Tenant ID & Device Name */}
           <div
@@ -3229,7 +3336,7 @@ export const SecurityTab: React.FC<SecurityTabProps> = ({
                   border: updateInfo?.update_available ? '1px solid #f59e0b40' : '1px solid #10b98140',
                 }}
               >
-                v{updateInfo?.current_version || '1.0.0'}
+                v{updateInfo?.current_version || '1.0.3'}
               </span>
             </div>
             <p style={{ fontSize: '0.85rem', color: '#94a3b8', margin: 0, maxWidth: 650 }}>
@@ -3268,6 +3375,29 @@ export const SecurityTab: React.FC<SecurityTabProps> = ({
                 : isVi ? 'Kiểm Tra Bản Mới' : 'Check for Updates'}
             </button>
 
+            <button
+              type="button"
+              onClick={() => setShowUrlSettings(!showUrlSettings)}
+              style={{
+                background: showUrlSettings ? '#0284c7' : '#1e293b',
+                color: showUrlSettings ? '#ffffff' : '#94a3b8',
+                border: '1px solid #334155',
+                borderRadius: 8,
+                padding: '9px 14px',
+                fontSize: '0.85rem',
+                fontWeight: 600,
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                transition: 'all 0.2s',
+              }}
+              title={isVi ? 'Đổi URL máy chủ hoặc tùy chỉnh URL kiểm tra bản mới' : 'Change server URL or custom update endpoints'}
+            >
+              <Globe size={15} />
+              <span>{isVi ? 'Đổi URL Server' : 'Change Server URL'}</span>
+            </button>
+
             {updateInfo?.update_available && (
               <a
                 href={updateInfo.download_url || 'https://famshield.ttcantho.io.vn/download/latest'}
@@ -3294,6 +3424,241 @@ export const SecurityTab: React.FC<SecurityTabProps> = ({
           </div>
         </div>
 
+        {/* Collapsible Dynamic Server & Update URL Configuration Drawer */}
+        {showUrlSettings && (
+          <div
+            style={{
+              marginTop: 16,
+              marginBottom: 16,
+              padding: '16px 20px',
+              borderRadius: 12,
+              background: 'rgba(15, 23, 42, 0.95)',
+              border: '1px solid rgba(56, 189, 248, 0.35)',
+              boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.5)',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, flexWrap: 'wrap', gap: 8 }}>
+              <span style={{ fontSize: '0.9rem', fontWeight: 700, color: '#38bdf8', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Server size={16} />
+                {isVi ? 'Cấu Hình Động URL Máy Chủ & Bản Cập Nhật:' : 'Dynamic Server & Update URL Configuration:'}
+              </span>
+              <span
+                style={{
+                  fontSize: '0.72rem',
+                  padding: '2px 8px',
+                  borderRadius: 4,
+                  background: serverConfig?.operating_mode === 'OnlineManaged' ? 'rgba(74, 222, 128, 0.15)' : 'rgba(56, 189, 248, 0.15)',
+                  color: serverConfig?.operating_mode === 'OnlineManaged' ? '#4ade80' : '#38bdf8',
+                  border: `1px solid ${serverConfig?.operating_mode === 'OnlineManaged' ? 'rgba(74, 222, 128, 0.3)' : 'rgba(56, 189, 248, 0.3)'}`,
+                  fontWeight: 600,
+                }}
+              >
+                {serverConfig?.operating_mode === 'OnlineManaged'
+                  ? (isVi ? 'Chế độ: Bản Server (Online Managed)' : 'Mode: Server Managed')
+                  : (isVi ? 'Chế độ: Bản Standalone (Độc lập)' : 'Mode: Standalone Free')}
+              </span>
+            </div>
+
+            <p style={{ fontSize: '0.78rem', color: '#94a3b8', margin: '0 0 12px 0', lineHeight: 1.5 }}>
+              {isVi
+                ? (serverConfig?.operating_mode === 'OnlineManaged'
+                    ? 'Bản Server: URL kiểm tra phiên bản tự động điều chỉnh theo địa chỉ máy chủ (cú pháp <server_url>/version.json). Bạn có thể đổi URL server hoặc nhập URL tùy chỉnh.'
+                    : 'Bản Standalone: Mặc định kiểm tra bản mới qua https://famshield.ttcantho.io.vn/version.json. Bạn có thể nhập URL tùy chỉnh nếu tự lưu trữ file version.json.')
+                : (serverConfig?.operating_mode === 'OnlineManaged'
+                    ? 'Server Managed: Version check URL automatically tracks the server address (<server_url>/version.json).'
+                    : 'Standalone Free: Defaults to https://famshield.ttcantho.io.vn/version.json. Custom endpoints supported.')}
+            </p>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 12, marginBottom: 14 }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.75rem', color: '#cbd5e1', fontWeight: 600, marginBottom: 4 }}>
+                  {isVi ? 'URL Máy Chủ (Server URL):' : 'Server URL:'}
+                </label>
+                <input
+                  type="text"
+                  value={serverUrl}
+                  onChange={(e) => {
+                    const newServer = e.target.value;
+                    setServerUrl(newServer);
+                    if (serverConfig?.operating_mode === 'OnlineManaged' && (!versionCheckUrl || versionCheckUrl.endsWith('/version.json'))) {
+                      const trimmed = newServer.trim().replace(/\/+$/, '');
+                      if (trimmed) {
+                        setVersionCheckUrl(`${trimmed}/version.json`);
+                      }
+                    }
+                  }}
+                  placeholder="https://famshield.ttcantho.io.vn"
+                  style={{
+                    width: '100%',
+                    background: '#070b14',
+                    border: '1px solid #334155',
+                    color: '#fff',
+                    padding: '8px 12px',
+                    borderRadius: 8,
+                    fontSize: '0.85rem',
+                    outline: 'none',
+                    boxSizing: 'border-box',
+                  }}
+                />
+              </div>
+
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                  <label style={{ fontSize: '0.75rem', color: '#cbd5e1', fontWeight: 600 }}>
+                    {isVi ? 'URL Kiểm Tra Bản Mới (Version Check URL):' : 'Version Check URL:'}
+                  </label>
+                  <span style={{ fontSize: '0.7rem', color: '#38bdf8', fontStyle: 'italic' }}>
+                    {versionCheckUrl ? (isVi ? 'Tùy chỉnh' : 'Custom') : (isVi ? 'Tự động theo chế độ' : 'Auto by mode')}
+                  </span>
+                </div>
+                <input
+                  type="text"
+                  value={versionCheckUrl}
+                  onChange={(e) => setVersionCheckUrl(e.target.value)}
+                  placeholder={
+                    serverConfig?.operating_mode === 'OnlineManaged'
+                      ? (serverUrl ? `${serverUrl.trim().replace(/\/+$/, '')}/version.json` : 'https://famshield.ttcantho.io.vn/version.json')
+                      : 'https://famshield.ttcantho.io.vn/version.json'
+                  }
+                  style={{
+                    width: '100%',
+                    background: '#070b14',
+                    border: '1px solid #334155',
+                    color: '#fff',
+                    padding: '8px 12px',
+                    borderRadius: 8,
+                    fontSize: '0.85rem',
+                    outline: 'none',
+                    boxSizing: 'border-box',
+                  }}
+                />
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const base = (serverUrl || 'https://famshield.ttcantho.io.vn').trim().replace(/\/+$/, '');
+                    if (serverConfig?.operating_mode === 'OnlineManaged') {
+                      setVersionCheckUrl(`${base}/version.json`);
+                    } else {
+                      setVersionCheckUrl('https://famshield.ttcantho.io.vn/version.json');
+                    }
+                  }}
+                  style={{
+                    background: '#1e293b',
+                    color: '#38bdf8',
+                    border: '1px solid #334155',
+                    padding: '4px 10px',
+                    borderRadius: 6,
+                    fontSize: '0.75rem',
+                    cursor: 'pointer',
+                  }}
+                  title={isVi ? 'Cú pháp chuẩn <url>/version.json' : 'Standard <url>/version.json syntax'}
+                >
+                  {serverConfig?.operating_mode === 'OnlineManaged'
+                    ? (isVi ? 'Tự Động Theo Server (/version.json)' : 'Auto by Server (/version.json)')
+                    : (isVi ? 'Mặc Định Standalone (version.json)' : 'Default Standalone (version.json)')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setVersionCheckUrl('');
+                  }}
+                  style={{
+                    background: '#1e293b',
+                    color: '#a78bfa',
+                    border: '1px solid #334155',
+                    padding: '4px 10px',
+                    borderRadius: 6,
+                    fontSize: '0.75rem',
+                    cursor: 'pointer',
+                  }}
+                  title={isVi ? 'Xóa tùy chỉnh để hệ thống tự động nhận diện theo chế độ' : 'Clear custom URL'}
+                >
+                  {isVi ? 'Tự Động (Auto)' : 'Auto'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setServerUrl('https://famshield.ttcantho.io.vn');
+                    setVersionCheckUrl('https://famshield.ttcantho.io.vn/version.json');
+                  }}
+                  style={{
+                    background: '#1e293b',
+                    color: '#cbd5e1',
+                    border: '1px solid #334155',
+                    padding: '4px 10px',
+                    borderRadius: 6,
+                    fontSize: '0.75rem',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Cloud Edge
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setServerUrl('http://127.0.0.1:8080');
+                    setVersionCheckUrl('http://127.0.0.1:8080/version.json');
+                  }}
+                  style={{
+                    background: '#1e293b',
+                    color: '#cbd5e1',
+                    border: '1px solid #334155',
+                    padding: '4px 10px',
+                    borderRadius: 6,
+                    fontSize: '0.75rem',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Local Server (:8080)
+                </button>
+              </div>
+
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  type="button"
+                  onClick={() => setShowUrlSettings(false)}
+                  style={{
+                    background: 'transparent',
+                    color: '#94a3b8',
+                    border: 'none',
+                    padding: '6px 12px',
+                    fontSize: '0.8rem',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {isVi ? 'Đóng' : 'Close'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleUpdateCustomUrls}
+                  disabled={isUpdatingUrls}
+                  style={{
+                    background: 'var(--accent)',
+                    color: '#fff',
+                    border: 'none',
+                    padding: '6px 16px',
+                    borderRadius: 8,
+                    fontSize: '0.8rem',
+                    fontWeight: 700,
+                    cursor: isUpdatingUrls ? 'not-allowed' : 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                  }}
+                >
+                  {isUpdatingUrls ? <RefreshCw size={12} className="animate-spin" /> : <Check size={12} />}
+                  <span>{isVi ? 'Lưu & Kiểm Tra Ngay' : 'Save & Check Now'}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {updateInfo?.update_available && (
           <div
             style={{
@@ -3307,7 +3672,20 @@ export const SecurityTab: React.FC<SecurityTabProps> = ({
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, marginBottom: 10 }}>
               <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#38bdf8', display: 'flex', alignItems: 'center', gap: 8 }}>
                 <Download size={16} />
-                {isVi ? 'Hướng Dẫn Nâng Cấp Bằng Tay (Manual Install):' : 'Manual Install Instructions:'}
+                {updateInfo.release_date && (
+                <div style={{ fontSize: '0.75rem', color: '#94a3b8', marginBottom: 8 }}>
+                  <span>{isVi ? '📅 Ngày phát hành: ' : '📅 Released: '}</span>
+                  <strong style={{ color: '#cbd5e1' }}>{updateInfo.release_date}</strong>
+                  {updateInfo.check_url && (
+                    <span style={{ marginLeft: 12 }}>
+                      {isVi ? '📡 Nguồn: ' : '📡 Source: '}
+                      <code style={{ background: '#070b14', padding: '2px 6px', borderRadius: 4, color: '#38bdf8' }}>{updateInfo.check_url}</code>
+                    </span>
+                  )}
+                </div>
+              )}
+              
+              {isVi ? 'Hướng Dẫn Nâng Cấp Bằng Tay (Manual Install):' : 'Manual Install Instructions:'}
               </div>
               <a
                 href={updateInfo.download_url || 'https://famshield.ttcantho.io.vn/download/latest'}
@@ -3360,6 +3738,367 @@ export const SecurityTab: React.FC<SecurityTabProps> = ({
         {updateCheckError && (
           <div style={{ marginTop: 12, fontSize: '0.8rem', color: '#f87171' }}>
             ⚠️ {updateCheckError}
+          </div>
+        )}
+      </div>
+
+
+      {/* Dynamic System Settings Card */}
+      <div
+        id="section-system-settings"
+        style={{
+          background: 'var(--card-bg)',
+          border: '1px solid var(--border-color)',
+          borderRadius: 14,
+          padding: 24,
+          marginBottom: 32,
+        }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: 12,
+            marginBottom: 20,
+            borderBottom: '1px solid rgba(255,255,255,0.06)',
+            paddingBottom: 14,
+          }}
+        >
+          <div>
+            <h3
+              style={{
+                fontSize: '1.05rem',
+                fontWeight: 700,
+                color: 'var(--text-main)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                marginBottom: 4,
+              }}
+            >
+              <Sliders size={18} style={{ color: '#38bdf8' }} />
+              {isVi ? 'Tham Số Hệ Thống Động (Dynamic Settings)' : 'Dynamic System Settings'}
+            </h3>
+            <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: 0 }}>
+              {isVi
+                ? 'Điều chỉnh tham số vận hành (DNS Upstream, TTL, Timeout, Chu kỳ Sync/Heartbeat, Giới hạn PIN) tại runtime mà không cần cập nhật mã nguồn.'
+                : 'Configure runtime parameters (Upstream DNS, TTL, Timeouts, Sync/Heartbeat intervals, PIN limits) dynamically without code recompilation.'}
+            </p>
+          </div>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+            <button
+              type="button"
+              onClick={fetchSystemSettings}
+              disabled={isLoadingSettings}
+              style={{
+                background: 'rgba(255, 255, 255, 0.05)',
+                border: '1px solid var(--border-color)',
+                color: 'var(--text-main)',
+                padding: '7px 14px',
+                borderRadius: 8,
+                fontSize: '0.8rem',
+                fontWeight: 600,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+              }}
+            >
+              <RefreshCw size={14} className={isLoadingSettings ? 'animate-spin' : ''} />
+              <span>{isVi ? 'Làm mới' : 'Reload'}</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleSaveSystemSettings}
+              disabled={isSavingSettings || !systemSettings}
+              style={{
+                background: 'var(--accent)',
+                color: '#fff',
+                border: 'none',
+                padding: '7px 18px',
+                borderRadius: 8,
+                fontSize: '0.85rem',
+                fontWeight: 700,
+                cursor: isSavingSettings ? 'not-allowed' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+              }}
+            >
+              {isSavingSettings ? <RefreshCw size={14} className="animate-spin" /> : <Check size={14} />}
+              <span>{isVi ? 'Lưu Thay Đổi' : 'Save Changes'}</span>
+            </button>
+          </div>
+        </div>
+
+        {systemSettings && (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 18 }}>
+            {/* Sync & Heartbeat Intervals */}
+            <div style={{ background: 'rgba(0,0,0,0.15)', padding: 16, borderRadius: 10, border: '1px solid rgba(255,255,255,0.05)' }}>
+              <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#38bdf8', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Cloud size={15} />
+                <span>{isVi ? 'Đồng Bộ & Nhịp Tim' : 'Sync & Heartbeat'}</span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: 4 }}>
+                    {isVi ? 'Chu kỳ đồng bộ Telemetry (giây):' : 'Telemetry sync interval (secs):'}
+                  </label>
+                  <input
+                    type="number"
+                    min={5}
+                    max={3600}
+                    value={systemSettings.sync_interval_secs}
+                    onChange={(e) => setSystemSettings({ ...systemSettings, sync_interval_secs: parseInt(e.target.value) || 15 })}
+                    style={{
+                      width: '100%',
+                      background: 'rgba(255,255,255,0.05)',
+                      border: '1px solid var(--border-color)',
+                      color: 'var(--text-main)',
+                      padding: '7px 10px',
+                      borderRadius: 6,
+                      fontSize: '0.85rem',
+                    }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: 4 }}>
+                    {isVi ? 'Chu kỳ Heartbeat (giây):' : 'Heartbeat interval (secs):'}
+                  </label>
+                  <input
+                    type="number"
+                    min={10}
+                    max={7200}
+                    value={systemSettings.heartbeat_interval_secs}
+                    onChange={(e) => setSystemSettings({ ...systemSettings, heartbeat_interval_secs: parseInt(e.target.value) || 60 })}
+                    style={{
+                      width: '100%',
+                      background: 'rgba(255,255,255,0.05)',
+                      border: '1px solid var(--border-color)',
+                      color: 'var(--text-main)',
+                      padding: '7px 10px',
+                      borderRadius: 6,
+                      fontSize: '0.85rem',
+                    }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: 4 }}>
+                    {isVi ? 'NATS WebSocket URL:' : 'NATS WebSocket URL:'}
+                  </label>
+                  <input
+                    type="text"
+                    value={systemSettings.nats_url}
+                    onChange={(e) => setSystemSettings({ ...systemSettings, nats_url: e.target.value })}
+                    placeholder="ws://127.0.0.1:9222"
+                    style={{
+                      width: '100%',
+                      background: 'rgba(255,255,255,0.05)',
+                      border: '1px solid var(--border-color)',
+                      color: 'var(--text-main)',
+                      padding: '7px 10px',
+                      borderRadius: 6,
+                      fontSize: '0.85rem',
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* DNS Interception & Resolvers */}
+            <div style={{ background: 'rgba(0,0,0,0.15)', padding: 16, borderRadius: 10, border: '1px solid rgba(255,255,255,0.05)' }}>
+              <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#4ade80', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Globe size={15} />
+                <span>{isVi ? 'DNS & Thời Gian Chờ (Timeout)' : 'DNS & Timeout Settings'}</span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: 4 }}>
+                    {isVi ? 'DNS Thượng Nguồn (Upstream):' : 'Upstream DNS Resolver:'}
+                  </label>
+                  <input
+                    type="text"
+                    value={systemSettings.dns_upstream}
+                    onChange={(e) => setSystemSettings({ ...systemSettings, dns_upstream: e.target.value })}
+                    placeholder="1.1.1.1:53"
+                    style={{
+                      width: '100%',
+                      background: 'rgba(255,255,255,0.05)',
+                      border: '1px solid var(--border-color)',
+                      color: 'var(--text-main)',
+                      padding: '7px 10px',
+                      borderRadius: 6,
+                      fontSize: '0.85rem',
+                    }}
+                  />
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: 4 }}>
+                      {isVi ? 'DNS TTL (giây):' : 'DNS TTL (secs):'}
+                    </label>
+                    <input
+                      type="number"
+                      min={10}
+                      max={86400}
+                      value={systemSettings.dns_cache_ttl_secs}
+                      onChange={(e) => setSystemSettings({ ...systemSettings, dns_cache_ttl_secs: parseInt(e.target.value) || 300 })}
+                      style={{
+                        width: '100%',
+                        background: 'rgba(255,255,255,0.05)',
+                        border: '1px solid var(--border-color)',
+                        color: 'var(--text-main)',
+                        padding: '7px 10px',
+                        borderRadius: 6,
+                        fontSize: '0.85rem',
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: 4 }}>
+                      {isVi ? 'Timeout (ms):' : 'Timeout (ms):'}
+                    </label>
+                    <input
+                      type="number"
+                      min={500}
+                      max={10000}
+                      value={systemSettings.dns_timeout_ms}
+                      onChange={(e) => setSystemSettings({ ...systemSettings, dns_timeout_ms: parseInt(e.target.value) || 2000 })}
+                      style={{
+                        width: '100%',
+                        background: 'rgba(255,255,255,0.05)',
+                        border: '1px solid var(--border-color)',
+                        color: 'var(--text-main)',
+                        padding: '7px 10px',
+                        borderRadius: 6,
+                        fontSize: '0.85rem',
+                      }}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: 4 }}>
+                    {isVi ? 'Hành vi khi chặn DNS:' : 'DNS Block Action:'}
+                  </label>
+                  <select
+                    value={systemSettings.dns_block_action}
+                    onChange={(e) => setSystemSettings({ ...systemSettings, dns_block_action: e.target.value })}
+                    style={{
+                      width: '100%',
+                      background: '#0f172a',
+                      border: '1px solid var(--border-color)',
+                      color: 'var(--text-main)',
+                      padding: '7px 10px',
+                      borderRadius: 6,
+                      fontSize: '0.85rem',
+                    }}
+                  >
+                    <option value="refused">REFUSED (Tiêu chuẩn)</option>
+                    <option value="nxdomain">NXDOMAIN (Không tồn tại)</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* PIN Security & Retention */}
+            <div style={{ background: 'rgba(0,0,0,0.15)', padding: 16, borderRadius: 10, border: '1px solid rgba(255,255,255,0.05)' }}>
+              <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#f59e0b', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Lock size={15} />
+                <span>{isVi ? 'Bảo Vệ Mã PIN & Lưu Trữ Log' : 'PIN Security & Log Retention'}</span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: 4 }}>
+                      {isVi ? 'Thử sai tối đa:' : 'Max PIN retries:'}
+                    </label>
+                    <input
+                      type="number"
+                      min={3}
+                      max={20}
+                      value={systemSettings.max_pin_attempts}
+                      onChange={(e) => setSystemSettings({ ...systemSettings, max_pin_attempts: parseInt(e.target.value) || 5 })}
+                      style={{
+                        width: '100%',
+                        background: 'rgba(255,255,255,0.05)',
+                        border: '1px solid var(--border-color)',
+                        color: 'var(--text-main)',
+                        padding: '7px 10px',
+                        borderRadius: 6,
+                        fontSize: '0.85rem',
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: 4 }}>
+                      {isVi ? 'Khóa tạm (phút):' : 'Lockout (mins):'}
+                    </label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={120}
+                      value={systemSettings.pin_lockout_duration_mins}
+                      onChange={(e) => setSystemSettings({ ...systemSettings, pin_lockout_duration_mins: parseInt(e.target.value) || 5 })}
+                      style={{
+                        width: '100%',
+                        background: 'rgba(255,255,255,0.05)',
+                        border: '1px solid var(--border-color)',
+                        color: 'var(--text-main)',
+                        padding: '7px 10px',
+                        borderRadius: 6,
+                        fontSize: '0.85rem',
+                      }}
+                    />
+                  </div>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: 4 }}>
+                      {isVi ? 'Lưu log DNS (ngày):' : 'Log retention (days):'}
+                    </label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={365}
+                      value={systemSettings.dns_log_retention_days}
+                      onChange={(e) => setSystemSettings({ ...systemSettings, dns_log_retention_days: parseInt(e.target.value) || 7 })}
+                      style={{
+                        width: '100%',
+                        background: 'rgba(255,255,255,0.05)',
+                        border: '1px solid var(--border-color)',
+                        color: 'var(--text-main)',
+                        padding: '7px 10px',
+                        borderRadius: 6,
+                        fontSize: '0.85rem',
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: 4 }}>
+                      {isVi ? 'Tự dọn dẹp log cũ:' : 'Auto-prune logs:'}
+                    </label>
+                    <select
+                      value={systemSettings.dns_auto_prune_enabled ? 'true' : 'false'}
+                      onChange={(e) => setSystemSettings({ ...systemSettings, dns_auto_prune_enabled: e.target.value === 'true' })}
+                      style={{
+                        width: '100%',
+                        background: '#0f172a',
+                        border: '1px solid var(--border-color)',
+                        color: 'var(--text-main)',
+                        padding: '7px 10px',
+                        borderRadius: 6,
+                        fontSize: '0.85rem',
+                      }}
+                    >
+                      <option value="true">{isVi ? 'Bật (Khuyến nghị)' : 'Enabled'}</option>
+                      <option value="false">{isVi ? 'Tắt' : 'Disabled'}</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         )}
       </div>

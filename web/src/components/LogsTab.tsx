@@ -7,6 +7,7 @@ import {
   ChevronUp,
   Clock,
   Database,
+  Download,
   Eye,
   Flame,
   Globe,
@@ -16,6 +17,7 @@ import {
   RotateCcw,
   ShieldAlert,
   ShieldCheck,
+  Terminal,
   Trash2,
   X,
 } from 'lucide-react';
@@ -31,7 +33,9 @@ import type {
   QueryLogRecord,
 } from '../types';
 import { DataTable } from './DataTable';
+import { ErrorManagementView } from './ErrorManagementView';
 import { ResetReportModal } from './ResetReportModal';
+import { SystemLogsView } from './SystemLogsView';
 import { DnsHourlyChart } from './charts/DnsHourlyChart';
 
 interface LogsTabProps {
@@ -55,6 +59,9 @@ export const LogsTab: React.FC<LogsTabProps> = ({
 }) => {
   const t = translations[lang];
   const isVi = lang === 'vi';
+
+  // Subtabs: 'dns' (DNS queries) | 'system' (famshield-service.log) | 'errors' (error telemetry & NATS)
+  const [logSubTab, setLogSubTab] = useState<'dns' | 'system' | 'errors'>('dns');
 
   // View mode: 'summary' (Bản tổng hợp theo domain - Mặc định) or 'stream' (Toàn bộ chi tiết)
   const [viewMode, setViewMode] = useState<'summary' | 'stream'>('summary');
@@ -588,9 +595,92 @@ export const LogsTab: React.FC<LogsTabProps> = ({
     return summaries.find((s) => s.domain === selectedDomain);
   }, [selectedDomain, summaries]);
 
+  // Export DNS logs to CSV
+  const handleExportDnsCsv = () => {
+    const listToExport = viewMode === 'stream' ? activeStreamLogs : logs;
+    if (!listToExport || listToExport.length === 0) {
+      onShowToast?.(
+        isVi ? 'Không có dữ liệu nhật ký DNS để xuất!' : 'No DNS query logs to export!',
+        'info'
+      );
+      return;
+    }
+    const headers = ['Timestamp', 'Domain', 'QueryType', 'Action', 'Reason'];
+    const rows = listToExport.map((l) => [
+      new Date(l.occurred_at).toISOString(),
+      `"${l.domain.replace(/"/g, '""')}"`,
+      l.qtype,
+      l.action,
+      `"${(l.reason || '').replace(/"/g, '""')}"`,
+    ]);
+    const csvContent = '\uFEFF' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `famshield-dns-logs-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    onShowToast?.(
+      isVi ? 'Đã xuất nhật ký DNS (CSV) thành công!' : 'DNS logs exported to CSV successfully!',
+      'success'
+    );
+  };
+
   return (
     <div className="bg-white border border-slate-200/80 rounded-2xl p-6 flex flex-col gap-5 shadow-xs relative">
-      {/* Header & Controls */}
+      {/* Subtab Navigation Pills */}
+      <div className="flex items-center gap-2 border-b border-slate-200/80 pb-4 flex-wrap">
+        <button
+          onClick={() => setLogSubTab('dns')}
+          className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+            logSubTab === 'dns'
+              ? 'bg-sky-600 text-white shadow-xs shadow-sky-500/20'
+              : 'bg-slate-100 text-slate-600 hover:bg-slate-200/70 hover:text-slate-900'
+          }`}
+        >
+          <Globe size={15} />
+          <span>{t.logs_subtab_dns}</span>
+        </button>
+
+        <button
+          onClick={() => setLogSubTab('system')}
+          className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+            logSubTab === 'system'
+              ? 'bg-sky-600 text-white shadow-xs shadow-sky-500/20'
+              : 'bg-slate-100 text-slate-600 hover:bg-slate-200/70 hover:text-slate-900'
+          }`}
+        >
+          <Terminal size={15} />
+          <span>{t.logs_subtab_system}</span>
+        </button>
+
+        <button
+          onClick={() => setLogSubTab('errors')}
+          className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+            logSubTab === 'errors'
+              ? 'bg-rose-600 text-white shadow-xs shadow-rose-500/20'
+              : 'bg-slate-100 text-slate-600 hover:bg-slate-200/70 hover:text-slate-900'
+          }`}
+        >
+          <ShieldAlert size={15} />
+          <span>{t.logs_subtab_errors}</span>
+        </button>
+      </div>
+
+      {logSubTab === 'system' && (
+        <SystemLogsView lang={lang} onShowToast={onShowToast} />
+      )}
+
+      {logSubTab === 'errors' && (
+        <ErrorManagementView lang={lang} onShowToast={onShowToast} />
+      )}
+
+      {logSubTab === 'dns' && (
+        <>
+          {/* Header & Controls */}
       <div className="flex justify-between items-center flex-wrap gap-3.5">
         <div>
           <div className="flex items-center gap-2.5">
@@ -718,6 +808,18 @@ export const LogsTab: React.FC<LogsTabProps> = ({
               className={isLoadingSummaries || isBackgroundRefreshing ? 'animate-spin' : ''}
             />
             <span>{t.btn_refresh}</span>
+          </button>
+
+          {/* Export DNS Logs CSV */}
+          <button
+            type="button"
+            onClick={handleExportDnsCsv}
+            disabled={activeStreamLogs.length === 0 && summaries.length === 0}
+            className="flex items-center gap-1.5 bg-white text-slate-700 border border-slate-200 hover:bg-slate-50 hover:text-slate-900 px-3 py-1.5 rounded-lg text-xs font-semibold shadow-xs cursor-pointer transition-all disabled:opacity-50"
+            title={t.btn_export_dns_csv}
+          >
+            <Download size={13} />
+            <span>{t.btn_export_dns_csv}</span>
           </button>
 
           {/* Toggle Hourly Frequency Chart */}
@@ -1382,6 +1484,8 @@ export const LogsTab: React.FC<LogsTabProps> = ({
         lang={lang}
         defaultScope="dns"
       />
+        </>
+      )}
     </div>
   );
 };

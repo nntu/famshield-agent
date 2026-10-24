@@ -338,6 +338,13 @@ impl DnsProxy {
             let (len, client_addr) = match socket.recv_from(&mut buf).await {
                 Ok(res) => res,
                 Err(e) => {
+                    // On Windows, a previous send_to that resulted in an ICMP Port Unreachable
+                    // causes Winsock to return WSAECONNRESET (10054) on the subsequent recv_from.
+                    // This is transient, non-fatal, and does not warrant an artificial 25ms delay or WARN spam.
+                    if e.raw_os_error() == Some(10054) {
+                        tracing::trace!("UDP recv transient WSAECONNRESET (10054) ignored");
+                        continue;
+                    }
                     warn!("UDP recv error: {}", e);
                     tokio::time::sleep(tokio::time::Duration::from_millis(25)).await;
                     continue;

@@ -1,6 +1,6 @@
 {
   "name": "famshield-cloudflare-updater",
-  "version": "1.0.0",
+  "version": "1.0.3",
   "description": "Zero-cost version checker & release metadata worker for FamShield Agent on ttcantho.io.vn",
   "main": "src/index.ts",
   "scripts": {

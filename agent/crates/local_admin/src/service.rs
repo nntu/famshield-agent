@@ -36,6 +36,7 @@ pub struct CreateRuleRequest {
 pub struct ServerConfig {
     pub operating_mode: String,
     pub server_url: String,
+    pub version_check_url: Option<String>,
     pub tenant_id: String,
     pub device_id: String,
     pub device_name: String,
@@ -48,9 +49,85 @@ pub struct ServerConfig {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SystemSettings {
+    pub server_url: String,
+
+    pub version_check_url: String,
+
+    pub nats_url: String,
+
+    pub sync_interval_secs: u32,
+
+    pub heartbeat_interval_secs: u32,
+
+    pub dns_upstream: String,
+
+    pub dns_block_action: String,
+
+    pub dns_cache_ttl_secs: u32,
+
+    pub dns_timeout_ms: u64,
+
+    pub silent_mode: bool,
+
+    pub monitor_mode: bool,
+
+    pub screenshot_blur_mode: String,
+
+    pub dns_log_retention_days: u32,
+
+    pub dns_auto_prune_enabled: bool,
+
+    pub keyboard_monitoring_enabled: bool,
+
+    pub max_pin_attempts: u32,
+
+    pub pin_lockout_duration_mins: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+
+pub struct UpdateSystemSettingsRequest {
+    pub server_url: Option<String>,
+
+    pub version_check_url: Option<String>,
+
+    pub nats_url: Option<String>,
+
+    pub sync_interval_secs: Option<u32>,
+
+    pub heartbeat_interval_secs: Option<u32>,
+
+    pub dns_upstream: Option<String>,
+
+    pub dns_block_action: Option<String>,
+
+    pub dns_cache_ttl_secs: Option<u32>,
+
+    pub dns_timeout_ms: Option<u64>,
+
+    pub silent_mode: Option<bool>,
+
+    pub monitor_mode: Option<bool>,
+
+    pub screenshot_blur_mode: Option<String>,
+
+    pub dns_log_retention_days: Option<u32>,
+
+    pub dns_auto_prune_enabled: Option<bool>,
+
+    pub keyboard_monitoring_enabled: Option<bool>,
+
+    pub max_pin_attempts: Option<u32>,
+
+    pub pin_lockout_duration_mins: Option<u32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UpdateServerConfigRequest {
     pub operating_mode: Option<String>,
     pub server_url: Option<String>,
+    pub version_check_url: Option<String>,
     pub tenant_id: Option<String>,
     pub device_name: Option<String>,
     pub enrollment_code: Option<String>,
@@ -597,6 +674,11 @@ impl LocalAdminService {
             .and_then(|s| s.parse::<u32>().ok())
             .unwrap_or(1);
 
+        let version_check_url = self
+            .storage
+            .get_meta("version_check_url")?
+            .filter(|s| !s.is_empty());
+
         let (operating_mode, connection_status) = if is_enrolled {
             ("OnlineManaged".to_string(), "Connected".to_string())
         } else {
@@ -606,6 +688,7 @@ impl LocalAdminService {
         Ok(ServerConfig {
             operating_mode,
             server_url,
+            version_check_url,
             tenant_id,
             device_id: if is_enrolled {
                 enrolled_id
@@ -635,6 +718,25 @@ impl LocalAdminService {
                 ));
             }
             self.storage.set_meta("server_url", trimmed)?;
+            // Clean cached release on server change
+            let _ = self.storage.delete_meta("available_release_json");
+            let _ = self.storage.delete_meta("available_release_ver");
+        }
+
+        if let Some(v_url) = &req.version_check_url {
+            let trimmed = v_url.trim();
+            if trimmed.is_empty() || trimmed.eq_ignore_ascii_case("auto") {
+                let _ = self.storage.delete_meta("version_check_url");
+            } else {
+                if !trimmed.starts_with("http://") && !trimmed.starts_with("https://") {
+                    return Err(LocalAdminError::PolicyInvalid(
+                        "Version check URL must start with http:// or https://".to_string(),
+                    ));
+                }
+                self.storage.set_meta("version_check_url", trimmed)?;
+            }
+            let _ = self.storage.delete_meta("available_release_json");
+            let _ = self.storage.delete_meta("available_release_ver");
         }
 
         if let Some(tenant) = &req.tenant_id {
@@ -689,6 +791,16 @@ impl LocalAdminService {
         self.storage
             .set_meta("policy_version", &(cur_ver + 1).to_string())?;
         Ok(now_str)
+    }
+
+    /// Check whether the agent is enrolled with a centralized server
+    pub fn is_enrolled(&self) -> bool {
+        self.storage
+            .get_meta("enrolled_device_id")
+            .ok()
+            .flatten()
+            .map(|s| !s.trim().is_empty())
+            .unwrap_or(false)
     }
 
     /// Check whether monitor mode is active (observe & log only, do not block).
@@ -1231,6 +1343,278 @@ impl LocalAdminService {
                 .set_meta(&override_key, if enabled { "0" } else { "1" })?;
             Ok(true)
         }
+    }
+
+    pub fn list_all_errors(
+        &self,
+        limit: usize,
+    ) -> Result<Vec<famshield_storage::ErrorLogRecord>, LocalAdminError> {
+        Ok(self.storage.list_all_errors(limit)?)
+    }
+
+    pub fn get_system_settings(&self) -> Result<SystemSettings, LocalAdminError> {
+        let server_url = self
+            .storage
+            .get_meta("server_url")?
+            .unwrap_or_else(|| "https://famshield.ttcantho.io.vn".to_string());
+
+        let version_check_url = self
+            .storage
+            .get_meta("version_check_url")?
+            .unwrap_or_default();
+
+        let nats_url = self.storage.get_meta("nats_url")?.unwrap_or_default();
+
+        let sync_interval_secs = self
+            .storage
+            .get_meta("sync_interval_secs")?
+            .and_then(|s| s.parse::<u32>().ok())
+            .unwrap_or(15);
+
+        let heartbeat_interval_secs = self
+            .storage
+            .get_meta("heartbeat_interval_secs")?
+            .and_then(|s| s.parse::<u32>().ok())
+            .unwrap_or(60);
+
+        let dns_upstream = self
+            .storage
+            .get_meta("dns_upstream")?
+            .unwrap_or_else(|| "1.1.1.1".to_string());
+
+        let dns_block_action = self
+            .storage
+            .get_meta("dns_block_action")?
+            .unwrap_or_else(|| "nxdomain".to_string());
+
+        let dns_cache_ttl_secs = self
+            .storage
+            .get_meta("dns_cache_ttl_secs")?
+            .and_then(|s| s.parse::<u32>().ok())
+            .unwrap_or(300);
+
+        let dns_timeout_ms = self
+            .storage
+            .get_meta("dns_timeout_ms")?
+            .and_then(|s| s.parse::<u64>().ok())
+            .unwrap_or(2000);
+
+        let silent_mode = self.is_silent_mode();
+
+        let monitor_mode = self.is_monitor_mode();
+
+        let screenshot_blur_mode = self
+            .storage
+            .get_meta("screenshot_blur_mode")?
+            .unwrap_or_else(|| "full".to_string());
+
+        let dns_log_retention_days = self
+            .storage
+            .get_meta("dns_log_retention_days")?
+            .and_then(|s| s.parse::<u32>().ok())
+            .unwrap_or(7);
+
+        let dns_auto_prune_enabled = self
+            .storage
+            .get_meta("dns_auto_prune_enabled")?
+            .map(|s| s == "true" || s == "1")
+            .unwrap_or(true);
+
+        let keyboard_monitoring_enabled = self.is_keyboard_monitoring_enabled();
+
+        let max_pin_attempts = self
+            .storage
+            .get_meta("max_pin_attempts")?
+            .and_then(|s| s.parse::<u32>().ok())
+            .unwrap_or(5);
+
+        let pin_lockout_duration_mins = self
+            .storage
+            .get_meta("pin_lockout_duration_mins")?
+            .and_then(|s| s.parse::<u32>().ok())
+            .unwrap_or(5);
+
+        Ok(SystemSettings {
+            server_url,
+
+            version_check_url,
+
+            nats_url,
+
+            sync_interval_secs,
+
+            heartbeat_interval_secs,
+
+            dns_upstream,
+
+            dns_block_action,
+
+            dns_cache_ttl_secs,
+
+            dns_timeout_ms,
+
+            silent_mode,
+
+            monitor_mode,
+
+            screenshot_blur_mode,
+
+            dns_log_retention_days,
+
+            dns_auto_prune_enabled,
+
+            keyboard_monitoring_enabled,
+
+            max_pin_attempts,
+
+            pin_lockout_duration_mins,
+        })
+    }
+
+    pub fn update_system_settings(
+        &self,
+
+        req: UpdateSystemSettingsRequest,
+    ) -> Result<SystemSettings, LocalAdminError> {
+        if let Some(url) = req.server_url {
+            let trimmed = url.trim();
+
+            if !trimmed.starts_with("http://") && !trimmed.starts_with("https://") {
+                return Err(LocalAdminError::PolicyInvalid(
+                    "Server URL must start with http:// or https://".to_string(),
+                ));
+            }
+
+            self.storage.set_meta("server_url", trimmed)?;
+
+            let _ = self.storage.delete_meta("available_release_json");
+
+            let _ = self.storage.delete_meta("available_release_ver");
+        }
+
+        if let Some(v_url) = req.version_check_url {
+            let trimmed = v_url.trim();
+
+            if trimmed.is_empty() || trimmed.eq_ignore_ascii_case("auto") {
+                let _ = self.storage.delete_meta("version_check_url");
+            } else {
+                if !trimmed.starts_with("http://") && !trimmed.starts_with("https://") {
+                    return Err(LocalAdminError::PolicyInvalid(
+                        "Version check URL must start with http:// or https://".to_string(),
+                    ));
+                }
+
+                self.storage.set_meta("version_check_url", trimmed)?;
+            }
+
+            let _ = self.storage.delete_meta("available_release_json");
+
+            let _ = self.storage.delete_meta("available_release_ver");
+        }
+
+        if let Some(nats) = req.nats_url {
+            let trimmed = nats.trim();
+
+            if trimmed.is_empty() || trimmed.eq_ignore_ascii_case("auto") {
+                let _ = self.storage.delete_meta("nats_url");
+            } else {
+                self.storage.set_meta("nats_url", trimmed)?;
+            }
+        }
+
+        if let Some(sync_sec) = req.sync_interval_secs {
+            let clamped = sync_sec.clamp(5, 3600);
+
+            self.storage
+                .set_meta("sync_interval_secs", &clamped.to_string())?;
+        }
+
+        if let Some(hb_sec) = req.heartbeat_interval_secs {
+            let clamped = hb_sec.clamp(10, 86400);
+
+            self.storage
+                .set_meta("heartbeat_interval_secs", &clamped.to_string())?;
+        }
+
+        if let Some(dns) = req.dns_upstream {
+            let trimmed = dns.trim();
+
+            if !trimmed.is_empty() {
+                self.storage.set_meta("dns_upstream", trimmed)?;
+            }
+        }
+
+        if let Some(action) = req.dns_block_action {
+            let _ = self.set_dns_block_action(&action);
+        }
+
+        if let Some(ttl) = req.dns_cache_ttl_secs {
+            let clamped = ttl.clamp(10, 86400);
+
+            self.storage
+                .set_meta("dns_cache_ttl_secs", &clamped.to_string())?;
+        }
+
+        if let Some(timeout) = req.dns_timeout_ms {
+            let clamped = timeout.clamp(200, 10000);
+
+            self.storage
+                .set_meta("dns_timeout_ms", &clamped.to_string())?;
+        }
+
+        if let Some(silent) = req.silent_mode {
+            let _ = self.set_silent_mode(silent);
+        }
+
+        if let Some(monitor) = req.monitor_mode {
+            let _ = self.set_monitor_mode(monitor);
+        }
+
+        if let Some(blur) = req.screenshot_blur_mode {
+            let b = blur.trim().to_lowercase();
+
+            if b == "full" || b == "reduced" || b == "none" {
+                self.storage.set_meta("screenshot_blur_mode", &b)?;
+            }
+        }
+
+        if let Some(days) = req.dns_log_retention_days {
+            let clamped = days.clamp(1, 365);
+
+            self.storage
+                .set_meta("dns_log_retention_days", &clamped.to_string())?;
+        }
+
+        if let Some(auto_prune) = req.dns_auto_prune_enabled {
+            self.storage.set_meta(
+                "dns_auto_prune_enabled",
+                if auto_prune { "true" } else { "false" },
+            )?;
+        }
+
+        if let Some(kb) = req.keyboard_monitoring_enabled {
+            let _ = self.set_keyboard_monitoring_enabled(kb);
+        }
+
+        if let Some(attempts) = req.max_pin_attempts {
+            let clamped = attempts.clamp(3, 20);
+
+            self.storage
+                .set_meta("max_pin_attempts", &clamped.to_string())?;
+        }
+
+        if let Some(duration) = req.pin_lockout_duration_mins {
+            let clamped = duration.clamp(1, 1440);
+
+            self.storage
+                .set_meta("pin_lockout_duration_mins", &clamped.to_string())?;
+        }
+
+        self.get_system_settings()
+    }
+
+    pub fn clear_errors(&self) -> Result<usize, LocalAdminError> {
+        Ok(self.storage.clear_errors()?)
     }
 }
 

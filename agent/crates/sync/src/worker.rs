@@ -131,6 +131,17 @@ impl TelemetrySyncWorker {
         (is_enrolled, dev_id, tenant_id)
     }
 
+    /// Dynamically resolve CloudSyncClient with latest server_url from storage
+    fn get_sync_client(&self) -> Arc<CloudSyncClient> {
+        if let Ok(Some(url)) = self.storage.get_meta("server_url") {
+            let trimmed = url.trim().to_string();
+            if !trimmed.is_empty() && trimmed != self.client.base_url() {
+                return Arc::new(CloudSyncClient::new(&trimmed));
+            }
+        }
+        self.client.clone()
+    }
+
     /// Push pending outbox events to Cloud Server
     async fn sync_outbox_telemetry(&self) {
         let (enrolled, _dev_id, _tenant_id) = self.is_enrolled();
@@ -138,6 +149,8 @@ impl TelemetrySyncWorker {
             debug!("Device running in StandaloneFree mode, skipping cloud telemetry sync");
             return;
         }
+
+        let client = self.get_sync_client();
 
         // Dynamically scale batch size based on pending outbox depth
         let pending = self.pipeline.pending_count().unwrap_or(0);
@@ -153,7 +166,7 @@ impl TelemetrySyncWorker {
                     let event_count = envelope.event_count;
                     let batch_id = envelope.batch_id.clone();
 
-                    match self.client.send_batch_events(&envelope).await {
+                    match client.send_batch_events(&envelope).await {
                         Ok(resp) => {
                             if let Err(e) = self.pipeline.acknowledge_batch(&envelope) {
                                 warn!("Failed to acknowledge sent telemetry batch: {}", e);
@@ -189,13 +202,14 @@ impl TelemetrySyncWorker {
     /// Send Heartbeat, report health metrics, and pull policy updates if version increased
     async fn sync_heartbeat_and_policy(&self) {
         let (enrolled, dev_id, tenant_id) = self.is_enrolled();
+        let client = self.get_sync_client();
         if !enrolled {
             // Attempt auto-enrollment if enrollment_code was pre-configured via bootstrap
             if let Ok(Some(code)) = self.storage.get_meta("enrollment_code") {
                 let code = code.trim();
                 if code.len() == 6 {
                     let enroll_manager =
-                        crate::EnrollmentManager::new(self.storage.clone(), self.client.base_url());
+                        crate::EnrollmentManager::new(self.storage.clone(), client.base_url());
                     let device_name =
                         std::env::var("COMPUTERNAME").unwrap_or_else(|_| "Windows-PC".to_string());
                     let req = crate::EnrollmentRequest {
@@ -244,7 +258,7 @@ impl TelemetrySyncWorker {
             dns_avg_rtt_ms: None,
         };
 
-        match self.client.send_heartbeat(&hb_req).await {
+        match client.send_heartbeat(&hb_req).await {
             Ok(resp) => {
                 debug!(
                     "Heartbeat succeeded. Server time: {}, Desired policy: {}",
@@ -263,7 +277,7 @@ impl TelemetrySyncWorker {
 
                 // Check if auto-update release is available
                 if let Some(rel) = resp.available_release {
-                    if rel.version != agent_version {
+                    if famshield_core::is_newer_version(&rel.version, &agent_version) {
                         info!(
                             "New FamShield agent update available: v{} (current: v{}). Channel: {}",
                             rel.version, agent_version, rel.channel
@@ -272,7 +286,15 @@ impl TelemetrySyncWorker {
                             let _ = self.storage.set_meta("available_release_json", &json);
                             let _ = self.storage.set_meta("available_release_ver", &rel.version);
                         }
+                    } else {
+                        // Purge any stale/older cached release metadata
+                        let _ = self.storage.delete_meta("available_release_json");
+                        let _ = self.storage.delete_meta("available_release_ver");
                     }
+                } else {
+                    // No release available from server, purge stale cached release
+                    let _ = self.storage.delete_meta("available_release_json");
+                    let _ = self.storage.delete_meta("available_release_ver");
                 }
 
                 // Dynamically sync updated server URL or version check URL from Server

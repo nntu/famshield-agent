@@ -57,6 +57,37 @@ export interface EvidenceItem {
   thumbnail_url: string;
 }
 
+export interface SystemLogsResponse {
+  lines: string[];
+  total_lines: number;
+  file_name: string;
+}
+
+export interface ErrorLogItem {
+  error_id: string;
+  module: string;
+  severity: string;
+  message: string;
+  stack_trace?: string | null;
+  occurrence_count: number;
+  first_seen_at: string;
+  last_seen_at: string;
+  synced: boolean;
+}
+
+export interface ListErrorsResponse {
+  total_count: number;
+  unsynced_count: number;
+  errors: ErrorLogItem[];
+}
+
+export interface PushErrorsNatsResponse {
+  success: boolean;
+  pushed_count: number;
+  message: string;
+  nats_url?: string;
+}
+
 export type TabType = 'dashboard' | 'activity' | 'rules' | 'logs' | 'evidence' | 'security';
 export type Language = 'vi' | 'en';
 
@@ -86,6 +117,7 @@ export interface InitializeSetupResponse {
 export interface ServerConfig {
   operating_mode: 'StandaloneFree' | 'OnlineManaged';
   server_url: string;
+  version_check_url?: string;
   tenant_id: string;
   device_id: string;
   device_name: string;
@@ -100,12 +132,36 @@ export interface ServerConfig {
 export interface UpdateServerConfigRequest {
   operating_mode?: 'StandaloneFree' | 'OnlineManaged';
   server_url?: string;
+  version_check_url?: string;
   tenant_id?: string;
   device_name?: string;
   enrollment_code?: string;
   sync_interval_secs?: number;
   tls_verify?: boolean;
 }
+
+
+export interface SystemSettings {
+  server_url: string;
+  version_check_url: string;
+  nats_url: string;
+  sync_interval_secs: number;
+  heartbeat_interval_secs: number;
+  dns_upstream: string;
+  dns_block_action: string;
+  dns_cache_ttl_secs: number;
+  dns_timeout_ms: number;
+  silent_mode: boolean;
+  monitor_mode: boolean;
+  screenshot_blur_mode: string;
+  dns_log_retention_days: number;
+  dns_auto_prune_enabled: boolean;
+  keyboard_monitoring_enabled: boolean;
+  max_pin_attempts: number;
+  pin_lockout_duration_mins: number;
+}
+
+export type UpdateSystemSettingsRequest = Partial<SystemSettings>;
 
 export interface TestConnectionResponse {
   success: boolean;
@@ -123,6 +179,7 @@ export interface SyncResponse {
 export interface BackupSettings {
   operating_mode: string;
   server_url: string;
+  version_check_url?: string;
   tenant_id: string;
   device_name: string;
   sync_interval_secs: number;
@@ -336,4 +393,16 @@ export interface ResetReportsResponse {
   requires_otp?: boolean;
   invalid_otp?: boolean;
   locked?: boolean;
+}
+
+export interface UpdateUrlRequest {
+  server_url: string;
+  version_check_url?: string;
+}
+
+export interface UpdateUrlResponse {
+  success: boolean;
+  message: string;
+  server_url: string;
+  version_check_url: string;
 }

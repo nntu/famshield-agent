@@ -9,6 +9,9 @@ import type {
   EvidenceItem,
   HourlyFrequency,
   InitializeSetupRequest,
+  ListErrorsResponse,
+  PushErrorsNatsResponse,
+  SystemLogsResponse,
   InitializeSetupResponse,
   KeywordConfigResponse,
   KeywordRule,
@@ -27,6 +30,8 @@ import type {
   TestConnectionResponse,
   TotpSetupResponse,
   TotpStatusResponse,
+  SystemSettings,
+  UpdateSystemSettingsRequest,
   UpdateServerConfigRequest,
 } from './types';
 
@@ -187,6 +192,31 @@ export const api = {
     return apiRequest<DomainQuerySummary[]>(`/api/logs/dns/summary?${params.toString()}`);
   },
 
+  async getSystemLogs(limit: number = 200): Promise<SystemLogsResponse> {
+    return apiRequest<SystemLogsResponse>(`/api/logs/system?limit=${limit}`);
+  },
+
+  getSystemLogsDownloadUrl(): string {
+    const token = getSessionToken();
+    return `/api/logs/system/download${token ? `?token=${encodeURIComponent(token)}` : ''}`;
+  },
+
+  async getErrors(): Promise<ListErrorsResponse> {
+    return apiRequest<ListErrorsResponse>('/api/errors');
+  },
+
+  async clearErrors(): Promise<{ success: boolean; cleared_count: number }> {
+    return apiRequest<{ success: boolean; cleared_count: number }>('/api/errors', {
+      method: 'DELETE',
+    });
+  },
+
+  async pushErrorsNats(): Promise<PushErrorsNatsResponse> {
+    return apiRequest<PushErrorsNatsResponse>('/api/errors/push-nats', {
+      method: 'POST',
+    });
+  },
+
   async getLogs(
     limit: number = 100,
     domain?: string,
@@ -285,12 +315,54 @@ export const api = {
     });
   },
 
+
+  async getSystemSettings(): Promise<SystemSettings> {
+    return apiRequest<SystemSettings>('/api/settings/system');
+  },
+
+  async updateSystemSettings(req: UpdateSystemSettingsRequest): Promise<SystemSettings> {
+    return apiRequest<SystemSettings>('/api/settings/system', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req),
+    });
+  },
+
   async testServerConnection(serverUrl: string): Promise<TestConnectionResponse> {
     return apiRequest<TestConnectionResponse>('/api/settings/server/test', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ server_url: serverUrl }),
     });
+  },
+
+  async updateServerUrl(
+    serverUrl?: string,
+    versionCheckUrl?: string
+  ): Promise<{
+    success: boolean;
+    message: string;
+    server_url: string;
+    version_check_url: string;
+    effective_version_check_url: string;
+    operating_mode: string;
+  }> {
+    return apiRequest('/api/system/update/url', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ server_url: serverUrl, version_check_url: versionCheckUrl }),
+    });
+  },
+
+  async getUpdateUrls(): Promise<{
+    operating_mode: 'StandaloneFree' | 'OnlineManaged';
+    server_url: string;
+    version_check_url: string;
+    effective_version_check_url: string;
+    auto_version_check_url: string;
+    download_url: string;
+  }> {
+    return apiRequest('/api/system/update/url');
   },
 
   async syncServer(): Promise<SyncResponse> {
@@ -427,8 +499,12 @@ export const api = {
     latest_version: string;
     update_available: boolean;
     release_date?: string;
+    channel?: string;
+    min_supported_version?: string;
     changelog?: string[];
     download_url?: string;
+    sha256?: string;
+    check_url?: string;
     message?: string;
   }> {
     return apiRequest('/api/system/update/check');

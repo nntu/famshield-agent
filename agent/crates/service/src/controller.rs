@@ -185,7 +185,7 @@ impl ServiceController {
         }
 
         if server_url.is_empty() {
-            server_url = "http://127.0.0.1:8080".to_string();
+            server_url = "https://famshield.ttcantho.io.vn".to_string();
         }
         let cloud_client = Arc::new(CloudSyncClient::new(&server_url));
 
@@ -214,7 +214,7 @@ impl ServiceController {
                         .unwrap_or("127.0.0.1");
                     format!("ws://{}:9222", host)
                 } else {
-                    "ws://127.0.0.1:9222".to_string()
+                    "wss://famshield.ttcantho.io.vn/nats".to_string()
                 }
             });
 

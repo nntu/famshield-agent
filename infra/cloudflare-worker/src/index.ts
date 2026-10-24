@@ -26,10 +26,10 @@ export interface ReleaseMetadata {
 }
 
 const DEFAULT_METADATA: ReleaseMetadata = {
-  version: "1.0.0",
+  version: "1.0.3",
   release_date: "2026-10-21",
   channel: "stable",
-  min_supported_version: "1.0.0",
+  min_supported_version: "1.0.3",
   changelog: [
     "Bản phát hành chính thức FamShield Agent v1.0.0",
     "Tự động tắt và dọn dẹp service cũ khi cài đặt",

@@ -12,3 +12,4 @@ serde_json = { workspace = true }
 chrono = { workspace = true }
 thiserror = { workspace = true }
 aho-corasick = { workspace = true }
+semver = { workspace = true }

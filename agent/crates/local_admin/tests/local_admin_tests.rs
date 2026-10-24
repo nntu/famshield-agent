@@ -1433,3 +1433,150 @@ async fn test_protection_mode_and_dns_block_action_persistence() {
     assert!(service.is_silent_mode());
     assert!(service.is_monitor_mode());
 }
+
+#[tokio::test]
+async fn test_dynamic_system_settings_lifecycle_and_api() {
+    use famshield_local_admin::{LocalAdminService, UpdateSystemSettingsRequest};
+    use famshield_storage::StorageEngine;
+
+    let storage = StorageEngine::in_memory().unwrap();
+    let service = LocalAdminService::new(storage.clone());
+
+    // Initial defaults
+    let initial = service.get_system_settings().unwrap();
+    assert_eq!(initial.sync_interval_secs, 15);
+    assert_eq!(initial.heartbeat_interval_secs, 60);
+    assert_eq!(initial.dns_upstream, "1.1.1.1");
+    assert_eq!(initial.dns_timeout_ms, 2000);
+    assert_eq!(initial.max_pin_attempts, 5);
+
+    // Update via service
+    let updated = service
+        .update_system_settings(UpdateSystemSettingsRequest {
+            sync_interval_secs: Some(30),
+            heartbeat_interval_secs: Some(120),
+            dns_upstream: Some("8.8.8.8:53".to_string()),
+            dns_cache_ttl_secs: Some(600),
+            dns_timeout_ms: Some(1500),
+            max_pin_attempts: Some(10),
+            pin_lockout_duration_mins: Some(15),
+            ..Default::default()
+        })
+        .unwrap();
+
+    assert_eq!(updated.sync_interval_secs, 30);
+    assert_eq!(updated.heartbeat_interval_secs, 120);
+    assert_eq!(updated.dns_upstream, "8.8.8.8:53");
+    assert_eq!(updated.dns_cache_ttl_secs, 600);
+    assert_eq!(updated.dns_timeout_ms, 1500);
+    assert_eq!(updated.max_pin_attempts, 10);
+    assert_eq!(updated.pin_lockout_duration_mins, 15);
+
+    // Verify persistence across new service instance
+    let service2 = LocalAdminService::new(storage);
+    let reloaded = service2.get_system_settings().unwrap();
+    assert_eq!(reloaded.sync_interval_secs, 30);
+    assert_eq!(reloaded.dns_upstream, "8.8.8.8:53");
+    assert_eq!(reloaded.max_pin_attempts, 10);
+}
+
+#[tokio::test]
+async fn test_update_urls_standalone_and_server_auto_modes() {
+    use axum::body::Body;
+    use axum::http::{Request, StatusCode};
+    use famshield_local_admin::{LocalAdminServer, LocalAdminService};
+    use famshield_storage::StorageEngine;
+    use http_body_util::BodyExt;
+    use serde_json::Value;
+    use std::sync::Arc;
+    use tower::ServiceExt;
+
+    let storage = StorageEngine::in_memory().unwrap();
+    let service = Arc::new(LocalAdminService::new(storage.clone()));
+    let server = LocalAdminServer::new(service.clone(), None);
+
+    service.set_master_pin("123456").unwrap();
+    let token = server.create_session_token().await;
+
+    // 1. Initial Standalone mode: default version check URL is https://famshield.ttcantho.io.vn/version.json
+    let res = server
+        .router()
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/api/system/update/url")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(res.status(), StatusCode::OK);
+    let bytes = res.into_body().collect().await.unwrap().to_bytes();
+    let json: Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(json["operating_mode"], "StandaloneFree");
+    assert_eq!(
+        json["auto_version_check_url"],
+        "https://famshield.ttcantho.io.vn/version.json"
+    );
+    assert_eq!(
+        json["effective_version_check_url"],
+        "https://famshield.ttcantho.io.vn/version.json"
+    );
+
+    // 2. Configure custom version check URL
+    let res = server
+        .router()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/system/update/url")
+                .header("X-FamShield-Token", &token)
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    r#"{"version_check_url":"https://my-company.com/version.json"}"#,
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(res.status(), StatusCode::OK);
+    let bytes = res.into_body().collect().await.unwrap().to_bytes();
+    let json: Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(
+        json["effective_version_check_url"],
+        "https://my-company.com/version.json"
+    );
+
+    // 3. Switch to Server mode (enroll) and reset to auto
+    storage
+        .set_meta("enrolled_device_id", "dev-server-001")
+        .unwrap();
+    storage
+        .set_meta("server_url", "https://central-server.io")
+        .unwrap();
+
+    let res = server
+        .router()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/system/update/url")
+                .header("X-FamShield-Token", &token)
+                .header("Content-Type", "application/json")
+                .body(Body::from(r#"{"version_check_url":"auto"}"#))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(res.status(), StatusCode::OK);
+    let bytes = res.into_body().collect().await.unwrap().to_bytes();
+    let json: Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(json["operating_mode"], "OnlineManaged");
+    assert_eq!(
+        json["effective_version_check_url"],
+        "https://central-server.io/version.json"
+    );
+}

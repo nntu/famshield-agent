@@ -8,7 +8,36 @@ Tất cả các thay đổi quan trọng của dự án **FamShield Windows Agen
 
 ## [Unreleased]
 
+## [1.0.3] - 2026-10-24
+
 ### Added
+- **Tham Số Hóa Toàn Diện & Quản Lý Cấu Hình Hệ Thống Động (`famshield-local-admin`, `famshield-storage`, `web`)**:
+  - **Cơ chế tham số hóa các hằng số vận hành (Dynamic System Settings)**: Rà soát và tham số hóa các giá trị cấu hình cố định trong mã nguồn (Sync interval, Heartbeat interval, NATS WebSocket URL, Upstream DNS, DNS Cache TTL, DNS Request Timeout, PIN Lockout Attempts, PIN Lockout Duration, DNS Log Retention) thành cấu hình động lưu trữ trong bảng `agent_meta` SQLite. Cho phép người quản trị tùy chỉnh trực tiếp tại runtime mà không cần cập nhật mã nguồn hay biên dịch lại ứng dụng.
+  - **REST API Endpoints**:
+    - `GET /api/settings/system`: Truy xuất toàn bộ cấu hình tham số hệ thống động hiện hành.
+    - `POST /api/settings/system`: Cập nhật linh hoạt các tham số hệ thống (hỗ trợ cập nhật từng phần - partial update).
+  - **Giao diện Quản trị Cấu hình Hệ thống Động (`SecurityTab.tsx`)**: Bổ sung thẻ điều khiển trực quan gồm 3 nhóm cấu hình: Đồng bộ & Nhịp tim, DNS & Thời gian chờ (Timeout), Bảo vệ mã PIN & Lưu trữ nhật ký với tính năng lưu tức thì.
+- **Cơ Chế Cập Nhật URL Check Version Tự Động Theo Chế Độ Standalone & Server (`famshield-local-admin`, `famshield-updater`, `web`)**:
+  - **Chuẩn hóa cú pháp version.json**: Tương thích hoàn toàn với schema của `version.json` chuẩn (bao gồm các trường `version`, `release_date`, `channel`, `min_supported_version`, `changelog`, `installer_url`, `service_binary_url`, `service_sha256`), đồng thời hỗ trợ các biến thể `download_url` và `published_at`.
+  - **Cơ chế tự động thích ứng theo chế độ (Mode-Aware Auto Adaptation)**:
+    - **Bản Standalone (Độc lập)**: Tự động sử dụng endpoint chính thức `https://famshield.ttcantho.io.vn/version.json` (hoặc URL tùy chỉnh do người dùng chỉ định nếu tự lưu trữ file version.json).
+    - **Bản Server (Online Managed)**: Khi kết nối hoặc thay đổi URL máy chủ, URL kiểm tra bản mới tự động điều chỉnh theo cú pháp `<server_url>/version.json` (kèm dự phòng `<server_url>/v1/releases/latest`).
+    - **Hỗ trợ xóa tùy chỉnh (Reset to Auto)**: Cho phép chuyển đổi linh hoạt giữa URL tùy chỉnh và chế độ tự động theo máy chủ.
+  - **REST API Endpoints**:
+    - `GET /api/system/update/url`: Lấy trạng thái chế độ hoạt động, `server_url`, `version_check_url`, URL tự động `auto_version_check_url` và URL hiệu dụng `effective_version_check_url`.
+    - `POST /api/system/update/url`: Cho phép cập nhật riêng lẻ hoặc đồng thời Server URL và Version Check URL.
+  - **Giao diện Ngăn kéo Web Dashboard (`SecurityTab.tsx`)**: Hiển thị huy hiệu chế độ hiện tại, tự động cập nhật URL kiểm tra khi gõ Server URL, các phím bấm nhanh (Tự động theo Server, Mặc định Standalone, Local Server) và hiển thị chi tiết ngày phát hành, nguồn kiểm tra, mã SHA-256.
+- **Trung Tâm Quản Lý Lỗi, Đọc & Tải Nhật Ký Hệ Thống và Đẩy Lên Server Qua NATS (`famshield-storage`, `famshield-local-admin`, `web`)**:
+  - **Trình đọc & tải nhật ký dịch vụ thời gian thực (`famshield-service.log`)**: Cung cấp giao diện Terminal dark-theme trực quan hiển thị nhật ký tiến trình Windows Service Session 0 với đánh dấu màu theo mức độ (`INFO`, `WARN`, `ERROR`, `DEBUG`), hỗ trợ lọc từ khóa trực tiếp, tự động cuộn xuống đáy, sao chép nhanh vào clipboard và nút tải file nhật ký (`.log`) trực tiếp về máy trạm.
+  - **Trung tâm quản lý lỗi & phân tích ngoại lệ (Error Management & Smart Deduplication)**: Bổ sung 3 thẻ thống kê tổng quan (Tổng số loại lỗi, Lỗi chờ đẩy lên Cloud NATS, Lượt phát sinh lỗi lũy kế). Bảng chi tiết lỗi hỗ trợ hiển thị Module, Mức độ nghiêm trọng, Thông điệp lỗi, Monospace Error Fingerprint ID, Số lần phát sinh lặp lại, Thời gian phát hiện cuối cùng và cơ chế mở rộng xem chi tiết Stack Trace.
+  - **Cơ chế đẩy lỗi lên Server qua NATS (`POST /api/errors/push-nats`)**: Cho phép người quản trị kích hoạt đẩy các bản ghi lỗi chưa đồng bộ lên NATS broker thông qua các topic `devices.{device_id}.errors` và `famshield.events.error_log` để máy chủ Cloud Server tổng hợp lỗi, hỗ trợ đội ngũ kỹ thuật phân tích và khắc phục sự cố từ xa.
+  - **Lưu báo cáo lỗi JSON và xuất nhật ký DNS CSV**: Hỗ trợ xuất dữ liệu lỗi sang file `famshield-error-report-<date>.json`, xóa sạch nhật ký lỗi sau khi xử lý xong, và bổ sung nút xuất toàn bộ nhật ký truy vấn DNS ra tệp CSV (`famshield-dns-logs-<date>.csv`).
+  - **Backend REST API endpoints**:
+    - `GET /api/logs/system`: Đọc các dòng nhật ký gần nhất từ `C:\ProgramData\FamShield\logs\famshield-service.log.<date>`.
+    - `GET /api/logs/system/download`: Tải về toàn bộ file nhật ký dưới dạng file đính kèm `Content-Disposition`.
+    - `GET /api/errors`: Lấy danh sách thống kê các bản ghi lỗi từ SQLite `error_logs`.
+    - `DELETE /api/errors`: Xóa toàn bộ lịch sử lỗi cục bộ.
+    - `POST /api/errors/push-nats`: Kết nối động NATS broker và truyền tải tức thời các batch lỗi lên máy chủ.
 - **Cơ Chế Giám Sát Yên Lặng Toàn Diện (Silent Monitoring / Stealth Mode, `famshield-session`, `famshield-service`, `famshield-local-admin`, `web`)**:
   - **Giám sát ngầm không làm gián đoạn ("Vẫn ghi nhận nhưng không thông báo")**: Toàn bộ dữ liệu nhật ký truy vấn DNS (`QueryLogRecord`), cảnh báo vi phạm từ khóa nhạy cảm (`KeywordViolation`), bằng chứng ảnh chụp làm mờ an toàn (`VisualEvidenceRecord`), và thời lượng ứng dụng vẫn được ghi nhận đầy đủ 100% vào SQLite cục bộ và hàng đợi Telemetry đồng bộ lên máy chủ.
   - **Triệt tiêu thông báo Toast (`FriendlyToast::set_silent_mode`)**: Khi bật chế độ giám sát yên lặng (`silent_mode = true`), tất cả thông báo Toast/Balloon trên khay hệ thống (nhắc nhở từ khóa, thông báo chặn web, cảnh báo hạn mức thời gian, thông báo chào) bị vô hiệu hóa triệt để, không hiển thị bất kỳ pop-up nào trên màn hình máy trạm của con trẻ.
@@ -39,6 +68,10 @@ Tất cả các thay đổi quan trọng của dự án **FamShield Windows Agen
   - **Re-index toàn bộ dự án vào Codebase Knowledge Graph (`codebase-memory-mcp`)**: Cập nhật toàn diện đồ thị tri thức với 3,242 nodes và 10,608 edges, lưu trữ bền vững vào `.codebase-memory/graph.db.zst`.
 
 ### Fixed
+- **Khắc Phục Lỗi So Sánh Phiên Bản & Triệt Tiêu Cảnh Báo Bản Cũ v0.1.1 (`famshield-core`, `famshield-sync`, `famshield-local-admin`, `famshield-server`, `web`)**:
+  - **Chuẩn hóa thuật toán so sánh SemVer (`is_newer_version`)**: Thay thế toán tử so sánh chuỗi thô (`rel_ver != current_version`) vốn gây ra hiện tượng phiên bản cũ `v0.1.1` bị nhận định sai là bản cập nhật mới trên máy trạm đang chạy `v1.0.2`. Bổ sung hàm kiểm tra SemVer chặt chẽ `famshield_core::version::is_newer_version` trên Client Agent và `isNewerVersion` trên Go Cloud Server.
+  - **Tự động làm sạch metadata phiên bản cũ tồn đọng**: Tự động thanh lọc các bản ghi `available_release_json` và `available_release_ver` lỗi thời trong SQLite máy trạm ngay khi phát hiện phiên bản từ máy chủ nhỏ hơn hoặc bằng phiên bản hiện tại.
+  - **Đồng bộ bảng phát hành trên PostgreSQL & Go Cloud Server**: Cập nhật bản ghi `release_manifests` trên Go Server và cơ sở dữ liệu PostgreSQL lên đúng phiên bản hiện hành `v1.0.2`, đồng thời chuẩn hóa toàn bộ đường dẫn tải bản cài đặt sang tên miền chính thức `https://famshield.ttcantho.io.vn/download/FamShieldSetup-v1.0.2.exe` (loại bỏ hoàn toàn tham chiếu `dl.famshield.cloud`).
 - **Triệt Tiêu Nguy Cơ Spin Loop / 100% CPU trên `tokio::select!` (`famshield-service::controller`)**: Khắc phục lỗi mẫu pattern `Some(entry) = dns_log_rx.recv()` khiến tác vụ nền rơi vào vòng lặp spin loop vô tận khi kênh `dns_log_rx` bị đóng. Chuyển sang `entry_opt = dns_log_rx.recv() => match entry_opt` với thao tác flush batch và break dứt điểm.
 - **Chống Spin Loop Khi Lỗi Kết Nối Named Pipe IPC (`famshield-service::ipc`)**: Bổ sung cơ chế giãn cách `50ms` khi kết nối Named Pipe trả về lỗi thay vì lặp tức thì, bảo vệ CPU máy trạm không bị chiếm dụng khi client ngắt đột ngột hoặc xảy ra lỗi pipe.
 - **Phòng Ngừa Spin Loop Trên UDP DNS Proxy (`famshield-dns::proxy`)**: Bổ sung backoff `25ms` khi `recv_from` gặp lỗi liên tục (đặc biệt mã lỗi `WSAECONNRESET` phổ biến trên Windows UDP socket).
@@ -439,7 +472,7 @@ Tất cả các thay đổi quan trọng của dự án **FamShield Windows Agen
   - **Cơ Chế Sao Lưu & Phục Hồi Dữ Liệu An Toàn (Cryptographic Backup & Disaster Recovery - `famshield-local-admin`, `web`)**:
     - Hỗ trợ xuất và nhập toàn bộ cấu hình hệ thống máy trạm dưới định dạng sao lưu chuẩn hóa `.famshield-bak` (JSON), bao gồm: Phiên bản định dạng `1.0`, thông tin thiết bị (`device_id`, `operating_mode`), cấu hình máy chủ quản trị tập trung, trạng thái chế độ bảo vệ/giám sát, toàn bộ danh sách quy tắc chặn tên miền và giới hạn ứng dụng (`local_rules`).
     - Tích hợp thuật toán băm mật mã SHA-256 (`compute_checksum`, `verify_checksum`) bảo đảm tính toàn vẹn tuyệt đối: Phát hiện và từ chối khôi phục ngay lập tức nếu tệp sao lưu bị hỏng hoặc bị can thiệp/chỉnh sửa trái phép.
-    - Cung cấp API `GET /api/backup/export` (tải xuống tệp `.famshield-bak` với header `Content-Disposition`) và `POST /api/backup/restore` (xác thực chữ ký, khôi phục nguyên tử vào SQLite, và kích hoạt `sync_dns_blocklist`).
+    - Cung cấp API `GET /api/backup/export` (tải xuống tệp `.famshield-bak` với header ``Content-Disposition``) và `POST /api/backup/restore` (xác thực chữ ký, khôi phục nguyên tử vào SQLite, và kích hoạt `sync_dns_blocklist`).
     - Giao diện người dùng (`SecurityTab.tsx`): Nút "Tạo Bản Sao Lưu Ngay" tải xuống 1 chạm, nút "Phục Hồi Từ Tệp Sao Lưu" với hộp thoại xem trước (Backup Preview Modal) hiển thị số lượng quy tắc, thời điểm tạo, mã thiết bị và xác nhận khôi phục an toàn.
   - **Phân Hệ Nhật Ký & Dòng Thời Gian Giám Sát Hoạt Động Toàn Diện (Comprehensive Activity & Screen Time Timeline - `famshield-storage`, `famshield-local-admin`, `web`)**:
     - Tích hợp cấu trúc theo dõi phân đoạn thời gian sử dụng ứng dụng `UsageSegmentRecord` (`famshield-storage`), lưu trữ định kỳ các checkpoint thời lượng thực tế vào bảng SQLite `usage_segments`.

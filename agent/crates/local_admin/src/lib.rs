@@ -15,6 +15,6 @@ pub use server::{
 };
 pub use service::{
     ActivitySummaryResponse, AppActivityItem, AppUsageSummary, CreateRuleRequest, LocalAdminError,
-    LocalAdminService,
+    LocalAdminService, SystemSettings, UpdateSystemSettingsRequest,
 };
 pub use ui::LOCAL_DASHBOARD_HTML;

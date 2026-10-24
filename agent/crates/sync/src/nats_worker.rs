@@ -42,6 +42,31 @@ impl NatsConnectionWorker {
         !dev_id.trim().is_empty()
     }
 
+    /// Resolve NATS URL dynamically from storage (handles runtime enrollment / URL changes)
+    fn get_nats_url(&self) -> String {
+        if let Ok(Some(url)) = self.storage.get_meta("nats_url") {
+            let trimmed = url.trim().to_string();
+            if !trimmed.is_empty() {
+                return trimmed;
+            }
+        }
+        if let Ok(Some(server_url)) = self.storage.get_meta("server_url") {
+            let trimmed = server_url.trim().to_string();
+            if trimmed.starts_with("https://") {
+                let host = trimmed.trim_start_matches("https://").trim_end_matches('/');
+                return format!("wss://{}/nats", host);
+            } else if trimmed.starts_with("http://") {
+                let host = trimmed
+                    .trim_start_matches("http://")
+                    .split(':')
+                    .next()
+                    .unwrap_or("127.0.0.1");
+                return format!("ws://{}:9222", host);
+            }
+        }
+        self.nats_url.clone()
+    }
+
     /// Run the persistent NATS subscription worker loop until shutdown signal.
     pub async fn run(&self, mut shutdown_rx: broadcast::Receiver<()>) {
         info!(
@@ -66,22 +91,27 @@ impl NatsConnectionWorker {
                 }
             }
 
+            let current_nats_url = self.get_nats_url();
+
             // Attempt to connect to NATS Broker
-            info!("Connecting to NATS broker at {}...", self.nats_url);
+            info!("Connecting to NATS broker at {}...", current_nats_url);
             let connect_opts = async_nats::ConnectOptions::new()
                 .connection_timeout(Duration::from_secs(10))
                 .ping_interval(Duration::from_secs(20)); // Keeps Cloudflare Tunnel WebSocket from timing out
 
-            let client = match connect_opts.connect(&self.nats_url).await {
+            let client = match connect_opts.connect(&current_nats_url).await {
                 Ok(c) => {
-                    info!("Successfully connected to NATS broker at {}", self.nats_url);
+                    info!(
+                        "Successfully connected to NATS broker at {}",
+                        current_nats_url
+                    );
                     backoff_secs = 2; // Reset backoff on success
                     c
                 }
                 Err(e) => {
                     warn!(
                         "Failed to connect to NATS broker ({}): {}. Retrying in {}s...",
-                        self.nats_url, e, backoff_secs
+                        current_nats_url, e, backoff_secs
                     );
                     tokio::select! {
                         _ = shutdown_rx.recv() => {
