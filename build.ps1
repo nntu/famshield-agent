@@ -343,7 +343,10 @@ function Package-Agent {
     }
 
     # 3. Locate and sign the generated installer executable
-    $installerExe = Join-Path $ProjectRoot "installer\Output\FamShieldSetup-1.0.2.exe"
+        $issContent = Get-Content $issFile -Raw
+    $versionMatch = [regex]::Match($issContent, '#define MyAppVersion "(.*?)"')
+    $appVer = if ($versionMatch.Success) { $versionMatch.Groups[1].Value } else { "1.0.3" }
+    $installerExe = Join-Path $ProjectRoot "installer\Output\FamShieldSetup-$appVer.exe"
     if (Test-Path $installerExe) {
         Sign-Binary -FilePath $installerExe
         Write-Host "==========================================================" -ForegroundColor Green

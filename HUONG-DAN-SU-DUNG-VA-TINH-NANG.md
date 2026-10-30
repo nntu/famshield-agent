@@ -176,9 +176,9 @@ FamShield trang bị hệ thống phát hiện từ khóa xấu trong thời gia
 
 Đây là phương thức cài đặt nhanh chóng và đơn giản nhất dành cho phụ huynh.
 
-1. **Tải bộ cài đặt:** Tải file `FamShieldSetup-1.0.2.exe` chính thức.
+1. **Tải bộ cài đặt:** Tải file `FamShieldSetup-1.0.3.exe` chính thức.
 2. **Chạy với quyền Administrator:** 
-   - Nhấp chuột phải vào file `FamShieldSetup-1.0.2.exe`.
+   - Nhấp chuột phải vào file `FamShieldSetup-1.0.3.exe`.
    - Chọn **"Run as administrator"** (Chạy với quyền quản trị viên).
    - Khi hộp thoại UAC (User Account Control) xuất hiện, nhấn **Yes**.
 3. **Thực hiện cài đặt:**
@@ -210,7 +210,7 @@ Nếu bạn là lập trình viên muốn tự biên dịch và kiểm thử:
    ```powershell
    .\build.ps1 package
    ```
-   File cài đặt đầu ra sẽ nằm tại: `installer\Output\FamShieldSetup-1.0.2.exe`.
+   File cài đặt đầu ra sẽ nằm tại: `installer\Output\FamShieldSetup-1.0.3.exe`.
 
 ---
 

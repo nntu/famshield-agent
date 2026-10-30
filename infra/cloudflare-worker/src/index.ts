@@ -111,7 +111,7 @@ export default {
     }
 
     // 4. Convenience redirect to latest installer binary: GET /download/latest
-    if (url.pathname === "/download/latest" || url.pathname === "/v1/release/download") {
+    if (url.pathname.startsWith("/download/") || url.pathname === "/v1/release/download") {
       let release = DEFAULT_METADATA;
       if (kv) {
         const stored = await kv.get("latest_release", { type: "json" });

@@ -39,22 +39,32 @@ jobs:
           echo "Fetching assets for tag $TAG from repo ${{ github.repository }}..."
           
           # 1. Dynamically discover Inno Setup installer asset from GitHub API
-          ASSET_NAME=$(curl -s -H "Authorization: token $GH_TOKEN" "https://api.github.com/repos/${{ github.repository }}/releases/tags/${TAG}" | jq -r '.assets[]? | select(.name | endswith(".exe")) | .name' | head -n 1)
+          INSTALLER_ASSET=$(curl -s -H "Authorization: token $GH_TOKEN" "https://api.github.com/repos/${{ github.repository }}/releases/tags/${TAG}" | jq -r '.assets[]? | select(.name | test("(?i)setup.*\\.exe$")) | .name' | head -n 1)
 
-          if [ -n "$ASSET_NAME" ] && [ "$ASSET_NAME" != "null" ]; then
-            echo "Found release installer asset: $ASSET_NAME"
-            INSTALLER_URL="https://github.com/${{ github.repository }}/releases/download/${TAG}/${ASSET_NAME}"
+          if [ -n "$INSTALLER_ASSET" ] && [ "$INSTALLER_ASSET" != "null" ]; then
+            echo "Found release installer asset: $INSTALLER_ASSET"
+            INSTALLER_URL="https://github.com/${{ github.repository }}/releases/download/${TAG}/${INSTALLER_ASSET}"
           else
-            echo "No explicit asset found in API, using standard Inno Setup naming convention"
+            echo "No explicit setup asset found in API, using standard Inno Setup naming convention"
             INSTALLER_URL="https://github.com/${{ github.repository }}/releases/download/${TAG}/FamShieldSetup-${TAG#v}.exe"
           fi
 
-          # Main package is the full Inno Setup installer
-          SERVICE_URL="$INSTALLER_URL"
+          # 2. Discover Windows Service binary asset
+          SERVICE_ASSET=$(curl -s -H "Authorization: token $GH_TOKEN" "https://api.github.com/repos/${{ github.repository }}/releases/tags/${TAG}" | jq -r '.assets[]? | select(.name == "famshield-service.exe") | .name' | head -n 1)
+
+          if [ -n "$SERVICE_ASSET" ] && [ "$SERVICE_ASSET" != "null" ]; then
+            echo "Found service binary asset: $SERVICE_ASSET"
+            SERVICE_URL="https://github.com/${{ github.repository }}/releases/download/${TAG}/${SERVICE_ASSET}"
+          else
+            SERVICE_URL="https://github.com/${{ github.repository }}/releases/download/${TAG}/famshield-service.exe"
+          fi
           
-          # 2. Compute SHA-256 directly from the installer package
+          # 3. Compute SHA-256 for the background service binary (fallback to installer)
           SHA256=""
-          if curl -sLf -o setup_bin "$INSTALLER_URL"; then
+          if curl -sLf -o service_bin "$SERVICE_URL"; then
+            SHA256=$(sha256sum service_bin | awk '{print $1}')
+            echo "Calculated service binary SHA-256: $SHA256"
+          elif curl -sLf -o setup_bin "$INSTALLER_URL"; then
             SHA256=$(sha256sum setup_bin | awk '{print $1}')
             echo "Calculated installer SHA-256: $SHA256"
           else
