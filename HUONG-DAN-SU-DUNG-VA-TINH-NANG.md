@@ -103,11 +103,41 @@ Tính năng này quét nội dung gõ trong bộ đệm bộ nhớ để tìm t�
 
 Nút **Đặt Lại Báo Cáo** trong phần hoạt động hoặc nhật ký cho phép chọn phạm vi dữ liệu cần xóa: DNS, hoạt động ứng dụng, bằng chứng, từ khóa hoặc toàn bộ báo cáo. Đọc kỹ phạm vi trước khi xác nhận. Thao tác yêu cầu Master PIN và mã OTP nếu 2FA đang bật; dữ liệu báo cáo đã xóa không thể khôi phục từ giao diện này.
 
-## Kết nối máy chủ đám mây
+## Kết nối máy chủ đám mây và Quản lý từ xa qua Web
 
-Chế độ `OnlineManaged` và các nút đồng bộ trong **Quy tắc & Giới hạn** cần máy chủ tương thích, URL và thông tin ghép nối hợp lệ. Nếu thiết bị đang ở `StandaloneFree`, bạn vẫn có thể dùng các chức năng cục bộ không phụ thuộc tài khoản máy chủ.
+FamShield hỗ trợ hai cấp độ giao diện web:
+1. **Web Admin Cục Bộ (Local):** Chạy trực tiếp trên máy con tại `http://127.0.0.1:38123`, truy cập bằng Master PIN để cấu hình tại chỗ khi không có mạng.
+2. **Cloud Web Console (Đám mây):** Giao diện web quản trị tập trung chạy trên máy chủ FamShield (ví dụ `http://localhost:3000` hoặc tên miền gia đình), cho phép phụ huynh quản lý con từ xa trên điện thoại hoặc máy tính cá nhân.
 
-Nếu không có thông tin máy chủ do tổ chức hoặc gia đình quản lý cung cấp, hãy tiếp tục dùng chế độ cục bộ.
+### Ghép nối Agent vào Cloud Web Console
+
+Để chuyển agent từ chế độ `StandaloneFree` (cục bộ) sang `OnlineManaged` (được đám mây quản lý):
+
+1. **Lấy mã ghép đôi trên Web:** Phụ huynh đăng nhập vào Cloud Web Console, mở mục **Thiết bị bảo vệ**, chọn **Ghép đôi thiết bị mới** để nhận **Mã ghép đôi 6 chữ số** (có hiệu lực 15 phút).
+2. **Nhập thông tin trên máy con:** Trong Web Admin cục bộ (`http://127.0.0.1:38123`), vào **Bảo mật & Ghép nối** > **Chuyển chế độ vận hành** (hoặc thực hiện ngay từ bước Thiết lập lần đầu):
+   - Chọn chế độ **OnlineManaged**.
+   - Nhập **Địa chỉ máy chủ đám mây (Server URL)** (ví dụ `https://famshield.yourdomain.com`).
+   - Nhập **Mã ghép đôi** đã nhận từ Web Console.
+3. **Xác nhận kết nối:** Nhấn **Kết nối & Đồng bộ**. Khi thành công, agent sẽ nhận Mã tổ chức (`tenant_id`), chứng chỉ bảo mật và tự động tải phiên bản chính sách lọc web mới nhất từ máy chủ.
+
+### Các tính năng quản trị qua Web Đám mây
+
+Khi đã ghép nối thành công, phụ huynh có thể điều khiển và theo dõi máy con hoàn toàn từ xa qua Cloud Web Console:
+
+| Tính năng trên Web Console | Tác vụ trên Agent Windows |
+| --- | --- |
+| **Phân loại & Lọc Web Đám mây** | Áp dụng tức thì danh mục hệ thống (khiêu dâm, bạo lực, game, mạng xã hội) và danh mục tùy chỉnh xuống bộ lọc WFP và DNS của máy con. |
+| **Danh sách Chặn/Cho phép (Blacklist/Whitelist)** | Đẩy quy tắc tên miền toàn diện; quy tắc từ đám mây có độ ưu tiên cao và được đồng bộ tự động. |
+| **Khóa / Mở khóa máy từ xa** | Phụ huynh có thể tạm thời khóa máy tính của con ngay trên trình duyệt điện thoại khi đến giờ đi ngủ hoặc học bài. |
+| **Đồng bộ chính sách tức thì** | Nút **Đồng bộ tức thì (Trigger Policy Sync)** trên web buộc agent nạp lại quy tắc ngay mà không cần chờ chu kỳ kiểm tra. |
+| **Theo dõi Bằng chứng Vi phạm (48h)** | Agent chụp ảnh màn hình vi phạm, tự động làm mờ tại chỗ (Local Blur 480p) và truyền an toàn lên web; ảnh tự hủy sau 48 giờ để bảo vệ quyền riêng tư theo chuẩn COPPA. |
+| **Cảnh báo tức thì qua Telegram** | Nhận thông báo qua điện thoại khi máy con gặp sự cố mạng, có hành vi vi phạm nghiêm trọng hoặc khi trẻ xin thêm giờ. |
+| **Hồ sơ Trẻ & Hạn ngạch hàng ngày** | Gán máy con vào từng hồ sơ con để theo dõi tiến độ thời gian sử dụng hôm nay (phút đã dùng / hạn mức cho phép). |
+
+Chi tiết toàn bộ các thao tác trên Bảng điều khiển Đám mây được ghi trong [Hướng dẫn sử dụng FamShield Cloud Web Console](../famshield-server/HUONG-DAN-SU-DUNG-VA-TINH-NANG.md).
+
+Nếu không có thông tin máy chủ do tổ chức hoặc gia đình quản lý cung cấp, hãy tiếp tục dùng chế độ `StandaloneFree` (cục bộ).
+
 
 ## Gỡ cài đặt
 
