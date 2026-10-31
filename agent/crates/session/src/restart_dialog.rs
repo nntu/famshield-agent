@@ -19,11 +19,11 @@ use windows::{
             Shell::ShellExecuteW,
             WindowsAndMessaging::{
                 CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, GetDesktopWindow,
-                GetDlgItem, GetMessageW, GetWindowRect, GetWindowTextW, MessageBoxW, PostQuitMessage,
-                RegisterClassW, SetForegroundWindow, ShowWindow, TranslateMessage, BS_DEFPUSHBUTTON,
-                ES_CENTER, ES_PASSWORD, MB_ICONINFORMATION, MB_ICONWARNING, MB_OK, SW_HIDE, SW_SHOW,
-                WM_CLOSE, WM_COMMAND, WM_DESTROY, WNDCLASSW, WS_BORDER, WS_CAPTION, WS_CHILD,
-                WS_OVERLAPPED, WS_SYSMENU, WS_VISIBLE,
+                GetDlgItem, GetMessageW, GetWindowRect, GetWindowTextW, MessageBoxW,
+                PostQuitMessage, RegisterClassW, SetForegroundWindow, ShowWindow, TranslateMessage,
+                BS_DEFPUSHBUTTON, ES_CENTER, ES_PASSWORD, MB_ICONINFORMATION, MB_ICONWARNING,
+                MB_OK, SW_HIDE, SW_SHOW, WM_CLOSE, WM_COMMAND, WM_DESTROY, WNDCLASSW, WS_BORDER,
+                WS_CAPTION, WS_CHILD, WS_OVERLAPPED, WS_SYSMENU, WS_VISIBLE,
             },
         },
     },
@@ -355,8 +355,11 @@ impl ServiceRestartDialog {
                             );
                         }
                         Ok(RestartOutcome::ServiceOffline) => {
-                            info!("Service HTTP is offline. Attempting cold start via Windows SCM...");
-                            let mut started = famshield_windows::start_service("FamShieldService").is_ok();
+                            info!(
+                                "Service HTTP is offline. Attempting cold start via Windows SCM..."
+                            );
+                            let mut started =
+                                famshield_windows::start_service("FamShieldService").is_ok();
 
                             // If direct start failed (e.g. Access Denied on standard non-admin account),
                             // request elevated UAC execution via ShellExecuteW 'runas'
@@ -365,7 +368,8 @@ impl ServiceRestartDialog {
                                 let runas_op = w!("runas");
                                 let cmd_exe = w!("cmd.exe");
                                 let params = w!("/C sc.exe start FamShieldService");
-                                let res = ShellExecuteW(hwnd,
+                                let res = ShellExecuteW(
+                                    hwnd,
                                     runas_op,
                                     cmd_exe,
                                     params,
@@ -482,8 +486,6 @@ impl ServiceRestartDialog {
             Ok(RestartOutcome::RequiresOtp)
         } else if response.contains("\"invalid_otp\":true") {
             Ok(RestartOutcome::InvalidOtp)
-        } else if response.contains("\"wrong_pin\":true") {
-            Ok(RestartOutcome::WrongPin)
         } else {
             Ok(RestartOutcome::WrongPin)
         }

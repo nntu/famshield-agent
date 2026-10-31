@@ -102,10 +102,8 @@ pub fn get_machine_guid() -> Option<String> {
             let _ = RegCloseKey(hkey);
 
             if res.is_ok() && val_type == REG_SZ {
-                let u16_slice: &[u16] = std::slice::from_raw_parts(
-                    buffer.as_ptr() as *const u16,
-                    buf_len as usize / 2,
-                );
+                let u16_slice: &[u16] =
+                    std::slice::from_raw_parts(buffer.as_ptr() as *const u16, buf_len as usize / 2);
                 let s = String::from_utf16_lossy(u16_slice);
                 let trimmed = s.trim_matches('\0').trim().to_string();
                 if !trimmed.is_empty() {
@@ -131,7 +129,11 @@ pub fn get_computer_name() -> String {
     sysinfo::System::host_name()
         .map(|h| h.trim().to_string())
         .filter(|h| !h.is_empty())
-        .or_else(|| std::env::var("COMPUTERNAME").ok().filter(|h| !h.trim().is_empty()))
+        .or_else(|| {
+            std::env::var("COMPUTERNAME")
+                .ok()
+                .filter(|h| !h.trim().is_empty())
+        })
         .unwrap_or_else(|| "DESKTOP-FAMSHIELD".to_string())
 }
 
@@ -185,7 +187,12 @@ pub fn get_system_info() -> SystemInfo {
     let kernel_version =
         sysinfo::System::kernel_version().unwrap_or_else(|| "Unknown Kernel".to_string());
 
-    let detected_arch = sysinfo::System::cpu_arch(); let cpu_arch = if detected_arch.is_empty() { std::env::consts::ARCH.to_string() } else { detected_arch };
+    let detected_arch = sysinfo::System::cpu_arch();
+    let cpu_arch = if detected_arch.is_empty() {
+        std::env::consts::ARCH.to_string()
+    } else {
+        detected_arch
+    };
 
     let cpus = sys.cpus();
     let cpu_brand = cpus

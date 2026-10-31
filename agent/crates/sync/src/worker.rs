@@ -422,7 +422,9 @@ impl TelemetrySyncWorker {
 
                     normalized_block.retain(|d| {
                         !allows.contains(d)
-                            && !allows.iter().any(|allowed| d.ends_with(&format!(".{}", allowed)))
+                            && !allows
+                                .iter()
+                                .any(|allowed| d.ends_with(&format!(".{}", allowed)))
                     });
                 }
 
@@ -444,7 +446,9 @@ impl TelemetrySyncWorker {
                 if let Ok(json_str) = serde_json::to_string(&normalized_block) {
                     let _ = self.storage.set_meta("cached_blocklist", &json_str);
                 }
-                let _ = self.storage.set_meta("policy_version", &pol.version.to_string());
+                let _ = self
+                    .storage
+                    .set_meta("policy_version", &pol.version.to_string());
 
                 // Persist silent_mode in storage
                 let _ = self.storage.set_meta(
