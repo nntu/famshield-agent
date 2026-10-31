@@ -443,15 +443,36 @@ impl TelemetrySyncWorker {
 
                 // Update runtime DNS proxy blocklist in memory
                 if let Some(blocklist) = &self.dns_blocklist {
+                    // 1. Whitelist has HIGHEST priority
+                    blocklist.replace_whitelist(pol.custom_allowed_domains.clone());
+
+                    // 2. Custom Blocked (Domains and Name Patterns)
+                    blocklist.replace_custom_blocked(pol.custom_blocked_domains.clone());
+
+                    // 3. General Threat Blocklist
                     blocklist.replace_blocklist(normalized_block.clone());
+
                     blocklist.set_safesearch_enabled(pol.safesearch_enabled);
                     blocklist.set_youtube_restricted(pol.youtube_restricted);
+                    blocklist.set_monitor_mode(pol.monitor_only_mode);
+
+                    let now = std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .unwrap_or_default()
+                        .as_secs();
+                    if pol.paused_until > now {
+                        blocklist.pause(pol.paused_until - now);
+                    } else {
+                        blocklist.unpause();
+                    }
+
                     info!(
-                        "Dynamic DNS blocklist refreshed with {} domains (safesearch={}, youtube_restricted={}, silent_mode={})",
+                        "Dynamic DNS blocklist refreshed with {} domains (safesearch={}, youtube_restricted={}, monitor_mode={}, paused={})",
                         normalized_block.len(),
                         pol.safesearch_enabled,
                         pol.youtube_restricted,
-                        pol.silent_mode
+                        pol.monitor_only_mode,
+                        blocklist.is_paused()
                     );
                 }
 

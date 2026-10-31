@@ -373,6 +373,28 @@ impl NatsDispatcher {
                 // 1. Hot-swap DNS blocklist if effective_blocked_domains was pushed
                 if let Some(arr) = cmd
                     .payload
+                    .get("custom_allowed_domains")
+                    .and_then(|v| v.as_array())
+                {
+                    let allowed: Vec<String> = arr
+                        .iter()
+                        .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                        .collect();
+                    self.blocklist.replace_whitelist(allowed);
+                }
+                if let Some(arr) = cmd
+                    .payload
+                    .get("custom_blocked_domains")
+                    .and_then(|v| v.as_array())
+                {
+                    let custom: Vec<String> = arr
+                        .iter()
+                        .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                        .collect();
+                    self.blocklist.replace_custom_blocked(custom);
+                }
+                if let Some(arr) = cmd
+                    .payload
                     .get("effective_blocked_domains")
                     .and_then(|v| v.as_array())
                 {
@@ -400,6 +422,34 @@ impl NatsDispatcher {
                         info!("Policy v{} applied and persisted.", policy.version);
                     }
                 }
+                if let Some(paused_until) = cmd.payload.get("paused_until").and_then(|v| v.as_u64()) {
+                    let now = std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .unwrap_or_default()
+                        .as_secs();
+                    if paused_until > now {
+                        self.blocklist.pause(paused_until - now);
+                    } else {
+                        self.blocklist.unpause();
+                    }
+                }
+                Ok(())
+            }
+
+            "pause_blocking" => {
+                let seconds = cmd
+                    .payload
+                    .get("seconds")
+                    .and_then(|v| v.as_u64())
+                    .unwrap_or(900);
+                self.blocklist.pause(seconds);
+                info!("DNS/Web blocking paused for {}s via cloud command.", seconds);
+                Ok(())
+            }
+
+            "unpause_blocking" => {
+                self.blocklist.unpause();
+                info!("DNS/Web blocking unpaused and fully active.");
                 Ok(())
             }
 

@@ -194,6 +194,8 @@ pub struct WebFilterPolicyDto {
     pub silent_mode: bool,
     #[serde(default)]
     pub monitor_only_mode: bool,
+    #[serde(default)]
+    pub paused_until: u64,
     #[serde(default = "default_dns_block_action")]
     pub dns_block_action: String,
     #[serde(default = "default_true")]
