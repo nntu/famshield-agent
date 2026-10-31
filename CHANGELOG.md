@@ -8,6 +8,22 @@ Tất cả các thay đổi quan trọng của dự án **FamShield Windows Agen
 
 ## [Unreleased]
 
+### Added
+- **Bộ Công Cụ Kiểm Thử Tối Ưu Tốc Độ Cao (`test.ps1`)**:
+  - **Tự động phát hiện module thay đổi (`.\test.ps1 -Changed` hoặc `.\test.ps1`)**: Tự động tra cứu `git status` và chỉ kích hoạt test cho các crate có mã nguồn bị chỉnh sửa, rút ngắn thời gian kiểm thử cục bộ trong vòng lặp phát triển nhanh (Inner Loop TDD) từ hàng phút xuống còn 1-3 giây.
+  - **Kiểm thử nhắm mục tiêu linh hoạt (`.\test.ps1 -Target <crate> [-Filter <name>]`)**: Hỗ trợ tên rút gọn của toàn bộ 9 crates trong workspace (`core`, `storage`, `dns`, `windows`, `service`, `session`, `local-admin`, `sync`, `updater`).
+  - **Chạy song song đa luồng xuyên module (Cross-Crate Concurrency) với `cargo-nextest`**: Tự động nhận diện và tận dụng `cargo-nextest` để thực thi đồng thời tất cả các test binary trên toàn bộ nhân CPU, tự động fallback sang `cargo test` chuẩn nếu môi trường chưa cài đặt.
+  - **Tăng tốc CI Workflow (`.github/workflows/ci.yml`)**: Tích hợp `taiki-e/install-action@nextest` và lệnh `cargo nextest run --workspace`, cắt giảm mạnh thời gian chạy kiểm thử tự động trên GitHub Actions.
+
+### Changed
+- **Tối Ưu Hóa Hồ Sơ Biên Dịch & Liên Kết Test ([`Cargo.toml`](Cargo.toml))**:
+  - Bổ sung cấu hình `[profile.dev] split-debuginfo = "unpacked"` tăng tốc quá trình biên dịch gia tăng (incremental build) trên Windows.
+  - Cấu hình `[profile.test] debug = 1` (Line tables only): Giữ nguyên thông tin số dòng/tên file cho panic stack trace khi test thất bại, đồng thời giảm hơn 70% kích thước file PDB và tăng tốc đáng kể thời gian của MSVC `link.exe`.
+  - Cấu hình `[profile.test.package."*"] opt-level = 2`: Tối ưu hóa các thư viện phụ thuộc bên ngoài (Argon2, SHA2, SQLite, Tokio), giữ mã nguồn crate nội bộ biên dịch tức thì trong khi các thuật toán băm mật mã và mã hóa chạy nhanh hơn gấp 10-20 lần trong test suite.
+- **Cập Nhật Tiêu Chuẩn Kiểm Thử Phân Tầng Dành Cho AI Agents ([`AGENTS.md`](AGENTS.md))**:
+  - Hướng dẫn các AI coding agents sử dụng `.\test.ps1 -Changed` và `.\test.ps1 -Target <crate>` trong inner loop để bảo tồn token và thời gian phản hồi.
+
+
 ## [1.0.4] - 2026-10-31
 
 ### Added

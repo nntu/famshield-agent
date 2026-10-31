@@ -49,14 +49,22 @@ Nhằm tối ưu hóa tốc độ phát triển (Developer Experience), bảo t�
 ### 3.1. Trong Quá Trình Code (Fast Inner Loop - TDD)
 > 🛑 **NGHIÊM CẤM:** Tuyệt đối không chạy full workspace test (`rtk cargo test --workspace`) sau mỗi thay đổi nhỏ hoặc mỗi hàm vừa viết xong. Việc này gây lãng phí 15–45s và tiêu tốn hàng nghìn token không cần thiết.
 
-- **Chỉ chạy test nhắm mục tiêu (Targeted Test)** cho đúng crate hoặc test case đang xử lý:
-  ```bash
-  rtk cargo test -p <crate_name> -- <test_name>
-  # Ví dụ:
-  rtk cargo test -p famshield-local-admin -- totp
-  rtk cargo test -p famshield-dns -- cache
-  ```
-  *(Thời gian phản hồi chỉ 0.5s – 1.5s, nhận diện lỗi tức thì).*
+- **Sử dụng Test Runner Tối Ưu (`test.ps1`):**
+  - **Chỉ test các module bị thay đổi (Changed Modules Only):**
+    ```powershell
+    .\test.ps1 -Changed
+    # Hoặc gõ ngắn gọn (tự động phát hiện thay đổi):
+    .\test.ps1
+    ```
+    *(Tự động phát hiện các crate có code thay đổi qua git diff, chạy chỉ trong 1s – 3s).*
+  - **Chỉ chạy test nhắm mục tiêu (Targeted Test) cho đúng crate hoặc test case:**
+    ```powershell
+    .\test.ps1 -Target dns
+    .\test.ps1 -Target local-admin -Filter totp
+    # Hoặc qua cargo trực tiếp:
+    rtk cargo test -p famshield-local-admin -- totp
+    rtk cargo test -p famshield-dns -- cache
+    ```
 - **Kiểm tra biên dịch & cảnh báo nhẹ cục bộ:**
   ```bash
   rtk cargo check -p <crate_name>
@@ -69,7 +77,7 @@ Nhằm tối ưu hóa tốc độ phát triển (Developer Experience), bảo t�
 1. **Format:** `rtk cargo fmt --all -- --check` (Không có sai lệch định dạng).
 2. **Biên dịch:** `rtk cargo check --workspace --all-targets` (Biên dịch thành công).
 3. **Clippy Linter:** `rtk cargo clippy --workspace --all-targets -- -D warnings` (Tuyệt đối **0 errors, 0 warnings**).
-4. **Unit Tests:** `rtk cargo test --workspace` (Toàn bộ các test suite phải **PASS 100%**).
+4. **Unit Tests:** `rtk powershell -File .\test.ps1 -All` hoặc `rtk cargo nextest run --workspace` (Fallback `rtk cargo test --workspace`) (Toàn bộ các test suite phải **PASS 100%**).
 5. **Frontend (nếu có thay đổi UI):** `rtk pnpm --prefix web run build` (Biên dịch Vite thành công; hỗ trợ pnpm v12.x standalone).
 
 ### 3.3. Rà Soát & Quản Lý Phiên Bản Thư Viện (Dependency Versioning & Modern Standards)

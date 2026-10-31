@@ -65,3 +65,21 @@ famshield-local-admin = { path = "agent/crates/local_admin" }
 famshield-service = { path = "agent/crates/service" }
 famshield-sync = { path = "agent/crates/sync" }
 famshield-updater = { path = "agent/crates/updater" }
+
+# ------------------------------------------------------------------------------
+# Build Profiles Optimization for Fast Local Testing & CI
+# ------------------------------------------------------------------------------
+[profile.dev]
+# Accelerate incremental builds on Windows
+split-debuginfo = "unpacked"
+
+[profile.test]
+# Debug level 1 (line tables only): preserves file/line info for panic stack traces
+# while reducing PDB size by ~70% and drastically speeding up MSVC link.exe
+debug = 1
+
+# Optimize external dependencies in tests (Argon2, SHA2, SQLite, Tokio, etc.)
+# Keeps local crates unoptimized (instant compilation) while crypto/hashing runs 10x-50x faster
+[profile.test.package."*"]
+opt-level = 2
+

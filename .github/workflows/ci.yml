@@ -23,5 +23,7 @@ jobs:
         run: cargo check --workspace --all-targets
       - name: Lint workspace
         run: cargo clippy --workspace --all-targets -- -D warnings
-      - name: Test workspace
-        run: cargo test --workspace
+      - name: Install nextest
+        uses: taiki-e/install-action@nextest
+      - name: Test workspace (Parallel Cross-Crate)
+        run: cargo nextest run --workspace
