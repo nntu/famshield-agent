@@ -26,6 +26,7 @@ For behavior available in the current agent, check the code and the root [README
 | Parent installation and first-run setup | [17 Installation guide](17-INSTALLATION-AND-INITIAL-SETUP-GUIDE.md) |
 | Tenant synchronization | [18 Client tenant sync](18-CLIENT-TENANT-SYNC-GUIDE.md) |
 | CLI category import | [19 CLI category import](19-CLI-CATEGORY-IMPORT-AND-TAXONOMY-GUIDE.md) |
+| Detailed release notes archive | [Detailed release notes](releases/) |
 
 ## How to interpret these documents
 

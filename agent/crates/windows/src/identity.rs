@@ -41,6 +41,24 @@ pub struct SystemInfo {
     pub uptime_seconds: u64,
     /// Windows Machine GUID if available
     pub machine_guid: Option<String>,
+    /// Network interfaces details
+    #[serde(default)]
+    pub networks: Vec<NetworkInterfaceInfo>,
+}
+
+/// Network interface details collected via `sysinfo`.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct NetworkInterfaceInfo {
+    /// Interface name (e.g. `Ethernet`, `Wi-Fi`, `en0`)
+    pub name: String,
+    /// Hardware MAC address (e.g. `00:1a:2b:3c:4d:5e`)
+    pub mac_address: String,
+    /// Associated IP addresses
+    pub ip_addresses: Vec<String>,
+    /// Cumulative bytes received
+    pub total_received_bytes: u64,
+    /// Cumulative bytes transmitted
+    pub total_transmitted_bytes: u64,
 }
 
 /// Retrieve the hardware-independent, unique Windows installation GUID.
@@ -208,6 +226,25 @@ pub fn get_system_info() -> SystemInfo {
     let machine_guid = get_machine_guid();
     let computer_name = get_disambiguated_device_name(None);
 
+    let networks_data = sysinfo::Networks::new_with_refreshed_list();
+    let mut networks = Vec::new();
+    for (name, net) in &networks_data {
+        let mac_address = net.mac_address().to_string();
+        let ip_addresses: Vec<String> = net
+            .ip_networks()
+            .iter()
+            .map(|ip_net| ip_net.addr.to_string())
+            .collect();
+
+        networks.push(NetworkInterfaceInfo {
+            name: name.clone(),
+            mac_address,
+            ip_addresses,
+            total_received_bytes: net.total_received(),
+            total_transmitted_bytes: net.total_transmitted(),
+        });
+    }
+
     SystemInfo {
         computer_name,
         host_name,
@@ -221,6 +258,7 @@ pub fn get_system_info() -> SystemInfo {
         used_memory_bytes,
         uptime_seconds,
         machine_guid,
+        networks,
     }
 }
 

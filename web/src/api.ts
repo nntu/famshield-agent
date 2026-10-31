@@ -219,6 +219,28 @@ export const api = {
     }
   },
 
+  async pauseFilter(seconds: number): Promise<{ success: boolean; paused_until: number }> {
+    return apiRequest<{ success: boolean; paused_until: number }>('/api/filter/pause', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ seconds }),
+    });
+  },
+
+  async unpauseFilter(): Promise<{ success: boolean; paused_until: number }> {
+    return apiRequest<{ success: boolean; paused_until: number }>('/api/filter/unpause', {
+      method: 'POST',
+    });
+  },
+
+  async inspectDomain(domain: string): Promise<import('./types').ResolvePolicyResult> {
+    return apiRequest<import('./types').ResolvePolicyResult>('/api/filter/inspect', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ domain }),
+    });
+  },
+
   async getDnsSummary(
     limit: number = 200,
     startTime?: string,

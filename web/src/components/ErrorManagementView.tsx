@@ -1,3 +1,4 @@
+import type { ColumnDef } from '@tanstack/react-table';
 import {
   AlertCircle,
   AlertTriangle,
@@ -18,6 +19,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '../api';
 import { translations } from '../i18n';
 import type { ErrorLogItem, Language, ListErrorsResponse } from '../types';
+import { DataTable } from './DataTable';
 
 interface ErrorManagementViewProps {
   lang: Language;
@@ -35,7 +37,6 @@ export const ErrorManagementView: React.FC<ErrorManagementViewProps> = ({
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isPushingNats, setIsPushingNats] = useState<boolean>(false);
   const [isClearing, setIsClearing] = useState<boolean>(false);
-  const [filterQuery, setFilterQuery] = useState<string>('');
   const [expandedTraceId, setExpandedTraceId] = useState<string | null>(null);
 
   const fetchErrors = useCallback(
@@ -146,19 +147,6 @@ export const ErrorManagementView: React.FC<ErrorManagementViewProps> = ({
     }
   };
 
-  const filteredErrors = useMemo(() => {
-    if (!data?.errors) return [];
-    if (!filterQuery.trim()) return data.errors;
-    const q = filterQuery.toLowerCase();
-    return data.errors.filter(
-      (err: ErrorLogItem) =>
-        err.message.toLowerCase().includes(q) ||
-        err.module.toLowerCase().includes(q) ||
-        err.severity.toLowerCase().includes(q) ||
-        err.error_id.toLowerCase().includes(q)
-    );
-  }, [data, filterQuery]);
-
   const renderSeverityBadge = (severity: string) => {
     const s = severity.toUpperCase();
     if (s === 'CRITICAL') {
@@ -188,6 +176,109 @@ export const ErrorManagementView: React.FC<ErrorManagementViewProps> = ({
       </span>
     );
   };
+
+  const columns = useMemo<ColumnDef<ErrorLogItem>[]>(
+    () => [
+      {
+        accessorKey: 'module',
+        header: t.err_col_module,
+        cell: (info) => (
+          <span className="px-2 py-0.5 rounded font-mono font-semibold bg-slate-100 text-slate-700 border border-slate-200 text-2xs">
+            {info.getValue() as string}
+          </span>
+        ),
+      },
+      {
+        accessorKey: 'severity',
+        header: t.err_col_severity,
+        cell: (info) => renderSeverityBadge(info.getValue() as string),
+      },
+      {
+        accessorKey: 'message',
+        header: t.err_col_msg,
+        cell: ({ row }) => {
+          const err = row.original;
+          const isExpanded = expandedTraceId === err.error_id;
+          const hasTrace = Boolean(err.stack_trace && err.stack_trace.trim().length > 0);
+          return (
+            <div className="max-w-md">
+              <div className="font-medium text-slate-800 break-words">{err.message}</div>
+              <div className="flex items-center gap-2 mt-1">
+                <span className="font-mono text-2xs text-slate-400" title={err.error_id}>
+                  ID: {err.error_id.slice(0, 16)}...
+                </span>
+                {hasTrace && (
+                  <button
+                    type="button"
+                    onClick={() => setExpandedTraceId(isExpanded ? null : err.error_id)}
+                    className="inline-flex items-center gap-0.5 text-2xs font-semibold text-sky-600 hover:text-sky-700 cursor-pointer"
+                  >
+                    {isExpanded ? (
+                      <>
+                        <ChevronUp size={11} /> {isVi ? 'Ẩn Stack Trace' : 'Hide Trace'}
+                      </>
+                    ) : (
+                      <>
+                        <ChevronDown size={11} /> {isVi ? 'Xem Stack Trace' : 'View Trace'}
+                      </>
+                    )}
+                  </button>
+                )}
+              </div>
+              {isExpanded && hasTrace && (
+                <div className="mt-2 bg-slate-950 p-2.5 rounded-lg border border-slate-800 overflow-x-auto whitespace-pre leading-relaxed text-rose-300 font-mono text-2xs">
+                  {err.stack_trace}
+                </div>
+              )}
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: 'occurrence_count',
+        header: t.err_col_count,
+        cell: (info) => (
+          <div className="text-center font-mono">
+            <span className="px-2 py-0.5 rounded-full text-2xs font-bold bg-rose-50 text-rose-700 border border-rose-200/80">
+              {info.getValue() as number}x
+            </span>
+          </div>
+        ),
+      },
+      {
+        accessorKey: 'last_seen_at',
+        header: t.err_col_last_seen,
+        cell: (info) => {
+          const val = info.getValue() as string;
+          const dt = new Date(val);
+          return (
+            <div className="text-slate-600 font-mono text-2xs">
+              {dt.toLocaleTimeString()} <span className="text-slate-400">({dt.toLocaleDateString()})</span>
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: 'synced',
+        header: t.err_col_status,
+        cell: (info) => {
+          const synced = info.getValue() as boolean;
+          return synced ? (
+            <span className="inline-flex items-center gap-1 text-2xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+              <CheckCircle2 size={11} />
+              {t.err_status_synced}
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1 text-2xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
+              <Clock size={11} />
+              {t.err_status_pending}
+            </span>
+          );
+        },
+      },
+    ],
+    [t, isVi, expandedTraceId]
+  );
 
   return (
     <div className="flex flex-col gap-5">
@@ -306,139 +397,27 @@ export const ErrorManagementView: React.FC<ErrorManagementViewProps> = ({
         </div>
       </div>
 
-      {/* Search Filter */}
-      <div className="relative max-w-md">
-        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-        <input
-          type="text"
-          value={filterQuery}
-          onChange={(e) => setFilterQuery(e.target.value)}
-          placeholder={
-            isVi
-              ? 'Lọc theo thông điệp lỗi, module (dns, sync, storage...), mức độ...'
-              : 'Filter by error message, module, severity...'
-          }
-          className="w-full pl-9 pr-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-sky-500 focus:border-sky-500"
-        />
-      </div>
-
       {/* Error Records List */}
       {isLoading && !data ? (
         <div className="flex flex-col items-center justify-center py-20 text-slate-400 gap-2 bg-white border border-slate-200/80 rounded-xl">
           <RefreshCw size={24} className="animate-spin text-sky-500" />
           <p className="text-xs">{isVi ? 'Đang đọc danh sách lỗi...' : 'Loading error logs...'}</p>
         </div>
-      ) : filteredErrors.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-16 px-4 text-center bg-white border border-slate-200/80 rounded-xl">
-          <div className="w-12 h-12 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mb-3">
-            <CheckCircle2 size={24} />
-          </div>
-          <p className="text-sm font-semibold text-slate-800">{t.err_empty}</p>
-          <p className="text-xs text-slate-400 mt-1 max-w-md">
-            {isVi
-              ? 'Tất cả các thành phần dịch vụ FamShield DNS, WFP và Sync đang vận hành ổn định và không phát sinh lỗi bất thường.'
-              : 'All FamShield system modules (DNS proxy, WFP filter, Sync daemon) are operating normally without recorded exceptions.'}
-          </p>
-        </div>
       ) : (
-        <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-2xs">
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse text-left text-xs">
-              <thead>
-                <tr className="border-b border-slate-200 bg-slate-50 text-slate-600 font-semibold">
-                  <th className="py-2.5 px-3">{t.err_col_module}</th>
-                  <th className="py-2.5 px-3">{t.err_col_severity}</th>
-                  <th className="py-2.5 px-3">{t.err_col_msg}</th>
-                  <th className="py-2.5 px-3 text-center">{t.err_col_count}</th>
-                  <th className="py-2.5 px-3">{t.err_col_last_seen}</th>
-                  <th className="py-2.5 px-3 text-center">{t.err_col_status}</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {filteredErrors.map((err) => {
-                  const isExpanded = expandedTraceId === err.error_id;
-                  const hasTrace = Boolean(err.stack_trace && err.stack_trace.trim().length > 0);
-
-                  return (
-                    <React.Fragment key={err.error_id}>
-                      <tr className="hover:bg-slate-50/60 transition-colors">
-                        <td className="py-2.5 px-3">
-                          <span className="px-2 py-0.5 rounded font-mono font-semibold bg-slate-100 text-slate-700 border border-slate-200 text-2xs">
-                            {err.module}
-                          </span>
-                        </td>
-                        <td className="py-2.5 px-3">{renderSeverityBadge(err.severity)}</td>
-                        <td className="py-2.5 px-3 max-w-md">
-                          <div className="font-medium text-slate-800 break-words">
-                            {err.message}
-                          </div>
-                          <div className="flex items-center gap-2 mt-1">
-                            <span className="font-mono text-2xs text-slate-400" title={err.error_id}>
-                              ID: {err.error_id.slice(0, 16)}...
-                            </span>
-                            {hasTrace && (
-                              <button
-                                onClick={() =>
-                                  setExpandedTraceId(isExpanded ? null : err.error_id)
-                                }
-                                className="inline-flex items-center gap-0.5 text-2xs font-semibold text-sky-600 hover:text-sky-700 cursor-pointer"
-                              >
-                                {isExpanded ? (
-                                  <>
-                                    <ChevronUp size={11} />{' '}
-                                    {isVi ? 'Ẩn Stack Trace' : 'Hide Trace'}
-                                  </>
-                                ) : (
-                                  <>
-                                    <ChevronDown size={11} />{' '}
-                                    {isVi ? 'Xem Stack Trace' : 'View Trace'}
-                                  </>
-                                )}
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                        <td className="py-2.5 px-3 text-center font-mono">
-                          <span className="px-2 py-0.5 rounded-full text-2xs font-bold bg-rose-50 text-rose-700 border border-rose-200/80">
-                            {err.occurrence_count}x
-                          </span>
-                        </td>
-                        <td className="py-2.5 px-3 text-slate-600 font-mono text-2xs">
-                          {new Date(err.last_seen_at).toLocaleTimeString()}{' '}
-                          <span className="text-slate-400">
-                            ({new Date(err.last_seen_at).toLocaleDateString()})
-                          </span>
-                        </td>
-                        <td className="py-2.5 px-3 text-center">
-                          {err.synced ? (
-                            <span className="inline-flex items-center gap-1 text-2xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
-                              <CheckCircle2 size={11} />
-                              {t.err_status_synced}
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 text-2xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
-                              <Clock size={11} />
-                              {t.err_status_pending}
-                            </span>
-                          )}
-                        </td>
-                      </tr>
-                      {isExpanded && hasTrace && (
-                        <tr className="bg-slate-900 text-slate-200 font-mono text-2xs">
-                          <td colSpan={6} className="p-3">
-                            <div className="bg-slate-950 p-2.5 rounded-lg border border-slate-800 overflow-x-auto whitespace-pre leading-relaxed text-rose-300">
-                              {err.stack_trace}
-                            </div>
-                          </td>
-                        </tr>
-                      )}
-                    </React.Fragment>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <DataTable
+          data={data?.errors || []}
+          columns={columns}
+          pageSize={10}
+          searchPlaceholder={
+            isVi
+              ? 'Lọc theo thông điệp lỗi, module (dns, sync, storage...), mức độ...'
+              : 'Filter by error message, module, severity...'
+          }
+          emptyText={t.err_empty}
+          lang={lang}
+          enableExport={true}
+          exportFilename="famshield_error_logs"
+        />
       )}
     </div>
   );

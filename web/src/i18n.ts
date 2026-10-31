@@ -6,7 +6,7 @@ export const translations = {
     btn_logout: 'Đăng xuất',
     nav_dashboard: 'Tổng quan',
     nav_activity: 'Hoạt động Giám sát',
-    nav_rules: 'Quy tắc & Giới hạn',
+    nav_rules: 'Lọc Web & DNS',
     nav_logs: 'Nhật ký DNS',
     nav_system_logs: 'Đọc Logs & Lỗi',
     nav_evidence: 'Bằng chứng Vi phạm',
@@ -43,6 +43,7 @@ export const translations = {
     lbl_cpu: 'Bộ Xử Lý (CPU)',
     lbl_ram: 'Bộ Nhớ (RAM)',
     lbl_uptime: 'Thời Gian Hoạt Động',
+    lbl_network: 'Mạng & Địa Chỉ IP',
 
     // Rules
     title_domain_block: 'Chặn Tên Miền (Domain Blocklist)',
@@ -372,7 +373,7 @@ export const translations = {
     btn_logout: 'Logout',
     nav_dashboard: 'Dashboard',
     nav_activity: 'Activity Monitor',
-    nav_rules: 'Rules & Limits',
+    nav_rules: 'Web & DNS Filtering',
     nav_logs: 'DNS Logs',
     nav_system_logs: 'System Logs & Errors',
     nav_evidence: 'Visual Evidence',
@@ -409,6 +410,7 @@ export const translations = {
     lbl_cpu: 'Processor (CPU)',
     lbl_ram: 'Memory (RAM)',
     lbl_uptime: 'System Uptime',
+    lbl_network: 'Network & IP Address',
 
     // Rules
     title_domain_block: 'Domain Blocklist',

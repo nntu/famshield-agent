@@ -68,11 +68,12 @@ cargo test --workspace
 
 1. Fork kho mã nguồn và tạo nhánh mới từ `master`.
 2. Viết mã và bổ sung unit test tương ứng cho tính năng/lỗi vừa sửa.
-3. Chạy Quality Gate thành công 100%.
-4. Tạo Pull Request trên GitHub hướng về nhánh `master`.
-5. Điền đầy đủ thông tin vào mẫu [Pull Request Template](.github/pull_request_template.md).
-6. Tất cả các job trong GitHub Actions CI phải xanh lá (Pass).
-7. Được duyệt (Approve) bởi ít nhất 1 maintainer trước khi merge.
+3. Cập nhật `CHANGELOG.md`: Ghi nhận ngắn gọn các thay đổi quan trọng vào mục `## [Unreleased]` theo chuẩn Keep a Changelog (xem chi tiết tại [`.agents/rules/changelog-rules.md`](.agents/rules/changelog-rules.md)).
+4. Chạy Quality Gate thành công 100%.
+5. Tạo Pull Request trên GitHub hướng về nhánh `master`.
+6. Điền đầy đủ thông tin vào mẫu [Pull Request Template](.github/pull_request_template.md).
+7. Tất cả các job trong GitHub Actions CI phải xanh lá (Pass).
+8. Được duyệt (Approve) bởi ít nhất 1 maintainer trước khi merge.
 
 ---
 
@@ -136,6 +137,7 @@ cargo test --workspace
 ### 4. Pull Request Review & Merge Requirements
 
 - Open PR against `master`.
+- Update `CHANGELOG.md`: Record changes under `## [Unreleased]` following Keep a Changelog guidelines (see [`.agents/rules/changelog-rules.md`](.agents/rules/changelog-rules.md)).
 - Fill out the [.github/pull_request_template.md](.github/pull_request_template.md).
 - Automated CI pipeline must pass on Windows runners.
 - At least one code review approval from core maintainers is required before merging.

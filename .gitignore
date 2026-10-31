@@ -9,10 +9,14 @@ server/dist/
 
 # Web / Node
 node_modules/
+node_modules
+web/node_modules
 dist/
 build/
 .npm/
+.pnpm-store/
 .wrangler/
+.npmrc
 
 # Operating System & IDEs
 .DS_Store

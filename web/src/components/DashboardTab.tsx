@@ -3,6 +3,7 @@ import {
   ArrowRight,
   Layers,
   Monitor,
+  Network,
   Play,
   RefreshCw,
   ShieldCheck,
@@ -356,6 +357,40 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
               </span>
             </div>
           </div>
+          {status.system_info.networks &&
+            status.system_info.networks.some(
+              (n) => n.ip_addresses && n.ip_addresses.length > 0
+            ) && (
+              <div className="mt-3 pt-2.5 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs">
+                <div className="flex items-center gap-1.5 text-slate-500">
+                  <Network size={14} className="text-sky-600" />
+                  <span className="font-medium text-slate-700">{t.lbl_network}:</span>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  {status.system_info.networks
+                    .filter((n) => n.ip_addresses && n.ip_addresses.length > 0)
+                    .map((net, idx) => {
+                      const displayIps = net.ip_addresses.filter(
+                        (ip) => !ip.startsWith('127.') && !ip.startsWith('fe80')
+                      );
+                      const ipsText =
+                        displayIps.length > 0
+                          ? displayIps.join(', ')
+                          : net.ip_addresses.join(', ');
+                      return (
+                        <span
+                          key={idx}
+                          className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-slate-50 text-slate-700 border border-slate-200/80 font-mono text-2xs"
+                          title={net.mac_address ? `MAC: ${net.mac_address}` : undefined}
+                        >
+                          <span className="font-semibold text-slate-900">{net.name}:</span>
+                          <span className="text-sky-700 font-medium">{ipsText}</span>
+                        </span>
+                      );
+                    })}
+                </div>
+              </div>
+            )}
         </div>
       )}
 

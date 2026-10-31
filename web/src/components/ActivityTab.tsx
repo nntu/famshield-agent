@@ -22,14 +22,24 @@ import {
   Smartphone,
   Tv,
 } from 'lucide-react';
+import type { ColumnDef } from '@tanstack/react-table';
 import type React from 'react';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '../api';
 import { translations } from '../i18n';
-import type { ActivitySummaryResponse, Language } from '../types';
-import { AppUsageRankingChart } from './charts/AppUsageRankingChart';
-import { CategoryDoughnutChart } from './charts/CategoryDoughnutChart';
+import type {
+  ActivitySummaryResponse,
+  AppUsageSummary,
+  KeywordViolation,
+  Language,
+  WebActivityItem,
+} from '../types';
+import { DataTable } from './DataTable';
 import { ResetReportModal } from './ResetReportModal';
+import { ActivityKpiCards } from './activity/ActivityKpiCards';
+import { AppsTimelineView } from './activity/AppsTimelineView';
+import { CategoryChartCard } from './activity/CategoryChartCard';
+import { UnifiedTimelineView } from './activity/UnifiedTimelineView';
 
 interface ActivityTabProps {
   lang: Language;
@@ -177,6 +187,263 @@ export const ActivityTab: React.FC<ActivityTabProps> = ({ lang, onRefresh, onSho
     return matchSearch && matchCat;
   });
 
+  const appColumns = useMemo<ColumnDef<AppUsageSummary>[]>(
+    () => [
+      {
+        accessorKey: 'app_title',
+        header: t.th_app_col,
+        cell: ({ row }) => {
+          const app = row.original;
+          return (
+            <div className="flex items-center gap-2.5">
+              <Smartphone size={16} className="text-sky-600 shrink-0" />
+              <div>
+                <div className="font-semibold text-slate-900">{app.app_title}</div>
+                <div className="text-2xs text-slate-400 font-mono">{app.app_name}</div>
+              </div>
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: 'category',
+        header: t.th_category_col,
+        cell: (info) => {
+          const cat = info.getValue() as string;
+          return (
+            <span className="bg-slate-100 text-slate-700 border border-slate-200 px-2 py-0.5 rounded text-2xs font-medium inline-flex items-center gap-1.5">
+              {getCategoryIcon(cat)}
+              {cat}
+            </span>
+          );
+        },
+      },
+      {
+        accessorKey: 'total_duration_minutes',
+        header: t.th_duration,
+        cell: ({ row }) => (
+          <span className="text-sky-700 font-bold font-mono text-sm">
+            {row.original.total_duration_formatted}
+          </span>
+        ),
+      },
+      {
+        accessorKey: 'percentage',
+        header: t.th_app_share,
+        cell: (info) => {
+          const pct = info.getValue() as number;
+          return (
+            <div className="flex items-center gap-2 min-w-[100px]">
+              <div className="w-16 bg-slate-100 rounded-full h-2 overflow-hidden border border-slate-200/60">
+                <div
+                  className="bg-sky-500 h-2 rounded-full"
+                  style={{ width: `${Math.min(100, Math.max(2, pct))}%` }}
+                />
+              </div>
+              <span className="text-2xs font-mono font-semibold text-slate-700">{pct}%</span>
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: 'session_count',
+        header: t.th_session_count,
+        cell: (info) => (
+          <span className="text-slate-700 font-mono">
+            {info.getValue() as number} {isVi ? 'lần' : 'times'}
+          </span>
+        ),
+      },
+      {
+        accessorKey: 'last_seen_at',
+        header: t.th_last_used,
+        cell: (info) => {
+          const val = info.getValue() as string;
+          return (
+            <span className="text-slate-600 font-mono">
+              {new Date(val).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            </span>
+          );
+        },
+      },
+      {
+        accessorKey: 'status',
+        header: t.th_status_col,
+        cell: (info) => {
+          const s = info.getValue() as string;
+          return (
+            <span
+              className={`px-2 py-0.5 rounded-full font-bold text-2xs border ${
+                s === 'Active'
+                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                  : s === 'QuotaWarning'
+                    ? 'bg-amber-50 text-amber-700 border-amber-200'
+                    : 'bg-slate-100 text-slate-700 border-slate-200'
+              }`}
+            >
+              {s === 'Active'
+                ? isVi
+                  ? 'Đang mở'
+                  : 'Active'
+                : s === 'QuotaWarning'
+                  ? isVi
+                    ? 'Cảnh báo hạn mức'
+                    : 'Quota Warning'
+                  : isVi
+                    ? 'Bình thường'
+                    : 'Normal'}
+            </span>
+          );
+        },
+      },
+    ],
+    [t, isVi]
+  );
+
+  const webColumns = useMemo<ColumnDef<WebActivityItem>[]>(
+    () => [
+      {
+        accessorKey: 'occurred_at',
+        header: t.th_time,
+        cell: (info) => (
+          <span className="text-slate-500 font-mono text-xs">
+            {new Date(info.getValue() as string).toLocaleTimeString([], {
+              hour: '2-digit',
+              minute: '2-digit',
+              second: '2-digit',
+            })}
+          </span>
+        ),
+      },
+      {
+        accessorKey: 'domain',
+        header: t.th_domain_col,
+        cell: ({ row }) => {
+          const item = row.original;
+          return (
+            <div>
+              <div className="flex items-center gap-2">
+                <Globe size={14} className="text-sky-600 shrink-0" />
+                <span className="font-semibold text-slate-900 break-all">{item.domain}</span>
+              </div>
+              {item.reason && <div className="text-2xs text-slate-500 mt-0.5">{item.reason}</div>}
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: 'category',
+        header: t.th_category_col,
+        cell: (info) => {
+          const cat = info.getValue() as string;
+          return (
+            <span className="bg-slate-100 text-slate-700 border border-slate-200 px-2 py-0.5 rounded text-2xs font-medium inline-flex items-center gap-1.5">
+              {getCategoryIcon(cat)}
+              {cat}
+            </span>
+          );
+        },
+      },
+      {
+        accessorKey: 'source_app',
+        header: t.th_source_app,
+        cell: (info) => (
+          <span className="font-mono text-2xs text-slate-600 bg-slate-50 border border-slate-200/80 px-2 py-0.5 rounded">
+            {info.getValue() as string}
+          </span>
+        ),
+      },
+      {
+        accessorKey: 'action',
+        header: t.th_action_col,
+        cell: (info) => {
+          const act = ((info.getValue() as string) || '').toUpperCase();
+          return (
+            <span
+              className={`px-2 py-0.5 rounded-full font-bold text-2xs border ${
+                act === 'BLOCK'
+                  ? 'bg-rose-50 text-rose-700 border-rose-200'
+                  : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+              }`}
+            >
+              {act === 'BLOCK' ? t.tag_block : t.tag_allow}
+            </span>
+          );
+        },
+      },
+    ],
+    [t]
+  );
+
+  const keywordColumns = useMemo<ColumnDef<KeywordViolation>[]>(
+    () => [
+      {
+        accessorKey: 'timestamp',
+        header: t.th_time,
+        cell: (info) => (
+          <span className="text-slate-500 font-mono text-xs">
+            {new Date(info.getValue() as string).toLocaleTimeString([], {
+              hour: '2-digit',
+              minute: '2-digit',
+              second: '2-digit',
+            })}
+          </span>
+        ),
+      },
+      {
+        accessorKey: 'keyword_matched',
+        header: t.th_kw_pattern,
+        cell: (info) => (
+          <span className="font-bold text-rose-600">"{info.getValue() as string}"</span>
+        ),
+      },
+      {
+        accessorKey: 'category',
+        header: t.th_kw_category,
+        cell: (info) => (
+          <span className="bg-slate-100 text-slate-700 border border-slate-200 px-2 py-0.5 rounded text-2xs font-medium">
+            {info.getValue() as string}
+          </span>
+        ),
+      },
+      {
+        accessorKey: 'severity',
+        header: t.th_kw_severity,
+        cell: (info) => {
+          const sev = ((info.getValue() as string) || '').toLowerCase();
+          return (
+            <span
+              className={`px-2 py-0.5 rounded text-2xs font-bold uppercase border ${
+                sev === 'critical'
+                  ? 'bg-rose-50 text-rose-700 border-rose-200'
+                  : 'bg-amber-50 text-amber-700 border-amber-200'
+              }`}
+            >
+              {sev}
+            </span>
+          );
+        },
+      },
+      {
+        accessorKey: 'app_name',
+        header: t.th_kw_app,
+        cell: (info) => (
+          <span className="font-mono text-2xs text-slate-700">{info.getValue() as string}</span>
+        ),
+      },
+      {
+        accessorKey: 'snippet_masked',
+        header: t.th_kw_snippet,
+        cell: (info) => (
+          <span className="font-mono text-2xs text-slate-600 bg-slate-50 px-2 py-1 rounded border border-slate-200/80 block max-w-sm truncate">
+            {info.getValue() as string}
+          </span>
+        ),
+      },
+    ],
+    [t]
+  );
+
   return (
     <div className="flex flex-col gap-6">
       {/* Header Banner */}
@@ -245,119 +512,15 @@ export const ActivityTab: React.FC<ActivityTabProps> = ({ lang, onRefresh, onSho
       </div>
 
       {/* 5 KPI Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-        {/* Card 1: Total Screen Time */}
-        <div className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-xs flex flex-col justify-between">
-          <div className="flex justify-between items-start mb-2">
-            <span className="text-xs text-slate-500 font-semibold flex items-center gap-1.5">
-              <Clock size={15} className="text-sky-600" />
-              {t.stat_screen_time}
-            </span>
-            <span className="bg-sky-50 text-sky-700 px-2 py-0.5 rounded text-2xs font-mono font-bold border border-sky-100">
-              {data?.date || new Date().toISOString().slice(0, 10)}
-            </span>
-          </div>
-          <div className="text-2xl font-bold text-slate-900 tracking-tight my-1">
-            {data?.total_screen_time_formatted || '0 phút'}
-          </div>
-          <div className="text-2xs text-slate-400">{t.stat_screen_time_sub}</div>
-        </div>
-
-        {/* Card 2: Applications Used */}
-        <div className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-xs flex flex-col justify-between">
-          <div className="flex justify-between items-start mb-2">
-            <span className="text-xs text-slate-500 font-semibold flex items-center gap-1.5">
-              <Smartphone size={15} className="text-sky-600" />
-              {t.stat_apps_opened}
-            </span>
-            <span className="bg-sky-50 text-sky-700 px-2 py-0.5 rounded text-2xs font-bold border border-sky-100">
-              {data?.active_apps_count || 0} apps
-            </span>
-          </div>
-          <div className="text-2xl font-bold text-slate-900 tracking-tight my-1">
-            {data?.active_apps_count || 0}
-          </div>
-          <div className="text-2xs text-slate-400">{t.stat_apps_opened_sub}</div>
-        </div>
-
-        {/* Card 3: Websites Visited */}
-        <div className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-xs flex flex-col justify-between">
-          <div className="flex justify-between items-start mb-2">
-            <span className="text-xs text-slate-500 font-semibold flex items-center gap-1.5">
-              <Globe size={15} className="text-emerald-600" />
-              {t.stat_web_visits}
-            </span>
-            <span className="bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded text-2xs font-bold border border-emerald-100">
-              DNS
-            </span>
-          </div>
-          <div className="text-2xl font-bold text-slate-900 tracking-tight my-1">
-            {data?.total_web_visits_count || 0}
-          </div>
-          <div className="text-2xs text-slate-400">{t.stat_web_visits_sub}</div>
-        </div>
-
-        {/* Card 4: Blocked & Monitored Violations */}
-        <div className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-xs flex flex-col justify-between">
-          <div className="flex justify-between items-start mb-2">
-            <span className="text-xs text-slate-500 font-semibold flex items-center gap-1.5">
-              <ShieldAlert size={15} className="text-rose-600" />
-              {t.stat_violations}
-            </span>
-            <span className="bg-rose-50 text-rose-700 px-2 py-0.5 rounded text-2xs font-bold border border-rose-100">
-              {data?.blocked_events_count || 0} Block
-            </span>
-          </div>
-          <div className="text-2xl font-bold text-slate-900 tracking-tight my-1">
-            {(data?.blocked_events_count || 0) + (data?.monitored_events_count || 0)}
-          </div>
-          <div className="text-2xs text-slate-400">{t.stat_violations_sub}</div>
-        </div>
-
-        {/* Card 5: Sensitive Keyword Violations */}
-        <div
-          onClick={() => setActiveSubTab('keywords')}
-          className={`bg-white border rounded-2xl p-5 shadow-xs flex flex-col justify-between cursor-pointer transition-all ${
-            activeSubTab === 'keywords'
-              ? 'border-amber-400 ring-1 ring-amber-400'
-              : 'border-slate-200/80 hover:border-slate-300'
-          }`}
-        >
-          <div className="flex justify-between items-start mb-2">
-            <span className="text-xs text-slate-500 font-semibold flex items-center gap-1.5">
-              <AlertTriangle size={15} className="text-amber-600" />
-              {t.stat_keywords}
-            </span>
-            <span className="bg-amber-50 text-amber-700 px-2 py-0.5 rounded text-2xs font-bold border border-amber-100">
-              RAM
-            </span>
-          </div>
-          <div className="text-2xl font-bold text-slate-900 tracking-tight my-1">
-            {data?.keyword_violations_count || 0}
-          </div>
-          <div className="text-2xs text-slate-400">{t.stat_keywords_sub}</div>
-        </div>
-      </div>
+      <ActivityKpiCards
+        data={data}
+        activeSubTab={activeSubTab}
+        onSelectKeywordsTab={() => setActiveSubTab('keywords')}
+        lang={lang}
+      />
 
       {/* Category Screen Time Chart Card */}
-      {data?.app_activities && data.app_activities.length > 0 && (
-        <div className="bg-white border border-slate-200/80 rounded-2xl p-5 sm:p-6 shadow-xs flex flex-col gap-3.5">
-          <div className="flex justify-between items-center flex-wrap gap-2">
-            <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-              <PieChart size={16} className="text-sky-600" />
-              <span>
-                {isVi
-                  ? 'Phân Bố Thời Lượng Theo Danh Mục Ứng Dụng'
-                  : 'Screen Time Distribution by Category'}
-              </span>
-            </h3>
-            <span className="text-2xs text-slate-500 font-medium">
-              {data.app_activities.length} {isVi ? 'ứng dụng ghi nhận' : 'recorded apps'}
-            </span>
-          </div>
-          <CategoryDoughnutChart appActivities={data.app_activities} lang={lang} height={175} />
-        </div>
-      )}
+      <CategoryChartCard appActivities={data?.app_activities} lang={lang} />
 
       {/* Main Content Area */}
       <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-xs flex flex-col gap-5">
@@ -463,556 +626,56 @@ export const ActivityTab: React.FC<ActivityTabProps> = ({ lang, onRefresh, onSho
 
         {/* VIEW 1: UNIFIED TIMELINE */}
         {activeSubTab === 'unified' && (
-          <div>
-            {filteredTimeline.length === 0 ? (
-              <div className="text-center py-10 text-slate-500 text-sm">{t.no_activity_found}</div>
-            ) : (
-              <div className="flex flex-col gap-2.5">
-                {filteredTimeline.map((item) => {
-                  const isApp = item.item_type === 'app';
-                  const isKeyword = item.item_type === 'keyword';
-                  const dateObj = new Date(item.timestamp);
-                  const timeFormatted = dateObj.toLocaleTimeString([], {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    second: '2-digit',
-                  });
-
-                  return (
-                    <div
-                      key={item.id}
-                      className={`border rounded-xl p-3.5 flex items-center justify-between flex-wrap gap-3 transition-colors ${
-                        isKeyword
-                          ? 'bg-amber-50/50 border-amber-200/80 hover:bg-amber-50'
-                          : 'bg-slate-50/60 border-slate-200/80 hover:bg-slate-100/60'
-                      }`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <div
-                          className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
-                            isKeyword
-                              ? 'bg-amber-100 text-amber-700'
-                              : isApp
-                                ? 'bg-sky-50 text-sky-700'
-                                : 'bg-sky-50 text-sky-700'
-                          }`}
-                        >
-                          {isKeyword ? (
-                            <AlertTriangle size={17} />
-                          ) : isApp ? (
-                            <Smartphone size={17} />
-                          ) : (
-                            <Globe size={17} />
-                          )}
-                        </div>
-
-                        <div>
-                          <div className="flex items-center gap-2 mb-0.5">
-                            <span className="font-bold text-slate-900 text-sm">{item.title}</span>
-                            <span className="bg-white text-slate-600 border border-slate-200 px-2 py-0.5 rounded text-2xs font-medium inline-flex items-center gap-1 shadow-2xs">
-                              {getCategoryIcon(item.category)}
-                              {item.category}
-                            </span>
-                          </div>
-
-                          <div className="text-xs text-slate-500">{item.subtitle}</div>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-3.5">
-                        <div className="text-right">
-                          <div className="text-xs font-mono font-bold text-slate-800">
-                            {timeFormatted}
-                          </div>
-                          <div className="text-2xs text-slate-400">
-                            {dateObj.toLocaleDateString()}
-                          </div>
-                        </div>
-
-                        {/* Action Badge */}
-                        <span
-                          className={`px-2.5 py-0.5 rounded-full font-bold text-2xs border ${
-                            item.action === 'VIOLATION'
-                              ? 'bg-amber-50 text-amber-700 border-amber-200/80'
-                              : item.action === 'BLOCK'
-                                ? 'bg-rose-50 text-rose-700 border-rose-200/80'
-                                : item.action === 'MONITOR'
-                                  ? 'bg-amber-50 text-amber-700 border-amber-200/80'
-                                  : item.action === 'ACTIVE'
-                                    ? 'bg-sky-50 text-sky-700 border-sky-200/80'
-                                    : 'bg-emerald-50 text-emerald-700 border-emerald-200/80'
-                          }`}
-                        >
-                          {item.action === 'VIOLATION'
-                            ? isVi
-                              ? '⚠️ TỪ KHÓA VI PHẠM'
-                              : '⚠️ KEYWORD VIOLATION'
-                            : item.action === 'BLOCK'
-                              ? t.tag_block
-                              : item.action === 'MONITOR'
-                                ? isVi
-                                  ? 'GIÁM SÁT'
-                                  : 'MONITOR'
-                                : item.action === 'ACTIVE'
-                                  ? isVi
-                                    ? 'ĐANG CHẠY'
-                                    : 'ACTIVE'
-                                  : t.tag_allow}
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+          <UnifiedTimelineView
+            filteredTimeline={filteredTimeline}
+            getCategoryIcon={getCategoryIcon}
+            lang={lang}
+          />
         )}
 
         {/* VIEW 2: APPLICATION USAGE & TIMELINE */}
         {activeSubTab === 'apps' && (
-          <div className="flex flex-col gap-4">
-            {/* View Mode Switcher Header */}
-            <div className="flex justify-between items-center flex-wrap gap-2 pb-1">
-              <div className="inline-flex bg-slate-100 p-0.5 rounded-lg border border-slate-200">
-                <button
-                  type="button"
-                  onClick={() => setAppViewMode('grouped')}
-                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold cursor-pointer transition-all ${
-                    appViewMode === 'grouped'
-                      ? 'bg-white text-slate-900 shadow-2xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  <BarChart3
-                    size={14}
-                    className={appViewMode === 'grouped' ? 'text-sky-600' : 'text-slate-500'}
-                  />
-                  <span>{t.view_mode_grouped_apps}</span>
-                  <span
-                    className={`px-1.5 py-0.2 rounded-full text-2xs font-bold ${
-                      appViewMode === 'grouped'
-                        ? 'bg-sky-100 text-sky-800'
-                        : 'bg-slate-200 text-slate-700'
-                    }`}
-                  >
-                    {filteredGroupedApps.length}
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setAppViewMode('timeline')}
-                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold cursor-pointer transition-all ${
-                    appViewMode === 'timeline'
-                      ? 'bg-white text-slate-900 shadow-2xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  <Clock
-                    size={14}
-                    className={appViewMode === 'timeline' ? 'text-sky-600' : 'text-slate-500'}
-                  />
-                  <span>{t.view_mode_raw_apps}</span>
-                  <span
-                    className={`px-1.5 py-0.2 rounded-full text-2xs font-bold ${
-                      appViewMode === 'timeline'
-                        ? 'bg-sky-100 text-sky-800'
-                        : 'bg-slate-200 text-slate-700'
-                    }`}
-                  >
-                    {filteredApps.length}
-                  </span>
-                </button>
-              </div>
-
-              <div className="text-2xs text-slate-500 font-medium">
-                {appViewMode === 'grouped'
-                  ? isVi
-                    ? 'Tổng hợp theo tên ứng dụng & thời lượng'
-                    : 'Grouped by application & total duration'
-                  : isVi
-                    ? 'Nhật ký các phân đoạn thời gian hoạt động'
-                    : 'Raw continuous usage intervals'}
-              </div>
-            </div>
-
-            {/* Mode 1: Grouped Summary */}
-            {appViewMode === 'grouped' && (
-              <div className="flex flex-col gap-4">
-                {/* Ranking Chart */}
-                {filteredGroupedApps.length > 0 && (
-                  <div className="bg-slate-50/80 border border-slate-200/80 rounded-xl p-4 sm:p-5 flex flex-col gap-3">
-                    <div className="flex justify-between items-center flex-wrap gap-2">
-                      <div>
-                        <h4 className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
-                          <BarChart3 size={15} className="text-sky-600" />
-                          {t.app_ranking_title}
-                        </h4>
-                        <p className="text-2xs text-slate-500">{t.app_ranking_desc}</p>
-                      </div>
-                      <span className="text-2xs text-slate-500 font-medium">
-                        {filteredGroupedApps.length} {isVi ? 'ứng dụng' : 'apps'}
-                      </span>
-                    </div>
-                    <AppUsageRankingChart
-                      apps={filteredGroupedApps}
-                      lang={lang}
-                      height={Math.min(320, Math.max(160, filteredGroupedApps.length * 36 + 40))}
-                    />
-                  </div>
-                )}
-
-                {/* Grouped Table */}
-                <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
-                  <table className="w-full border-collapse text-left min-w-[720px] text-xs">
-                    <thead>
-                      <tr className="border-b border-slate-200 bg-slate-50 text-slate-600 font-semibold">
-                        <th className="py-2.5 px-3.5">{t.th_app_col}</th>
-                        <th className="py-2.5 px-3.5">{t.th_category_col}</th>
-                        <th className="py-2.5 px-3.5">{t.th_duration}</th>
-                        <th className="py-2.5 px-3.5">{t.th_app_share}</th>
-                        <th className="py-2.5 px-3.5">{t.th_session_count}</th>
-                        <th className="py-2.5 px-3.5">{t.th_last_used}</th>
-                        <th className="py-2.5 px-3.5">{t.th_status_col}</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredGroupedApps.length === 0 ? (
-                        <tr>
-                          <td colSpan={7} className="text-center py-8 text-slate-500 text-sm">
-                            {t.no_activity_found}
-                          </td>
-                        </tr>
-                      ) : (
-                        filteredGroupedApps.map((app) => {
-                          const lastSeenDate = new Date(app.last_seen_at);
-                          const lastSeenStr = lastSeenDate.toLocaleTimeString([], {
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          });
-
-                          return (
-                            <tr
-                              key={app.app_name}
-                              className="border-b border-slate-100 hover:bg-slate-50/60 transition-colors"
-                            >
-                              <td className="py-2.5 px-3.5">
-                                <div className="flex items-center gap-2.5">
-                                  <Smartphone size={16} className="text-sky-600 shrink-0" />
-                                  <div>
-                                    <div className="font-semibold text-slate-900">
-                                      {app.app_title}
-                                    </div>
-                                    <div className="text-2xs text-slate-400 font-mono">
-                                      {app.app_name}
-                                    </div>
-                                  </div>
-                                </div>
-                              </td>
-                              <td className="py-2.5 px-3.5">
-                                <span className="bg-slate-100 text-slate-700 border border-slate-200 px-2 py-0.5 rounded text-2xs font-medium inline-flex items-center gap-1.5">
-                                  {getCategoryIcon(app.category)}
-                                  {app.category}
-                                </span>
-                              </td>
-                              <td className="py-2.5 px-3.5 text-sky-700 font-bold font-mono text-sm">
-                                {app.total_duration_formatted}
-                              </td>
-                              <td className="py-2.5 px-3.5">
-                                <div className="flex items-center gap-2 min-w-[100px]">
-                                  <div className="w-16 bg-slate-100 rounded-full h-2 overflow-hidden border border-slate-200/60">
-                                    <div
-                                      className="bg-sky-500 h-2 rounded-full"
-                                      style={{
-                                        width: `${Math.min(100, Math.max(2, app.percentage))}%`,
-                                      }}
-                                    />
-                                  </div>
-                                  <span className="text-2xs font-mono font-semibold text-slate-700">
-                                    {app.percentage}%
-                                  </span>
-                                </div>
-                              </td>
-                              <td className="py-2.5 px-3.5 text-slate-700 font-mono">
-                                {app.session_count} {isVi ? 'lần' : 'times'}
-                              </td>
-                              <td className="py-2.5 px-3.5 text-slate-600 font-mono">
-                                {lastSeenStr}
-                              </td>
-                              <td className="py-2.5 px-3.5">
-                                <span
-                                  className={`px-2 py-0.5 rounded-full font-bold text-2xs border ${
-                                    app.status === 'Active'
-                                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                                      : app.status === 'QuotaWarning'
-                                        ? 'bg-amber-50 text-amber-700 border-amber-200'
-                                        : 'bg-slate-100 text-slate-700 border-slate-200'
-                                  }`}
-                                >
-                                  {app.status === 'Active'
-                                    ? isVi
-                                      ? 'Đang mở'
-                                      : 'Active'
-                                    : app.status === 'QuotaWarning'
-                                      ? isVi
-                                        ? 'Cảnh báo hạn mức'
-                                        : 'Quota Warning'
-                                      : isVi
-                                        ? 'Bình thường'
-                                        : 'Normal'}
-                                </span>
-                              </td>
-                            </tr>
-                          );
-                        })
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-
-            {/* Mode 2: Timeline Segments */}
-            {appViewMode === 'timeline' && (
-              <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
-                <table className="w-full border-collapse text-left min-w-[650px] text-xs">
-                  <thead>
-                    <tr className="border-b border-slate-200 bg-slate-50 text-slate-600 font-semibold">
-                      <th className="py-2.5 px-3.5">{t.th_app_col}</th>
-                      <th className="py-2.5 px-3.5">{t.th_category_col}</th>
-                      <th className="py-2.5 px-3.5">{t.th_time_window}</th>
-                      <th className="py-2.5 px-3.5">{t.th_duration}</th>
-                      <th className="py-2.5 px-3.5">{t.th_status_col}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredApps.length === 0 ? (
-                      <tr>
-                        <td colSpan={5} className="text-center py-8 text-slate-500 text-sm">
-                          {t.no_activity_found}
-                        </td>
-                      </tr>
-                    ) : (
-                      filteredApps.map((app) => {
-                        const startStr = new Date(app.start_time).toLocaleTimeString([], {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        });
-                        const endStr = new Date(app.end_time).toLocaleTimeString([], {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        });
-
-                        return (
-                          <tr
-                            key={app.id}
-                            className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors"
-                          >
-                            <td className="py-2.5 px-3.5">
-                              <div className="flex items-center gap-2.5">
-                                <Smartphone size={16} className="text-sky-600 shrink-0" />
-                                <div>
-                                  <div className="font-semibold text-slate-900">
-                                    {app.app_title}
-                                  </div>
-                                  <div className="text-2xs text-slate-400 font-mono">
-                                    {app.app_name}
-                                  </div>
-                                </div>
-                              </div>
-                            </td>
-                            <td className="py-2.5 px-3.5">
-                              <span className="bg-slate-100 text-slate-700 border border-slate-200 px-2 py-0.5 rounded text-2xs font-medium inline-flex items-center gap-1.5">
-                                {getCategoryIcon(app.category)}
-                                {app.category}
-                              </span>
-                            </td>
-                            <td className="py-2.5 px-3.5 text-slate-600 font-mono">
-                              {startStr} &rarr; {endStr}
-                            </td>
-                            <td className="py-2.5 px-3.5 text-sky-700 font-bold font-mono">
-                              {app.duration_formatted}
-                            </td>
-                            <td className="py-2.5 px-3.5">
-                              <span
-                                className={`px-2 py-0.5 rounded-full font-bold text-2xs border ${
-                                  app.status === 'Active'
-                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                                    : app.status === 'QuotaWarning'
-                                      ? 'bg-amber-50 text-amber-700 border-amber-200'
-                                      : 'bg-slate-100 text-slate-700 border-slate-200'
-                                }`}
-                              >
-                                {app.status === 'Active'
-                                  ? isVi
-                                    ? 'Đang chạy'
-                                    : 'Active'
-                                  : app.status === 'QuotaWarning'
-                                    ? isVi
-                                      ? 'Cảnh báo hạn mức'
-                                      : 'Quota Warning'
-                                    : isVi
-                                      ? 'Bình thường'
-                                      : 'Normal'}
-                              </span>
-                            </td>
-                          </tr>
-                        );
-                      })
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
+          <AppsTimelineView
+            appViewMode={appViewMode}
+            setAppViewMode={setAppViewMode}
+            filteredGroupedApps={filteredGroupedApps}
+            filteredApps={filteredApps}
+            appColumns={appColumns}
+            getCategoryIcon={getCategoryIcon}
+            lang={lang}
+          />
         )}
 
         {/* VIEW 3: WEB & DOMAIN HISTORY */}
         {activeSubTab === 'web' && (
-          <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
-            <table className="w-full border-collapse text-left min-w-[650px] text-xs">
-              <thead>
-                <tr className="border-b border-slate-200 bg-slate-50 text-slate-600 font-semibold">
-                  <th className="py-2.5 px-3.5">{t.th_time}</th>
-                  <th className="py-2.5 px-3.5">{t.th_domain_col}</th>
-                  <th className="py-2.5 px-3.5">{t.th_category_col}</th>
-                  <th className="py-2.5 px-3.5">{t.th_source_app}</th>
-                  <th className="py-2.5 px-3.5">{t.th_action_col}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredWeb.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="text-center py-8 text-slate-500 text-sm">
-                      {t.no_activity_found}
-                    </td>
-                  </tr>
-                ) : (
-                  filteredWeb.map((web) => {
-                    const timeStr = new Date(web.occurred_at).toLocaleTimeString([], {
-                      hour: '2-digit',
-                      minute: '2-digit',
-                      second: '2-digit',
-                    });
-
-                    return (
-                      <tr
-                        key={web.id}
-                        className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors"
-                      >
-                        <td className="py-2.5 px-3.5 text-slate-500 font-mono text-xs">
-                          {timeStr}
-                        </td>
-                        <td className="py-2.5 px-3.5">
-                          <div className="flex items-center gap-2">
-                            <Globe size={14} className="text-sky-600 shrink-0" />
-                            <span className="font-semibold text-slate-900 break-all">
-                              {web.domain}
-                            </span>
-                          </div>
-                          {web.reason && (
-                            <div className="text-2xs text-slate-500 mt-0.5">{web.reason}</div>
-                          )}
-                        </td>
-                        <td className="py-2.5 px-3.5">
-                          <span className="bg-slate-100 text-slate-700 border border-slate-200 px-2 py-0.5 rounded text-2xs font-medium inline-flex items-center gap-1.5">
-                            {getCategoryIcon(web.category)}
-                            {web.category}
-                          </span>
-                        </td>
-                        <td className="py-2.5 px-3.5 text-slate-500 font-mono text-xs">
-                          {web.source_app}
-                        </td>
-                        <td className="py-2.5 px-3.5">
-                          <span
-                            className={`px-2 py-0.5 rounded-full font-bold text-2xs border ${
-                              web.action === 'BLOCK'
-                                ? 'bg-rose-50 text-rose-700 border-rose-200'
-                                : web.action === 'MONITOR'
-                                  ? 'bg-amber-50 text-amber-700 border-amber-200'
-                                  : 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                            }`}
-                          >
-                            {web.action === 'BLOCK'
-                              ? t.tag_block
-                              : web.action === 'MONITOR'
-                                ? isVi
-                                  ? 'GIÁM SÁT'
-                                  : 'MONITOR'
-                                : t.tag_allow}
-                          </span>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
+          <DataTable
+            data={filteredWeb}
+            columns={webColumns}
+            pageSize={10}
+            searchPlaceholder={isVi ? 'Tìm tên miền...' : 'Search domains...'}
+            emptyText={t.no_activity_found}
+            lang={lang}
+            enableExport={true}
+            exportFilename="famshield_web_history"
+          />
         )}
 
         {/* VIEW 4: KEYWORD VIOLATIONS */}
         {activeSubTab === 'keywords' && (
-          <div>
-            {filteredKeywords.length === 0 ? (
-              <div className="text-center py-10 text-slate-500 text-sm">
-                {isVi ? 'Không phát hiện từ khóa vi phạm nào.' : 'No keyword violations recorded.'}
-              </div>
-            ) : (
-              <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
-                <table className="w-full border-collapse text-left text-xs">
-                  <thead>
-                    <tr className="border-b border-slate-200 bg-slate-50 text-slate-600 font-semibold uppercase text-2xs">
-                      <th className="py-2.5 px-3.5">{t.th_time}</th>
-                      <th className="py-2.5 px-3.5">{t.th_kw_pattern}</th>
-                      <th className="py-2.5 px-3.5">{t.th_kw_category}</th>
-                      <th className="py-2.5 px-3.5">{t.th_kw_severity}</th>
-                      <th className="py-2.5 px-3.5">{t.th_kw_app}</th>
-                      <th className="py-2.5 px-3.5">{t.th_kw_snippet}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredKeywords.map((kv) => (
-                      <tr
-                        key={kv.id}
-                        className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors"
-                      >
-                        <td className="py-2.5 px-3.5 text-slate-500 font-mono">
-                          {new Date(kv.timestamp).toLocaleTimeString([], {
-                            hour: '2-digit',
-                            minute: '2-digit',
-                            second: '2-digit',
-                          })}
-                        </td>
-                        <td className="py-2.5 px-3.5 font-bold text-rose-600">
-                          "{kv.keyword_matched}"
-                        </td>
-                        <td className="py-2.5 px-3.5">
-                          <span className="bg-slate-100 text-slate-700 border border-slate-200 px-2 py-0.5 rounded text-2xs font-medium">
-                            {kv.category}
-                          </span>
-                        </td>
-                        <td className="py-2.5 px-3.5">
-                          <span
-                            className={`px-2 py-0.5 rounded text-2xs font-bold uppercase border ${
-                              kv.severity === 'critical'
-                                ? 'bg-rose-50 text-rose-700 border-rose-200'
-                                : 'bg-amber-50 text-amber-700 border-amber-200'
-                            }`}
-                          >
-                            {kv.severity}
-                          </span>
-                        </td>
-                        <td className="py-2.5 px-3.5 text-sky-700 font-medium">{kv.app_name}</td>
-                        <td className="py-2.5 px-3.5 text-slate-600 italic font-mono text-2xs">
-                          {kv.snippet_masked}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
+          <DataTable
+            data={filteredKeywords}
+            columns={keywordColumns}
+            pageSize={10}
+            searchPlaceholder={isVi ? 'Tìm từ khóa...' : 'Search keywords...'}
+            emptyText={
+              isVi
+                ? 'Không phát hiện từ khóa vi phạm nào.'
+                : 'No keyword violations recorded.'
+            }
+            lang={lang}
+            enableExport={true}
+            exportFilename="famshield_keyword_violations"
+          />
         )}
       </div>
 

@@ -17,15 +17,12 @@ Bộ cài đặt FamShield được xây dựng dựa trên [Inno Setup 6](https
 
 ## 2. Các Cơ Chế Bảo Mật & Chống Can Thiệp Cốt Lõi
 
-### 2.1. Chế Độ Tàng Hình (Stealth Mode)
-Trẻ em hoặc người dùng máy trạm thường tìm cách vào **Windows Control Panel -> Programs and Features** hoặc **Windows Settings -> Apps & Features** để bấm "Uninstall".
-Bộ cài đặt FamShield giải quyết triệt để vấn đề này bằng cấu hình tàng hình:
-```ini
-CreateUninstallRegKey=no
-UpdateUninstallLogAppName=no
-```
-- **Kết quả**: Ứng dụng **hoàn toàn không xuất hiện** trong danh sách gỡ phần mềm của Windows.
-- Ngăn chặn hoàn toàn mọi nỗ lực gỡ trộm bằng các công cụ gỡ phần mềm thông thường của hệ điều hành.
+### 2.1. Kiểm Soát Gỡ Cài Đặt Minh Bạch & Chống Can Thiệp (Anti-Tamper Uninstallation)
+Nhằm tuân thủ các tiêu chuẩn chống nhận diện nhầm mã độc (Anti-Virus Heuristic & Clean Software Standards), FamShield đăng ký chính quy vào danh sách **Windows Settings -> Apps & Features** và **Control Panel -> Programs and Features** (`CreateUninstallRegKey=yes`), tránh kích hoạt các cảnh báo "Trojan Dropper / Stealth Rootkit".
+
+Tuy nhiên, ứng dụng vẫn được bảo vệ chống gỡ trộm bởi trẻ em:
+- Khi người dùng bấm **Uninstall** từ Windows Settings hoặc chạy trực tiếp `unins000.exe`, hook `InitializeUninstall` của Inno Setup lập tức chặn tiến trình.
+- Cửa sổ xác thực an toàn `famshield-session.exe --uninstall` được kích hoạt và yêu cầu phụ huynh nhập chính xác **Master PIN**. Nếu không có mã PIN hoặc xác thực thất bại, trình gỡ cài đặt sẽ lập tức bị hủy bỏ và thoát ngay.
 
 ### 2.2. Khóa Gỡ Cài Đặt Bằng Master PIN & Xác Thực 2 Lớp (2FA / OTP)
 Để gỡ bỏ FamShield khỏi máy trạm, phụ huynh bắt buộc phải xác thực danh tính:

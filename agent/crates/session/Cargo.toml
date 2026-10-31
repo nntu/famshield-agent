@@ -21,9 +21,9 @@ serde_json = { workspace = true }
 jpeg-encoder = { workspace = true }
 
 [target.'cfg(windows)'.dependencies]
-tray-icon = "0.26"
-muda = "0.21"
-windows = { version = "0.58", features = [
+tray-icon = { workspace = true }
+muda = { workspace = true }
+windows = { workspace = true, features = [
     "Win32_Foundation",
     "Win32_UI_WindowsAndMessaging",
     "Win32_UI_Shell",

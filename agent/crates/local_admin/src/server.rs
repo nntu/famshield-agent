@@ -422,6 +422,9 @@ impl LocalAdminServer {
                 post(handle_pull_rules_from_cloud),
             )
             .route("/api/policy/cloud", get(handle_get_cloud_policy))
+            .route("/api/filter/pause", post(handle_filter_pause))
+            .route("/api/filter/unpause", post(handle_filter_unpause))
+            .route("/api/filter/inspect", post(handle_filter_inspect))
             .route("/api/rules/:rule_id", delete(handle_delete_rule))
             .route("/api/logs/dns", get(handle_list_logs))
             .route("/api/logs/dns/summary", get(handle_get_dns_summary))
@@ -685,7 +688,16 @@ fn sync_dns_blocklist(state: &ServerState) {
         if let Ok(rules) = state.service.list_rules() {
             for r in rules {
                 if (r.rule_type == "domain" || r.rule_type == "pattern") && r.enabled {
-                    custom_rules.push(r.rule_id);
+                    let is_allowed = if let Ok(val) = serde_json::from_str::<serde_json::Value>(&r.payload) {
+                        val.get("action").and_then(|v| v.as_str()).map(|s| s.to_uppercase()) == Some("ALLOW".to_string())
+                    } else {
+                        false
+                    };
+                    if is_allowed {
+                        allowed_domains.push(r.rule_id);
+                    } else {
+                        custom_rules.push(r.rule_id);
+                    }
                 }
             }
         }
@@ -1982,8 +1994,25 @@ async fn handle_get_cloud_policy(
         ));
     }
 
+    let paused_until = if let Some(bl) = &state.dns_blocklist {
+        if bl.is_paused() {
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs();
+            now + bl.paused_remaining_secs()
+        } else {
+            0
+        }
+    } else {
+        0
+    };
+
     if let Ok(Some(cached)) = state.service.storage().get_meta("cached_cloud_policy") {
-        if let Ok(val) = serde_json::from_str::<serde_json::Value>(&cached) {
+        if let Ok(mut val) = serde_json::from_str::<serde_json::Value>(&cached) {
+            if let Some(obj) = val.as_object_mut() {
+                obj.insert("paused_until".to_string(), serde_json::json!(paused_until));
+            }
             return Ok(Json(val));
         }
     }
@@ -1997,7 +2026,134 @@ async fn handle_get_cloud_policy(
         "block_gaming": false,
         "safesearch_enabled": false,
         "youtube_restricted": false,
-        "custom_blocked_domains": []
+        "paused_until": paused_until,
+        "custom_blocked_domains": [],
+        "custom_allowed_domains": []
+    })))
+}
+
+#[derive(Deserialize)]
+struct PauseFilterPayload {
+    seconds: Option<u64>,
+}
+
+async fn handle_filter_pause(
+    State(state): State<ServerState>,
+    headers: HeaderMap,
+    Query(query): Query<QueryParams>,
+    Json(body): Json<PauseFilterPayload>,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    if !check_auth(&state, &headers, query.token.as_deref()).await {
+        return Err((
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({ "error": "Unauthorized" })),
+        ));
+    }
+
+    let secs = body.seconds.unwrap_or(900);
+    if let Some(bl) = &state.dns_blocklist {
+        bl.pause(secs);
+    }
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+    let paused_until = now + secs;
+    let _ = state.service.storage().set_meta("filter_paused_until", &paused_until.to_string());
+
+    info!("DNS & Web filtering paused for {} seconds (until {})", secs, paused_until);
+
+    Ok(Json(serde_json::json!({
+        "success": true,
+        "paused_until": paused_until,
+        "remaining_seconds": secs,
+        "message": format!("Đã tạm dừng lọc web trong {} giây", secs)
+    })))
+}
+
+async fn handle_filter_unpause(
+    State(state): State<ServerState>,
+    headers: HeaderMap,
+    Query(query): Query<QueryParams>,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    if !check_auth(&state, &headers, query.token.as_deref()).await {
+        return Err((
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({ "error": "Unauthorized" })),
+        ));
+    }
+
+    if let Some(bl) = &state.dns_blocklist {
+        bl.unpause();
+    }
+    let _ = state.service.storage().set_meta("filter_paused_until", "0");
+
+    info!("DNS & Web filtering unpaused (protection active)");
+
+    Ok(Json(serde_json::json!({
+        "success": true,
+        "paused_until": 0,
+        "remaining_seconds": 0,
+        "message": "Đã tiếp tục kích hoạt lại chế độ bảo vệ web & DNS"
+    })))
+}
+
+#[derive(Deserialize)]
+struct InspectDomainPayload {
+    domain: String,
+}
+
+async fn handle_filter_inspect(
+    State(state): State<ServerState>,
+    headers: HeaderMap,
+    Query(query): Query<QueryParams>,
+    Json(body): Json<InspectDomainPayload>,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    if !check_auth(&state, &headers, query.token.as_deref()).await {
+        return Err((
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({ "error": "Unauthorized" })),
+        ));
+    }
+
+    let raw = body.domain.trim().trim_end_matches('.').to_ascii_lowercase();
+    if raw.is_empty() {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({ "error": "Tên miền không được để trống" })),
+        ));
+    }
+
+    let is_blocked = if let Some(bl) = &state.dns_blocklist {
+        bl.is_blocked(&raw)
+    } else {
+        false
+    };
+
+    let reason = if let Some(bl) = &state.dns_blocklist {
+        bl.block_reason(&raw)
+            .map(|r| r.to_string())
+            .unwrap_or_else(|| {
+                if is_blocked {
+                    "Bị chặn theo chính sách lọc".to_string()
+                } else {
+                    "Được phép truy cập (hợp lệ hoặc nằm trong Whitelist)".to_string()
+                }
+            })
+    } else if is_blocked {
+        "Bị chặn".to_string()
+    } else {
+        "Được phép".to_string()
+    };
+
+    let action = if is_blocked { "block" } else { "allow" };
+    let effective_cat = if is_blocked { "Danh mục cấm / Blacklist" } else { "Hợp lệ / Whitelist" };
+
+    Ok(Json(serde_json::json!({
+        "domain": raw,
+        "action": action,
+        "effective_category": effective_cat,
+        "reason": reason
     })))
 }
 

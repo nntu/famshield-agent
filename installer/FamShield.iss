@@ -22,18 +22,31 @@ DefaultDirName={autopf}\{#MyAppName}
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 DisableProgramGroupPage=yes
-; Stealth mode: Do NOT register into Windows Add/Remove Programs (Control Panel / Settings -> Apps)
-CreateUninstallRegKey=no
-UpdateUninstallLogAppName=no
+; Register into Windows Add/Remove Programs (anti-tamper is enforced via Master PIN verification in InitializeUninstall)
+CreateUninstallRegKey=yes
+UpdateUninstallLogAppName=yes
+UninstallDisplayIcon={app}\famshield.ico
+UninstallDisplayName={#MyAppName} Protection Platform
 CloseApplications=no
 RestartApplications=no
 LicenseFile=..\LICENSE
 PrivilegesRequired=admin
 OutputBaseFilename=FamShieldSetup-{#MyAppVersion}
-Compression=lzma
+Compression=lzma2/ultra64
 SolidCompression=yes
 WizardStyle=modern
 SetupIconFile=..\assets\famshield.ico
+
+; Windows PE Header Metadata (prevents generic heuristic false positives)
+VersionInfoVersion={#MyAppVersion}
+VersionInfoCompany={#MyAppPublisher}
+VersionInfoDescription=FamShield Windows Protection Platform Setup
+VersionInfoCopyright=Copyright (C) 2025-2026 FamShield Team
+VersionInfoProductName={#MyAppName}
+VersionInfoProductVersion={#MyAppVersion}
+VersionInfoOriginalFileName=FamShieldSetup-{#MyAppVersion}.exe
+AppComments=FamShield Windows Protection Platform - Parental Control and Endpoint Security
+AppContact=support@famshield.ttcantho.io.vn
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
@@ -80,10 +93,8 @@ Filename: "{sys}\sc.exe"; Parameters: "create FamShieldService binPath= ""{app}\
 Filename: "{sys}\sc.exe"; Parameters: "config FamShieldService binPath= ""{app}\famshield-service.exe"" start= auto obj= LocalSystem DisplayName= ""FamShield Security Platform"""; Flags: runhidden
 Filename: "{sys}\sc.exe"; Parameters: "description FamShieldService ""Unified parental control, NUMA DNS proxy and application filtering"""; Flags: runhidden
 Filename: "{sys}\sc.exe"; Parameters: "failure FamShieldService reset= 86400 actions= restart/2000/restart/5000/restart/10000"; Flags: runhidden
-Filename: "{sys}\sc.exe"; Parameters: "sdset FamShieldService ""D:(A;;CCLCSWRPWPDTLOCRRC;;;SY)(A;;CCDCLCSWRPWPDTLOCRSDRCWDWO;;;BA)(A;;CCLCSWLOCRRC;;;IU)(A;;RP;;;AU)"""; Flags: runhidden
 Filename: "{sys}\sc.exe"; Parameters: "start FamShieldService"; Flags: runhidden
-; Configure active network adapters DNS to 127.0.0.2 for 100% reliable interception
-Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -Command ""Get-NetAdapter | Where-Object {{ $_.Status -eq 'Up' -and $_.InterfaceAlias -notmatch 'vEthernet|WSL|Loopback' }} | ForEach-Object {{ Set-DnsClientServerAddress -InterfaceIndex $_.InterfaceIndex -ServerAddresses '127.0.0.2' -ErrorAction SilentlyContinue }}; ipconfig /flushdns"""; Flags: runhidden
+; Note: Active network adapters DNS redirection to 127.0.0.2:53 and NRPT policies are applied safely by famshield-service natively upon launch.
 ; Auto-launch tray agent and open local admin setup wizard in default web browser
 Filename: "{app}\famshield-session.exe"; Flags: nowait postinstall skipifsilent
 Filename: "http://127.0.0.1:38123"; Description: "Mở Bảng Điều Khiển Quản Trị Cục Bộ (Web Admin)"; Flags: shellexec nowait postinstall
@@ -95,11 +106,9 @@ Filename: "{sys}\taskkill.exe"; Parameters: "/F /IM famshield-session.exe /T"; F
 Filename: "{sys}\sc.exe"; Parameters: "stop FamShieldService"; Flags: runhidden; RunOnceId: "StopFamShieldService"
 Filename: "{sys}\taskkill.exe"; Parameters: "/F /IM famshield-service.exe /T"; Flags: runhidden; RunOnceId: "KillFamShieldService"
 Filename: "{sys}\sc.exe"; Parameters: "delete FamShieldService"; Flags: runhidden; RunOnceId: "DeleteFamShieldService"
-; 3. Reset all network adapters DNS back to DHCP and flush cache
-Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -Command ""Get-NetAdapter | ForEach-Object {{ Set-DnsClientServerAddress -InterfaceIndex $_.InterfaceIndex -ResetServerAddresses -ErrorAction SilentlyContinue }}; Get-NetAdapter | Where-Object {{ $_.Status -eq 'Up' }} | ForEach-Object {{ netsh interface ip set dns name=$_.Name source=dhcp }}; ipconfig /flushdns"""; Flags: runhidden; RunOnceId: "ResetDnsAddresses"
-; 4. Remove browser DoH suppression policies
-Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -Command ""Remove-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Google\Chrome' -Name 'DnsOverHttpsMode' -ErrorAction SilentlyContinue; Remove-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Edge' -Name 'DnsOverHttpsMode' -ErrorAction SilentlyContinue"""; Flags: runhidden; RunOnceId: "RemoveDohPolicies"
-; 5. Remove Code Signing certificate from stores
+; 3. Reset network adapters DNS back to DHCP and flush cache (using standard non-bypass PowerShell invocation)
+Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -WindowStyle Hidden -Command ""Get-NetAdapter | Where-Object {{ $_.Status -eq 'Up' }} | ForEach-Object {{ Set-DnsClientServerAddress -InterfaceIndex $_.InterfaceIndex -ResetServerAddresses -ErrorAction SilentlyContinue }}; ipconfig /flushdns"""; Flags: runhidden; RunOnceId: "ResetDnsAddresses"
+; 4. Remove Code Signing certificate from stores if present
 Filename: "{sys}\certutil.exe"; Parameters: "-delstore Root ""FamShield Root CA"""; Flags: runhidden; RunOnceId: "DelCertRoot"
 Filename: "{sys}\certutil.exe"; Parameters: "-delstore TrustedPublisher ""FamShield Root CA"""; Flags: runhidden; RunOnceId: "DelCertPublisher"
 

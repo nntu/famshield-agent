@@ -4,25 +4,22 @@ Tài liệu này định nghĩa các nguyên tắc và chỉ thị bắt buộc 
 
 ---
 
-## 1. Quy Tắc Bắt Buộc: Cập Nhật CHANGELOG.md Theo Phiên Bản & Ngày Tháng
+## 1. Quy Tắc Bắt Buộc: Quản Lý CHANGELOG.md & Chi Tiết Phát Hành (Root Summary + Detailed Release Notes)
 
 > ⚠️ **QUY TẮC BẮT BUỘC (MANDATORY RULE):**  
-> Mỗi khi thực hiện một **thay đổi lớn (Major / Significant Changes)** — bao gồm:
-> - Thêm tính năng mới (New features)
-> - Tái cấu trúc kiến trúc hoặc module (Architectural refactorings)
-> - Nâng cấp hoặc thay đổi cơ chế bảo mật (Security patches & enhancements)
-> - Thay đổi giao thức mạng, schema DB, hoặc format IPC / Telemetry
-> 
-> **AI Agent BẮT BUỘC phải cập nhật [CHANGELOG.md](CHANGELOG.md)**:
-> 1. Ghi nhận thay đổi vào đúng mục phiên bản (`[X.Y.Z] - YYYY-MM-DD`) hoặc mục `[Unreleased]`.
-> 2. Phân loại thay đổi theo các tiêu đề chuẩn của [Keep a Changelog](https://keepachangelog.com/):
->    - `### Added`: Các tính năng, crate, API, hoặc subsystem mới.
->    - `### Changed`: Các thay đổi về hành vi, thuật toán, hoặc cấu trúc hiện tại.
->    - `### Deprecated`: Các tính năng chuẩn bị bị loại bỏ trong tương lai.
->    - `### Removed`: Các tính năng hoặc file bị xóa bỏ.
->    - `### Fixed`: Các lỗi kỹ thuật, memory leak, panic, hoặc lỗ hổng bảo mật đã xử lý.
->    - `### Security`: Các nâng cấp trực tiếp liên quan đến bảo mật (mã hóa, ACL, chữ ký).
-> 3. Tuyệt đối không xóa lịch sử các phiên bản cũ đã có trong CHANGELOG.
+> Dự án áp dụng kiến trúc changelog 2 tầng nhằm tối ưu hoá trải nghiệm đọc, giữ gìn tài liệu kiến trúc chuyên sâu và bảo tồn token cho AI:
+> 1. **`CHANGELOG.md` (Root):** Đóng vai trò **Executive / User-Facing Summary** súc tích theo chuẩn [Keep a Changelog](https://keepachangelog.com/). Mỗi bản phát hành chính thức chỉ giữ lại 3–7 gạch đầu dòng nổi bật nhất và một liên kết trỏ tới file chi tiết kỹ thuật.
+> 2. **`docs/releases/vX.Y.Z.md`:** Chứa toàn bộ phân tích kỹ thuật chi tiết, schema migration, IPC framing, cờ biên dịch và danh sách tệp sửa đổi của phiên bản đó.
+>
+> ### Quy trình thực hiện dành cho AI Agent:
+> - **Trong quá trình phát triển (Vòng lặp Code / TDD):**  
+>   Mỗi khi thực hiện thay đổi lớn (tính năng mới, refactor kiến trúc, nâng cấp bảo mật, thay đổi mạng/schema/telemetry), AI Agent ghi nhận thay đổi vào mục `## [Unreleased]` tại [CHANGELOG.md](CHANGELOG.md) theo các phân loại chuẩn (`### Added`, `### Changed`, `### Deprecated`, `### Removed`, `### Fixed`, `### Security`).
+> - **Khi đóng gói phiên bản chính thức (Release Cut):**  
+>   1. Tạo tệp tài liệu kỹ thuật chi tiết tại `docs/releases/vX.Y.Z.md` (lưu lại toàn bộ mô tả chi tiết, hàm, struct, cấu hình liên quan).
+>   2. Chuyển mục `## [Unreleased]` thành `## [X.Y.Z] - YYYY-MM-DD` tại [CHANGELOG.md](CHANGELOG.md).
+>   3. Tinh gọn mục phiên bản trong `CHANGELOG.md` thành 3–7 bullet points trọng tâm và đính kèm liên kết:  
+>      `> 📖 **Chi tiết kỹ thuật & mã nguồn thay đổi:** [docs/releases/vX.Y.Z.md](docs/releases/vX.Y.Z.md)`
+> - **Tuyệt đối không xóa lịch sử** các phiên bản cũ đã có trong CHANGELOG hoặc trong `docs/releases/`.
 
 ---
 

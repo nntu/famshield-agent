@@ -1,3 +1,11 @@
+export interface NetworkInterfaceInfo {
+  name: string;
+  mac_address: string;
+  ip_addresses: string[];
+  total_received_bytes: number;
+  total_transmitted_bytes: number;
+}
+
 export interface SystemInfo {
   computer_name: string;
   host_name: string;
@@ -11,6 +19,7 @@ export interface SystemInfo {
   used_memory_bytes: number;
   uptime_seconds: number;
   machine_guid?: string | null;
+  networks?: NetworkInterfaceInfo[];
 }
 
 export interface StatusResponse {
@@ -55,9 +64,26 @@ export interface CloudPolicyData {
   safesearch_enabled: boolean;
   youtube_restricted: boolean;
   silent_mode?: boolean;
+  paused_until?: number;
   custom_blocked_domains?: string[];
   custom_allowed_domains?: string[];
+  category_custom_domains?: Record<string, string[]>;
+  custom_categories?: any[];
   updated_at?: string;
+}
+
+export interface ResolvePolicyResult {
+  domain: string;
+  action: 'allow' | 'block' | 'monitor';
+  effective_category: string;
+  reason: string;
+}
+
+export interface FilterCategory {
+  id: string;
+  name: string;
+  description: string;
+  sample_seeds: string[];
 }
 
 export interface QueryLogRecord {

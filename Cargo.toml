@@ -28,17 +28,22 @@ chrono = { version = "0.4", features = ["serde"] }
 aho-corasick = "1.1"
 
 # Async & Networking
-tokio = { version = "1.38", features = ["full"] }
+tokio = { version = "1.43", features = ["full"] }
 reqwest = { version = "0.12", default-features = false, features = ["json", "default-tls"] }
-async-nats = "0.50"
+async-nats = "0.51"
 futures-util = "0.3"
-arc-swap = "1.7"
-thiserror = "1.0"
+arc-swap = "1.9"
+thiserror = "2.0"
 log = "0.4"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 tracing-appender = "0.2"
 hickory-proto = "0.26"
+
+# HTTP API & Middleware (Local Admin)
+axum = "0.7"
+tower = { version = "0.5", features = ["util"] }
+http-body-util = "0.1"
 
 # Database & Cryptography
 rusqlite = { version = "0.31", features = ["bundled", "backup"] }
@@ -50,10 +55,13 @@ rand = "0.8"
 totp-rs = { version = "6.0", features = ["gen_secret", "qr"] }
 
 # Windows & System Ecosystem
+windows = "0.58"
 windows-service = "0.8"
+tray-icon = "0.26"
+muda = "0.21"
 semver = "1.0"
 jpeg-encoder = "0.7"
-sysinfo = { version = "0.33", default-features = false, features = ["system"] }
+sysinfo = { version = "0.40.1", default-features = false, features = ["system", "network"] }
 
 # Internal crates
 famshield-core = { path = "agent/crates/core" }
@@ -82,4 +90,11 @@ debug = 1
 # Keeps local crates unoptimized (instant compilation) while crypto/hashing runs 10x-50x faster
 [profile.test.package."*"]
 opt-level = 2
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+panic = "abort"
+strip = true
 
