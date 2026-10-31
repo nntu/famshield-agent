@@ -39,7 +39,7 @@ const DEFAULT_METADATA: ReleaseMetadata = {
   ],
   installer_url: "https://github.com/nntu/famshield-agent/releases/download/1.0.5/FamShieldSetup-1.0.5.exe",
   service_binary_url: "https://github.com/nntu/famshield-agent/releases/download/1.0.5/famshield-service.exe",
-  service_sha256: "8087b59a0422c3222c8b320ed053c7163ff5de40c24e9812d302d90e0c17bf62"
+  service_sha256: "095d468088a2e131fc4ff5adb72f7abe87aff28502bae17780831558b268f062"
 };
 
 const CORS_HEADERS: Record<string, string> = {

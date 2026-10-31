@@ -82,6 +82,6 @@ curl -X POST https://famshield.ttcantho.io.vn/v1/admin/release \
     ],
     "installer_url": "https://github.com/nntu/famshield-agent/releases/download/1.0.5/FamShieldSetup-1.0.5.exe",
     "service_binary_url": "https://github.com/nntu/famshield-agent/releases/download/1.0.5/famshield-service.exe",
-    "service_sha256": "4b227777d4dd1fc61c6f884f48641d02b4d121d3fd328cb08b5531fcacdabf8a"
+    "service_sha256": "095d468088a2e131fc4ff5adb72f7abe87aff28502bae17780831558b268f062"
   }'
 ```
