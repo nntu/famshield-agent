@@ -30,6 +30,10 @@ Tất cả các thay đổi quan trọng của dự án **FamShield Windows Agen
   - **Tuân thủ quy trình lưu trữ nguyên tử 3 bước (Atomic Persistence)**: Xóa `enrolled_device_id` làm commit marker -> lưu `enrolled_tenant_id`, `machine_guid`, `device_name`, chứng chỉ và khóa ký lệnh được bảo vệ qua DPAPI machine secret -> ghi nhận `enrolled_device_id` sau cùng để kích hoạt trạng thái `OnlineManaged`.
   - **Bổ sung tài liệu chuyên sâu (`docs/18-CLIENT-TENANT-SYNC-GUIDE.md`)**: Bổ sung Mục 5 phân tích thách thức trùng tên máy tính và sơ đồ kiến trúc định danh đa lớp Multi-Layer Identity.
 
+### Fixed
+- **Tương Thích Clippy Rust 1.99+ (`famshield-core::hex`)**:
+  - Chuyển đổi `.chunks_exact(2)` sang `.as_chunks::<2>().0.iter()` trong hàm giải mã `decode_hex`, giải quyết triệt để cảnh báo/lỗi nghiêm ngặt `-D clippy::chunks-exact-to-as-chunks` trên các bộ công cụ Rust compiler mới.
+
 ## [1.0.3] - 2026-10-24
 
 ### Added
