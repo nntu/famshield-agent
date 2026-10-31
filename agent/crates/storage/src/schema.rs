@@ -5,7 +5,7 @@ use tracing::{error, info, warn};
 
 refinery::embed_migrations!("migrations");
 
-pub const CURRENT_SCHEMA_VERSION: usize = 6;
+pub const CURRENT_SCHEMA_VERSION: usize = 7;
 
 /// Create a zero-copy, lock-free SQLite online backup snapshot before running migrations.
 pub fn create_pre_migration_snapshot(
@@ -109,6 +109,21 @@ mod tests {
         assert!(tables.contains(&"parent_2fa_config".to_string()));
         assert!(tables.contains(&"domain_query_aggregates".to_string()));
         assert!(tables.contains(&"refinery_schema_history".to_string()));
+
+        // Verify performance indexes exist
+        let indexes: Vec<String> = conn
+            .prepare("SELECT name FROM sqlite_master WHERE type='index'")
+            .unwrap()
+            .query_map([], |row| row.get(0))
+            .unwrap()
+            .filter_map(|r| r.ok())
+            .collect();
+
+        assert!(indexes.contains(&"idx_usage_segments_start".to_string()));
+        assert!(indexes.contains(&"idx_usage_segments_rule_start".to_string()));
+        assert!(indexes.contains(&"idx_visual_evidence_time".to_string()));
+        assert!(indexes.contains(&"idx_query_logs_domain_time".to_string()));
+        assert!(indexes.contains(&"idx_outbox_schedule".to_string()));
     }
 
     #[test]
