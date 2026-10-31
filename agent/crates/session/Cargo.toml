@@ -8,7 +8,9 @@ description = "Per-session helper for foreground tracking and DXGI visual verifi
 
 [dependencies]
 famshield-core = { workspace = true }
+famshield-windows = { workspace = true }
 famshield-service = { workspace = true }
+chrono = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }

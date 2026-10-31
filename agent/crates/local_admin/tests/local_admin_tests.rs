@@ -1582,8 +1582,28 @@ async fn test_update_urls_standalone_and_server_auto_modes() {
     );
 }
 
+async fn setup_test_server() -> (famshield_local_admin::LocalAdminServer, famshield_storage::StorageEngine, String) {
+    use famshield_local_admin::{LocalAdminServer, LocalAdminService};
+    use famshield_storage::StorageEngine;
+    use std::sync::Arc;
+
+    let storage = StorageEngine::in_memory().unwrap();
+    let service = Arc::new(LocalAdminService::new(storage.clone()));
+    let server = LocalAdminServer::new(service.clone(), None);
+
+    service.set_master_pin("123456").unwrap();
+    let token = server.create_session_token().await;
+    (server, storage, token)
+}
+
 #[tokio::test]
 async fn test_get_system_info_endpoint_and_status() {
+    use axum::body::Body;
+    use axum::http::{Request, StatusCode};
+    use http_body_util::BodyExt;
+    use serde_json::Value;
+    use tower::ServiceExt;
+
     let (server, _storage, token) = setup_test_server().await;
 
     // 1. GET /api/system/info without auth -> 401
@@ -1644,6 +1664,12 @@ async fn test_get_system_info_endpoint_and_status() {
 
 #[tokio::test]
 async fn test_restart_service_endpoint() {
+    use axum::body::Body;
+    use axum::http::{Request, StatusCode};
+    use http_body_util::BodyExt;
+    use serde_json::Value;
+    use tower::ServiceExt;
+
     let (server, storage, token) = setup_test_server().await;
 
     // 1. POST /api/system/service/restart without auth or PIN -> 401
@@ -1679,7 +1705,7 @@ async fn test_restart_service_endpoint() {
     let json: Value = serde_json::from_slice(&bytes).unwrap();
     assert_eq!(json["wrong_pin"], true);
 
-    let outbox = storage.dequeue_outbox(10).unwrap();
+    let outbox = storage.peek_outbox(10).unwrap();
     assert!(outbox
         .iter()
         .any(|e| e.event_type == "security_alert" && e.payload.contains("unauthorized_service_restart_attempt")));
@@ -1702,7 +1728,7 @@ async fn test_restart_service_endpoint() {
     let json: Value = serde_json::from_slice(&bytes).unwrap();
     assert_eq!(json["success"], true);
 
-    let outbox = storage.dequeue_outbox(10).unwrap();
+    let outbox = storage.peek_outbox(10).unwrap();
     assert!(outbox
         .iter()
         .any(|e| e.event_type == "security_alert" && e.payload.contains("service_restarted_by_parent")));

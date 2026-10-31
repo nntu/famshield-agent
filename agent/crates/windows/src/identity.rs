@@ -185,8 +185,7 @@ pub fn get_system_info() -> SystemInfo {
     let kernel_version =
         sysinfo::System::kernel_version().unwrap_or_else(|| "Unknown Kernel".to_string());
 
-    let cpu_arch =
-        sysinfo::System::cpu_arch().unwrap_or_else(|| std::env::consts::ARCH.to_string());
+    let detected_arch = sysinfo::System::cpu_arch(); let cpu_arch = if detected_arch.is_empty() { std::env::consts::ARCH.to_string() } else { detected_arch };
 
     let cpus = sys.cpus();
     let cpu_brand = cpus

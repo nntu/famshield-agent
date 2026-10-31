@@ -365,8 +365,7 @@ impl ServiceRestartDialog {
                                 let runas_op = w!("runas");
                                 let cmd_exe = w!("cmd.exe");
                                 let params = w!("/C sc.exe start FamShieldService");
-                                let res = ShellExecuteW(
-                                    Some(hwnd),
+                                let res = ShellExecuteW(hwnd,
                                     runas_op,
                                     cmd_exe,
                                     params,
