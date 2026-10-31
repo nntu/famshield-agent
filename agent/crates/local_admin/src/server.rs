@@ -28,6 +28,7 @@ use crate::service::{
 };
 
 use crate::ui::LOCAL_DASHBOARD_HTML;
+use rust_embed::RustEmbed;
 
 use famshield_dns::blocklist::BlocklistStore;
 
@@ -515,6 +516,7 @@ impl LocalAdminServer {
             )
             .route("/api/dns/cache/flush", post(handle_flush_dns_cache))
             .route("/api/system/info", get(handle_get_system_info))
+            .fallback(handle_fallback)
             .with_state(self.state.clone())
     }
 
@@ -803,105 +805,59 @@ fn sync_dns_blocklist(state: &ServerState) {
     }
 }
 
-fn find_dist_dir() -> Option<std::path::PathBuf> {
-    #[cfg(target_os = "windows")]
-    {
-        if let Ok(program_data) = std::env::var("ProgramData") {
-            let pd_path = std::path::PathBuf::from(program_data)
-                .join("FamShield")
-                .join("web")
-                .join("dist");
-
-            if pd_path.join("index.html").exists() {
-                return Some(pd_path);
-            }
-        }
-    }
-
-    let candidates = [
-        std::path::PathBuf::from("web/dist"),
-        std::path::PathBuf::from("../web/dist"),
-        std::path::PathBuf::from("../../web/dist"),
-    ];
-
-    for c in &candidates {
-        if c.join("index.html").exists() {
-            return Some(c.clone());
-        }
-    }
-
-    if let Ok(exe) = std::env::current_exe() {
-        if let Some(parent) = exe.parent() {
-            let p1 = parent.join("web").join("dist");
-
-            if p1.join("index.html").exists() {
-                return Some(p1);
-            }
-
-            let p2 = parent.join("dist");
-
-            if p2.join("index.html").exists() {
-                return Some(p2);
-            }
-        }
-    }
-
-    None
-}
+#[derive(RustEmbed)]
+#[folder = "../../../web/dist/"]
+struct WebAssets;
 
 // ================= Handlers =================
 
 async fn handle_index() -> impl IntoResponse {
-    if let Some(dist) = find_dist_dir() {
-        let index_path = dist.join("index.html");
-
-        if let Ok(content) = std::fs::read_to_string(&index_path) {
-            return Response::builder()
-                .header(header::CONTENT_TYPE, "text/html; charset=utf-8")
-                .body(axum::body::Body::from(content))
-                .unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response());
-        }
+    if let Some(file) = WebAssets::get("index.html") {
+        return Response::builder()
+            .header(header::CONTENT_TYPE, "text/html; charset=utf-8")
+            .body(axum::body::Body::from(file.data))
+            .unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response());
     }
 
     Html(LOCAL_DASHBOARD_HTML).into_response()
 }
 
 async fn handle_assets(Path(asset_path): Path<String>) -> impl IntoResponse {
-    if let Some(dist) = find_dist_dir() {
-        let clean_path = asset_path.trim_start_matches('/').replace("..", "");
+    let clean_path = asset_path.trim_start_matches('/').replace("..", "");
+    let full_path = format!("assets/{}", clean_path);
 
-        let file_path = dist.join("assets").join(&clean_path);
+    if let Some(file) = WebAssets::get(&full_path) {
+        let mime = mime_guess::from_path(&clean_path).first_or_octet_stream();
 
-        if file_path.exists() && file_path.is_file() {
-            if let Ok(bytes) = std::fs::read(&file_path) {
-                let mime = match clean_path.split('.').next_back().unwrap_or("") {
-                    "js" | "mjs" => "application/javascript; charset=utf-8",
-
-                    "css" => "text/css; charset=utf-8",
-
-                    "svg" => "image/svg+xml",
-
-                    "png" => "image/png",
-
-                    "ico" => "image/x-icon",
-
-                    "woff2" => "font/woff2",
-
-                    "json" => "application/json",
-
-                    _ => "application/octet-stream",
-                };
-
-                return Response::builder()
-                    .header(header::CONTENT_TYPE, mime)
-                    .header(header::CACHE_CONTROL, "public, max-age=31536000, immutable")
-                    .body(axum::body::Body::from(bytes))
-                    .unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response());
-            }
-        }
+        return Response::builder()
+            .header(header::CONTENT_TYPE, mime.as_ref())
+            .header(header::CACHE_CONTROL, "public, max-age=31536000, immutable")
+            .body(axum::body::Body::from(file.data))
+            .unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response());
     }
 
     StatusCode::NOT_FOUND.into_response()
+}
+
+async fn handle_fallback(uri: axum::http::Uri) -> impl IntoResponse {
+    let path = uri.path().trim_start_matches('/');
+
+    // Do not intercept missing API routes
+    if path.starts_with("api/") {
+        return StatusCode::NOT_FOUND.into_response();
+    }
+
+    // Check if the requested file exists directly in WebAssets (e.g. favicon.ico, vite.svg)
+    if let Some(file) = WebAssets::get(path) {
+        let mime = mime_guess::from_path(path).first_or_octet_stream();
+        return Response::builder()
+            .header(header::CONTENT_TYPE, mime.as_ref())
+            .body(axum::body::Body::from(file.data))
+            .unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response());
+    }
+
+    // Fallback to index.html for SPA client-side routing
+    handle_index().await.into_response()
 }
 
 async fn handle_login(

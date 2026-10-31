@@ -75,10 +75,9 @@ Khi cài đặt trên máy người dùng, FamShield sẽ cư trú tại 2 vị 
 
 ```
 C:\Program Files\FamShield\
-├── famshield-service.exe       # Windows Service chạy ngầm (Session 0)
+├── famshield-service.exe       # Windows Service chạy ngầm (Session 0, tích hợp nhúng sẵn Web Admin UI qua rust-embed)
 ├── famshield-session.exe       # Trợ lý khay hệ thống (Session 1+)
-├── famshield.ico               # Icon ứng dụng
-└── web\dist\                   # Bundle giao diện Web Admin nội bộ
+└── famshield.ico               # Icon ứng dụng
 
 C:\ProgramData\FamShield\       # Thư mục dữ liệu SQLite & Logs
 ├── famshield.db                # Cơ sở dữ liệu SQLite cục bộ (WAL mode)

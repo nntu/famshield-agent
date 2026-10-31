@@ -44,6 +44,8 @@ hickory-proto = "0.26"
 axum = "0.8"
 tower = { version = "0.5", features = ["util"] }
 http-body-util = "0.1"
+rust-embed = "8.5"
+mime_guess = "2.0"
 
 # Database & Cryptography
 rusqlite = { version = "0.40.0", features = ["bundled", "backup"] }

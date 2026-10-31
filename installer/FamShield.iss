@@ -57,7 +57,7 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 [Files]
 Source: "..\target\release\famshield-service.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\target\release\famshield-session.exe"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\web\dist\*"; DestDir: "{app}\web\dist"; Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist
+; Web Admin UI assets are now embedded directly into famshield-service.exe via rust-embed (Single-Binary architecture)
 Source: "..\assets\famshield.ico"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]

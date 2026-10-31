@@ -12,6 +12,13 @@ Tất cả các thay đổi quan trọng của dự án **FamShield Windows Agen
 
 ## [Unreleased]
 
+### Added
+- **Kiến Trúc Nhúng Giao Diện Trực Tiếp (Single-Binary Embedded Web Admin via `rust-embed`)**: Nhúng toàn bộ bundle frontend React 19 (`web/dist`) trực tiếp vào file thực thi `famshield-service.exe` bằng `rust-embed`. Tự động định tuyến SPA với fallback `index.html` và MIME type detection (`mime_guess`), đạt 0ms disk I/O và loại trừ hoàn toàn rủi ro mất hoặc bị can thiệp file UI trên máy trạm.
+- **Cơ Chế Biên Dịch Tự Bảo Vệ (`build.rs`)**: Tự động sinh placeholder cho `web/dist` nếu mã nguồn được checkout trong môi trường CI/CD chưa build web, ngăn ngừa lỗi biên dịch Rust.
+
+### Changed
+- **Tinh Gọn Quy Trình Đóng Gói Installer & Build Script**: Loại bỏ việc copy đệ quy thư mục `web/dist` vào `Program Files` và `ProgramData` trong `build.ps1` và `installer/FamShield.iss`, biến installer thành gói triển khai tối giản và an toàn tuyệt đối trước can thiệp trái phép.
+
 ---
 
 ## [1.0.5] - 2026-10-31

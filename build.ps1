@@ -247,25 +247,15 @@ function Install-Agent {
     Copy-Item -Path (Join-Path $TargetDir "famshield-service.exe") -Destination (Join-Path $InstallDir "famshield-service.exe") -Force
     Copy-Item -Path (Join-Path $TargetDir "famshield-session.exe") -Destination (Join-Path $InstallDir "famshield-session.exe") -Force
 
-    $webDistSrc = Join-Path $ProjectRoot "web\dist"
-    if (Test-Path $webDistSrc) {
-        # 1. Update ProgramData\FamShield\web\dist (Primary priority for LocalAdminServer)
-        $pdWebDist = Join-Path $env:ProgramData "FamShield\web\dist"
-        if (-not (Test-Path $pdWebDist)) {
-            New-Item -ItemType Directory -Path $pdWebDist -Force | Out-Null
-        }
-        Get-ChildItem -Path $pdWebDist -Recurse -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
-        Copy-Item -Path (Join-Path $webDistSrc "*") -Destination $pdWebDist -Recurse -Force
-        Write-Host "==> Copied latest web/dist admin assets to $pdWebDist" -ForegroundColor Green
-
-        # 2. Update Program Files\FamShield\web\dist (Fallback)
-        $pfWebDist = Join-Path $InstallDir "web\dist"
-        if (-not (Test-Path $pfWebDist)) {
-            New-Item -ItemType Directory -Path $pfWebDist -Force | Out-Null
-        }
-        Get-ChildItem -Path $pfWebDist -Recurse -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
-        Copy-Item -Path (Join-Path $webDistSrc "*") -Destination $pfWebDist -Recurse -Force
-        Write-Host "==> Copied latest web/dist admin assets to $pfWebDist" -ForegroundColor Green
+    # Web Admin UI assets are now embedded directly into famshield-service.exe via rust-embed (Single-Binary architecture).
+    # Clean up legacy external web/dist assets if present to avoid disk clutter.
+    $pdWebDist = Join-Path $env:ProgramData "FamShield\web"
+    if (Test-Path $pdWebDist) {
+        Remove-Item -Path $pdWebDist -Recurse -Force -ErrorAction SilentlyContinue
+    }
+    $pfWebDist = Join-Path $InstallDir "web"
+    if (Test-Path $pfWebDist) {
+        Remove-Item -Path $pfWebDist -Recurse -Force -ErrorAction SilentlyContinue
     }
 
     Write-Host "==> [3/3] Registering Windows Service ($ServiceName) and NRPT Routing..." -ForegroundColor Cyan

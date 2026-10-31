@@ -24,6 +24,8 @@ sha2 = { workspace = true }
 reqwest = { workspace = true }
 async-nats = { workspace = true }
 axum = { workspace = true }
+rust-embed = { workspace = true }
+mime_guess = { workspace = true }
 
 [target.'cfg(windows)'.dependencies]
 windows = { workspace = true, features = [
