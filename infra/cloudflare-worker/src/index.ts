@@ -26,20 +26,20 @@ export interface ReleaseMetadata {
 }
 
 const DEFAULT_METADATA: ReleaseMetadata = {
-  version: "1.0.3",
-  release_date: "2026-10-24",
+  version: "1.0.4",
+  release_date: "2026-10-31",
   channel: "stable",
   min_supported_version: "1.0.0",
   changelog: [
-    "Tự động chuẩn hóa NATS URL sang wss://famshield.ttcantho.io.vn/nats cho Cloud Reverse Proxy",
-    "Cơ chế cập nhật URL check version tự động theo chế độ Standalone & Server",
-    "Tham số hóa toàn diện cấu hình hệ thống động (Dynamic System Settings)",
-    "Trung tâm quản lý lỗi, đọc/tải log thời gian thực và đẩy lỗi lên NATS",
-    "Cơ chế giám sát yên lặng toàn diện (Stealth / Silent Monitoring Mode)"
+    "Cơ chế giám sát chéo 2 chiều giữa famshield-session và famshield-service & khởi động lại dịch vụ từ khay hệ thống",
+    "Tích hợp thư viện chuyên dụng sysinfo thu thập thông tin máy tính & phần cứng toàn diện",
+    "Phân biệt nguồn gốc chính sách chặn Cloud Server & Cục bộ tại chỗ (Cloud vs Local Policy)",
+    "Định danh phần cứng bất biến qua MachineGuid & tự động chống trùng lặp tên máy tính",
+    "Tối ưu hóa thư viện mã hóa hex hiệu năng cao và chuẩn hóa Tenant Sync"
   ],
-  installer_url: "https://github.com/nntu/famshield-agent/releases/download/1.0.3/FamShieldSetup-1.0.3.exe",
-  service_binary_url: "https://github.com/nntu/famshield-agent/releases/download/1.0.3/famshield-service.exe",
-  service_sha256: "e8a56b342ea5e80551204b444b28f7a8c4c09c4081702fa1ec3528b60e178ee1"
+  installer_url: "https://github.com/nntu/famshield-agent/releases/download/1.0.4/FamShieldSetup-1.0.4.exe",
+  service_binary_url: "https://github.com/nntu/famshield-agent/releases/download/1.0.4/famshield-service.exe",
+  service_sha256: "8087b59a0422c3222c8b320ed053c7163ff5de40c24e9812d302d90e0c17bf62"
 };
 
 const CORS_HEADERS: Record<string, string> = {
