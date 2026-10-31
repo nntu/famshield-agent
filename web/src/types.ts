@@ -1,3 +1,18 @@
+export interface SystemInfo {
+  computer_name: string;
+  host_name: string;
+  os_name: string;
+  os_version: string;
+  kernel_version: string;
+  cpu_arch: string;
+  cpu_brand: string;
+  cpu_cores: number;
+  total_memory_bytes: number;
+  used_memory_bytes: number;
+  uptime_seconds: number;
+  machine_guid?: string | null;
+}
+
 export interface StatusResponse {
   protection_active: boolean;
   monitor_mode: boolean;
@@ -17,6 +32,7 @@ export interface StatusResponse {
   rules_count: number;
   evidence_count: number;
   app_version?: string;
+  system_info?: SystemInfo;
 }
 
 export interface LocalRuleRecord {

@@ -261,6 +261,7 @@ impl TelemetrySyncWorker {
             outbox_depth,
             dns_upstream_optimal: optimal_upstream,
             dns_avg_rtt_ms: None,
+            pc_info: Some(crate::client::PcInfoDto::collect_local(uptime_seconds)),
         };
 
         match client.send_heartbeat(&hb_req).await {

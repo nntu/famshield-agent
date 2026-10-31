@@ -1224,7 +1224,7 @@ async fn test_parent_2fa_totp_full_lifecycle() {
     assert_eq!(res.status(), StatusCode::BAD_REQUEST);
 
     // 6. POST /api/auth/totp/confirm with valid code
-    let computer_name = std::env::var("COMPUTERNAME").unwrap_or_else(|_| "Desktop".to_string());
+    let computer_name = famshield_windows::get_computer_name();
     let account_name = format!("Parent ({})", computer_name);
     let totp = TotpManager::from_base32_secret(&secret, &account_name).unwrap();
     let valid_code = totp.generate_current().to_string();
@@ -1580,4 +1580,149 @@ async fn test_update_urls_standalone_and_server_auto_modes() {
         json["effective_version_check_url"],
         "https://central-server.io/version.json"
     );
+}
+
+#[tokio::test]
+async fn test_get_system_info_endpoint_and_status() {
+    let (server, _storage, token) = setup_test_server().await;
+
+    // 1. GET /api/system/info without auth -> 401
+    let res = server
+        .router()
+        .oneshot(
+            Request::builder()
+                .uri("/api/system/info")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::UNAUTHORIZED);
+
+    // 2. GET /api/system/info with token -> 200 and valid fields
+    let res = server
+        .router()
+        .oneshot(
+            Request::builder()
+                .uri("/api/system/info")
+                .header("X-FamShield-Token", &token)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    let bytes = res.into_body().collect().await.unwrap().to_bytes();
+    let json: Value = serde_json::from_slice(&bytes).unwrap();
+
+    assert!(json["computer_name"].is_string());
+    assert!(!json["computer_name"].as_str().unwrap().is_empty());
+    assert!(json["host_name"].is_string());
+    assert!(json["os_name"].is_string());
+    assert!(json["total_memory_bytes"].is_number());
+
+    // 3. GET /api/status includes system_info
+    let res = server
+        .router()
+        .oneshot(
+            Request::builder()
+                .uri("/api/status")
+                .header("X-FamShield-Token", &token)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    let bytes = res.into_body().collect().await.unwrap().to_bytes();
+    let json: Value = serde_json::from_slice(&bytes).unwrap();
+
+    assert!(json.get("system_info").is_some());
+    let sys_info = &json["system_info"];
+    assert!(!sys_info["computer_name"].as_str().unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn test_restart_service_endpoint() {
+    let (server, storage, token) = setup_test_server().await;
+
+    // 1. POST /api/system/service/restart without auth or PIN -> 401
+    let res = server
+        .router()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/system/service/restart")
+                .header("Content-Type", "application/json")
+                .body(Body::from(r#"{}"#))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::UNAUTHORIZED);
+
+    // 2. POST with wrong PIN -> 401 wrong_pin and queues security_alert to outbox
+    let res = server
+        .router()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/system/service/restart")
+                .header("Content-Type", "application/json")
+                .body(Body::from(r#"{"master_pin":"999999"}"#))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::UNAUTHORIZED);
+    let bytes = res.into_body().collect().await.unwrap().to_bytes();
+    let json: Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(json["wrong_pin"], true);
+
+    let outbox = storage.dequeue_outbox(10).unwrap();
+    assert!(outbox
+        .iter()
+        .any(|e| e.event_type == "security_alert" && e.payload.contains("unauthorized_service_restart_attempt")));
+
+    // 3. POST with correct Master PIN ("123456" in setup_test_server) -> 200 OK and queues security_alert
+    let res = server
+        .router()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/system/service/restart")
+                .header("Content-Type", "application/json")
+                .body(Body::from(r#"{"master_pin":"123456"}"#))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    let bytes = res.into_body().collect().await.unwrap().to_bytes();
+    let json: Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(json["success"], true);
+
+    let outbox = storage.dequeue_outbox(10).unwrap();
+    assert!(outbox
+        .iter()
+        .any(|e| e.event_type == "security_alert" && e.payload.contains("service_restarted_by_parent")));
+
+    // 4. POST with authenticated session token -> 200 OK without PIN
+    let res = server
+        .router()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/system/service/restart")
+                .header("X-FamShield-Token", &token)
+                .header("Content-Type", "application/json")
+                .body(Body::from(r#"{}"#))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    let bytes = res.into_body().collect().await.unwrap().to_bytes();
+    let json: Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(json["success"], true);
 }

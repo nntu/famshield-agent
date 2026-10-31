@@ -157,6 +157,9 @@ pub struct StatusResponse {
     pub evidence_count: usize,
 
     pub app_version: String,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub system_info: Option<famshield_windows::SystemInfo>,
 }
 
 #[derive(Deserialize, Default)]
@@ -497,6 +500,10 @@ impl LocalAdminServer {
                 post(handle_start_session_helper),
             )
             .route("/api/system/uninstall", post(handle_system_uninstall))
+            .route(
+                "/api/system/service/restart",
+                post(handle_restart_service),
+            )
             .route("/api/system/update/check", get(handle_check_update))
             .route(
                 "/api/system/update/url",
@@ -507,6 +514,7 @@ impl LocalAdminServer {
                 get(handle_get_dns_config).post(handle_set_dns_config),
             )
             .route("/api/dns/cache/flush", post(handle_flush_dns_cache))
+            .route("/api/system/info", get(handle_get_system_info))
             .with_state(self.state.clone())
     }
 
@@ -1124,8 +1132,7 @@ async fn handle_login_totp(
         if let Ok(unprotected) =
             crate::secret_protection::unprotect_secret(&totp_cfg.encrypted_secret)
         {
-            let computer_name =
-                std::env::var("COMPUTERNAME").unwrap_or_else(|_| "Desktop".to_string());
+            let computer_name = famshield_windows::get_computer_name();
 
             let account_name = format!("Parent ({})", computer_name);
 
@@ -1292,7 +1299,7 @@ async fn handle_setup_totp(
         ));
     }
 
-    let computer_name = std::env::var("COMPUTERNAME").unwrap_or_else(|_| "Desktop".to_string());
+    let computer_name = famshield_windows::get_computer_name();
 
     let account_name = format!("Parent ({})", computer_name);
 
@@ -1360,7 +1367,7 @@ async fn handle_confirm_totp(
         }
     };
 
-    let computer_name = std::env::var("COMPUTERNAME").unwrap_or_else(|_| "Desktop".to_string());
+    let computer_name = famshield_windows::get_computer_name();
 
     let account_name = format!("Parent ({})", computer_name);
 
@@ -1677,7 +1684,23 @@ async fn handle_status(
         evidence_count,
 
         app_version: env!("CARGO_PKG_VERSION").to_string(),
+
+        system_info: Some(famshield_windows::get_system_info()),
     }))
+}
+
+async fn handle_get_system_info(
+    State(state): State<ServerState>,
+
+    headers: HeaderMap,
+
+    Query(query): Query<QueryParams>,
+) -> Result<Json<famshield_windows::SystemInfo>, StatusCode> {
+    if !check_auth(&state, &headers, query.token.as_deref()).await {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+
+    Ok(Json(famshield_windows::get_system_info()))
 }
 
 async fn handle_list_rules(
@@ -3983,8 +4006,7 @@ async fn handle_reset_reports(
                         if let Ok(unprotected) =
                             crate::secret_protection::unprotect_secret(&cfg.encrypted_secret)
                         {
-                            let computer_name = std::env::var("COMPUTERNAME")
-                                .unwrap_or_else(|_| "Desktop".to_string());
+                            let computer_name = famshield_windows::get_computer_name();
 
                             let account_name = format!("Parent ({})", computer_name);
 
@@ -4154,8 +4176,7 @@ async fn handle_system_uninstall(
                         if let Ok(unprotected) =
                             crate::secret_protection::unprotect_secret(&cfg.encrypted_secret)
                         {
-                            let computer_name = std::env::var("COMPUTERNAME")
-                                .unwrap_or_else(|_| "Desktop".to_string());
+                            let computer_name = famshield_windows::get_computer_name();
 
                             let account_name = format!("Parent ({})", computer_name);
 
@@ -4346,6 +4367,201 @@ async fn handle_system_uninstall(
             })),
         )),
     }
+}
+
+#[derive(serde::Deserialize)]
+pub struct RestartServicePayload {
+    pub master_pin: Option<String>,
+    pub otp_code: Option<String>,
+}
+
+async fn handle_restart_service(
+    State(state): State<ServerState>,
+    headers: HeaderMap,
+    Json(payload): Json<RestartServicePayload>,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    let is_web_authenticated = check_auth(&state, &headers, None).await;
+
+    if !is_web_authenticated {
+        let pin = payload
+            .master_pin
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty());
+
+        let Some(entered_pin) = pin else {
+            return Err((
+                StatusCode::UNAUTHORIZED,
+                Json(serde_json::json!({
+                    "success": false,
+                    "error": "Yêu cầu nhập Master PIN hoặc Mã xác thực của cha mẹ"
+                })),
+            ));
+        };
+
+        match state.service.authenticate_storage(entered_pin) {
+            Ok(true) => {
+                // Check 2FA OTP if enabled
+                if let Ok(Some(cfg)) = state.service.storage().get_parent_totp_config() {
+                    if cfg.enabled {
+                        let Some(otp) = payload
+                            .otp_code
+                            .as_deref()
+                            .map(str::trim)
+                            .filter(|s| !s.is_empty())
+                        else {
+                            return Err((
+                                StatusCode::BAD_REQUEST,
+                                Json(serde_json::json!({
+                                    "success": false,
+                                    "requires_otp": true,
+                                    "message": "Xác thực 2 lớp (2FA) đang bật. Vui lòng nhập thêm mã OTP 6 số hoặc mã dự phòng để xác nhận khởi động lại dịch vụ."
+                                })),
+                            ));
+                        };
+
+                        let mut valid = false;
+                        if otp.len() == 6 && otp.chars().all(|c| c.is_ascii_digit()) {
+                            if let Ok(unprotected) =
+                                crate::secret_protection::unprotect_secret(&cfg.encrypted_secret)
+                            {
+                                let computer_name = famshield_windows::get_computer_name();
+                                let account_name = format!("Parent ({})", computer_name);
+                                if let Ok(true) = crate::totp::TotpManager::verify_code(
+                                    &unprotected.plaintext,
+                                    &account_name,
+                                    otp,
+                                ) {
+                                    valid = true;
+                                }
+                            }
+                        }
+
+                        if !valid {
+                            let hash = crate::totp::TotpManager::hash_backup_code(otp);
+                            if let Ok(consumed) = state
+                                .service
+                                .storage()
+                                .verify_and_consume_backup_code(&hash)
+                            {
+                                if consumed {
+                                    valid = true;
+                                }
+                            }
+                        }
+
+                        if !valid {
+                            let _ = state.service.storage().record_error_log(
+                                "auth_restart",
+                                "HIGH",
+                                "Cảnh báo: Có hành vi cố gắng nhập sai mã 2FA OTP để khởi động lại dịch vụ từ Menu Tray",
+                                None,
+                            );
+
+                            let now = chrono::Utc::now();
+                            let alert_payload = serde_json::json!({
+                                "alert_type": "unauthorized_service_restart_attempt",
+                                "severity": "HIGH",
+                                "reason": "Có hành vi cố gắng nhập sai mã 2FA OTP để khởi động lại dịch vụ",
+                                "source": if is_web_authenticated { "web_admin" } else { "tray_menu" },
+                                "timestamp": now.to_rfc3339(),
+                            });
+                            let _ = state.service.storage().enqueue_outbox(
+                                &format!("alert-otp-restart-{}", now.timestamp_micros()),
+                                "security_alert",
+                                now,
+                                &alert_payload.to_string(),
+                            );
+
+                            return Err((
+                                StatusCode::UNAUTHORIZED,
+                                Json(serde_json::json!({
+                                    "success": false,
+                                    "invalid_otp": true,
+                                    "message": "Mã OTP 2FA hoặc mã dự phòng không chính xác."
+                                })),
+                            ));
+                        }
+                    }
+                }
+            }
+            Ok(false) => {
+                let _ = state.service.storage().record_error_log(
+                    "auth_restart",
+                    "HIGH",
+                    "Cảnh báo: Có hành vi cố gắng nhập sai Master PIN để khởi động lại dịch vụ từ Menu Tray",
+                    None,
+                );
+
+                let now = chrono::Utc::now();
+                let alert_payload = serde_json::json!({
+                    "alert_type": "unauthorized_service_restart_attempt",
+                    "severity": "HIGH",
+                    "reason": "Có hành vi cố gắng nhập sai Master PIN để khởi động lại dịch vụ",
+                    "source": if is_web_authenticated { "web_admin" } else { "tray_menu" },
+                    "timestamp": now.to_rfc3339(),
+                });
+                let _ = state.service.storage().enqueue_outbox(
+                    &format!("alert-pin-restart-{}", now.timestamp_micros()),
+                    "security_alert",
+                    now,
+                    &alert_payload.to_string(),
+                );
+
+                return Err((
+                    StatusCode::UNAUTHORIZED,
+                    Json(serde_json::json!({
+                        "success": false,
+                        "wrong_pin": true,
+                        "error": "Master PIN không chính xác"
+                    })),
+                ));
+            }
+            Err(e) => {
+                return Err((
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(serde_json::json!({
+                        "success": false,
+                        "error": format!("Lỗi xác thực: {}", e)
+                    })),
+                ));
+            }
+        }
+    }
+
+    let now = chrono::Utc::now();
+    let _ = state.service.storage().record_error_log(
+        "service_control",
+        "INFO",
+        "Khởi động lại FamShield Service thành công theo yêu cầu đã xác thực của phụ huynh",
+        None,
+    );
+
+    let alert_payload = serde_json::json!({
+        "alert_type": "service_restarted_by_parent",
+        "severity": "INFO",
+        "reason": "Phụ huynh đã xác thực danh tính và khởi động lại FamShield Service",
+        "source": if is_web_authenticated { "web_admin" } else { "tray_menu" },
+        "timestamp": now.to_rfc3339(),
+    });
+    let _ = state.service.storage().enqueue_outbox(
+        &format!("alert-restart-ok-{}", now.timestamp_micros()),
+        "security_alert",
+        now,
+        &alert_payload.to_string(),
+    );
+
+    tracing::info!("Parent authenticated for Service Restart. Spawning restart command...");
+
+    tokio::spawn(async move {
+        tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+        let _ = famshield_windows::restart_service("FamShieldService");
+    });
+
+    Ok(Json(serde_json::json!({
+        "success": true,
+        "message": "Đã xác thực thành công. FamShield Service đang khởi động lại..."
+    })))
 }
 
 async fn handle_get_dns_config(

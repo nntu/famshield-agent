@@ -8,7 +8,7 @@ pub mod worker;
 
 pub use client::{
     AvailableReleaseDto, BatchEventsResponse, CloudSyncClient, HeartbeatRequest, HeartbeatResponse,
-    WebFilterPolicyDto,
+    PcInfoDto, WebFilterPolicyDto,
 };
 pub use enrollment::{
     load_command_signing_key, CloudEnrollmentClient, EnrollmentManager, EnrollmentRequest,

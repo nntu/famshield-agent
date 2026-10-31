@@ -326,6 +326,84 @@ impl ServiceController {
             }
         }
 
+        // 0b. Anti-Tamper & Downtime Watchdog check:
+        // Detect unexpected service termination or manual stopping reported by Session Helper
+        let interrupted_file = app_data.join("service_interrupted.json");
+        let active_lock_file = app_data.join("service_active.lock");
+        let clean_shutdown_file = app_data.join("service_clean_shutdown.flag");
+
+        if interrupted_file.exists() {
+            if let Ok(content) = std::fs::read_to_string(&interrupted_file) {
+                if let Ok(val) = serde_json::from_str::<serde_json::Value>(&content) {
+                    let detected_at_str = val.get("detected_at").and_then(|v| v.as_str()).unwrap_or("");
+                    let reason = val
+                        .get("reason")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("FamShieldService terminated or stopped unexpectedly");
+                    let session_id = val.get("session_id").and_then(|v| v.as_u64()).unwrap_or(0);
+                    let downtime = if let Ok(dt) = chrono::DateTime::parse_from_rfc3339(detected_at_str) {
+                        (chrono::Utc::now() - dt.with_timezone(&chrono::Utc)).num_seconds().max(1)
+                    } else {
+                        0
+                    };
+
+                    tracing::warn!(
+                        "ANTI-TAMPER ALERT: Service recovered after unexpected interruption (Downtime: {}s, Session: {}). Reason: {}",
+                        downtime, session_id, reason
+                    );
+
+                    let log_msg = format!(
+                        "Dịch vụ bảo vệ FamShield bị gián đoạn hoặc tắt bất thường! Thời gian dừng: {} giây. Lý do: {}",
+                        downtime, reason
+                    );
+                    let _ = self.storage.record_error_log("anti_tamper", "CRITICAL", &log_msg, None);
+
+                    let event_id = format!("tamper-down-{}", chrono::Utc::now().timestamp_micros());
+                    let alert_payload = serde_json::json!({
+                        "alert_type": "service_unexpected_termination",
+                        "severity": "CRITICAL",
+                        "downtime_seconds": downtime,
+                        "session_id": session_id,
+                        "reason": reason,
+                        "interrupted_at": detected_at_str,
+                        "recovered_at": chrono::Utc::now().to_rfc3339(),
+                    });
+                    let _ = self.telemetry_pipeline.queue_event(&TelemetryEvent::new(
+                        event_id,
+                        "security_alert",
+                        chrono::Utc::now(),
+                        alert_payload,
+                    ));
+                }
+            }
+            let _ = std::fs::remove_file(&interrupted_file);
+        } else if active_lock_file.exists() && !clean_shutdown_file.exists() {
+            tracing::warn!("ANTI-TAMPER ALERT: Service previous run terminated abnormally (No clean shutdown flag).");
+            let _ = self.storage.record_error_log(
+                "anti_tamper",
+                "WARNING",
+                "Dịch vụ FamShield phiên chạy trước kết thúc đột ngột không qua quy trình tắt an toàn (Cúp điện, bị crash hoặc taskkill).",
+                None,
+            );
+            let event_id = format!("tamper-abrupt-{}", chrono::Utc::now().timestamp_micros());
+            let alert_payload = serde_json::json!({
+                "alert_type": "service_abrupt_shutdown",
+                "severity": "WARNING",
+                "reason": "Previous service run terminated abnormally without graceful shutdown",
+                "detected_at": chrono::Utc::now().to_rfc3339(),
+            });
+            let _ = self.telemetry_pipeline.queue_event(&TelemetryEvent::new(
+                event_id,
+                "security_alert",
+                chrono::Utc::now(),
+                alert_payload,
+            ));
+        }
+
+        // Clean up any stale clean shutdown flag and place active lock
+        let _ = std::fs::remove_file(&clean_shutdown_file);
+        let _ = std::fs::write(&active_lock_file, chrono::Utc::now().to_rfc3339());
+
         // Resolve initial upstream DNS servers: user-configured upstream + detected system DNS
         let configured_upstream = self
             .storage
@@ -642,6 +720,8 @@ impl ServiceController {
             _ = shutdown_rx.recv() => {
                 info!("Shutdown signal received, gracefully terminating FamShield service");
                 let _ = famshield_windows::NrptManager::remove_nrpt_rule();
+                let _ = std::fs::remove_file(app_data.join("service_active.lock"));
+                let _ = std::fs::write(app_data.join("service_clean_shutdown.flag"), chrono::Utc::now().to_rfc3339());
             }
         }
     }

@@ -153,6 +153,8 @@ impl SystemTray {
         let open_admin = MenuItem::new("🌐 Mở Bảng Quản Trị Web (Local Admin)", true, None);
         let view_logs = MenuItem::new("📄 Xem Nhật Ký Dịch Vụ (Đọc Logs)", true, None);
         let admin_pin = MenuItem::new("🔑 Xác Thực Master PIN (Desktop Dialog)", true, None);
+        let restart_service_item =
+            MenuItem::new("🔄 Khởi Động Lại Dịch Vụ (Yêu Cầu PIN/OTP)", true, None);
         let request_time = MenuItem::new("⏳ Xin Thêm Thời Gian (+30 phút)", true, None);
         let sep2 = PredefinedMenuItem::separator();
 
@@ -173,6 +175,7 @@ impl SystemTray {
             &open_admin,
             &view_logs,
             &admin_pin,
+            &restart_service_item,
             &request_time,
             &sep2,
             &status_submenu,
@@ -184,6 +187,7 @@ impl SystemTray {
         let open_admin_id = open_admin.id().clone();
         let view_logs_id = view_logs.id().clone();
         let admin_pin_id = admin_pin.id().clone();
+        let restart_service_id = restart_service_item.id().clone();
         let request_time_id = request_time.id().clone();
         let uninstall_item_id = uninstall_item.id().clone();
         let exit_item_id = exit_item.id().clone();
@@ -222,6 +226,8 @@ impl SystemTray {
                 }
             } else if event.id == admin_pin_id {
                 PinDialog::prompt_and_open_dashboard();
+            } else if event.id == restart_service_id {
+                crate::restart_dialog::ServiceRestartDialog::prompt_and_restart();
             } else if event.id == uninstall_item_id {
                 crate::Uninstaller::prompt_and_uninstall();
             } else if event.id == request_time_id {

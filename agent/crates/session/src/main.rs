@@ -61,6 +61,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     SystemTray::start();
     info!("System Tray icon active at taskbar notification area.");
 
+    // Start cross-monitoring Service Watcher (Session -> Service)
+    famshield_session::ServiceWatcher::start();
+    info!("Cross-monitoring Service Watchdog active in user session.");
+
     // 3. Initialize Sensitive Keystroke Keyword Monitor
     let keyboard_monitor = std::sync::Arc::new(famshield_session::KeyboardMonitor::default());
     famshield_session::keyboard_monitor::start_keyboard_monitor_hook(keyboard_monitor.clone());

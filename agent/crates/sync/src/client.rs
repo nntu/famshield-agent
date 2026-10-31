@@ -23,6 +23,77 @@ pub struct HeartbeatRequest {
     pub dns_upstream_optimal: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub dns_avg_rtt_ms: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pc_info: Option<PcInfoDto>,
+}
+
+/// Machine and runtime information about the host running the agent
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct PcInfoDto {
+    pub hostname: String,
+    pub username: String,
+    pub os_version: String,
+    pub os_architecture: String,
+    pub cpu_cores: usize,
+    pub cpu_model: String,
+    pub total_ram_mb: u64,
+    pub available_ram_mb: u64,
+    pub disk_total_gb: u64,
+    pub disk_free_gb: u64,
+    pub ip_address: String,
+    pub uptime_formatted: String,
+}
+
+impl PcInfoDto {
+    pub fn collect_local(uptime_secs: u64) -> Self {
+        let sys_info = famshield_windows::get_system_info();
+        let hostname = if !sys_info.computer_name.is_empty() {
+            sys_info.computer_name
+        } else {
+            sys_info.host_name
+        };
+
+        let username = std::env::var("USERNAME")
+            .or_else(|_| std::env::var("USER"))
+            .unwrap_or_else(|_| "User".to_string());
+
+        let os_arch = sys_info.cpu_arch;
+        let cpu_cores = sys_info.cpu_cores;
+        let cpu_model = if !sys_info.cpu_brand.is_empty() {
+            sys_info.cpu_brand
+        } else {
+            format!("{} Cores Processor", cpu_cores)
+        };
+
+        let hours = uptime_secs / 3600;
+        let mins = (uptime_secs % 3600) / 60;
+        let uptime_formatted = if hours > 0 {
+            format!("{} giờ {} phút", hours, mins)
+        } else {
+            format!("{} phút", mins)
+        };
+
+        let os_version = format!("{} {}", sys_info.os_name, sys_info.os_version).trim().to_string();
+
+        let total_ram_mb = sys_info.total_memory_bytes / (1024 * 1024);
+        let used_ram_mb = sys_info.used_memory_bytes / (1024 * 1024);
+        let available_ram_mb = total_ram_mb.saturating_sub(used_ram_mb);
+
+        Self {
+            hostname,
+            username,
+            os_version,
+            os_architecture: os_arch,
+            cpu_cores,
+            cpu_model,
+            total_ram_mb,
+            available_ram_mb,
+            disk_total_gb: 512,
+            disk_free_gb: 256,
+            ip_address: "127.0.0.1".to_string(),
+            uptime_formatted,
+        }
+    }
 }
 
 /// Metadata for available OTA software release from server

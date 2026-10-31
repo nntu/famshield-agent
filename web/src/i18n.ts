@@ -34,6 +34,11 @@ export const translations = {
     tag_block: 'CHẶN',
     loading: 'Đang tải dữ liệu...',
     no_logs: 'Chưa có dữ liệu truy vấn gần đây',
+    computer_info_title: 'Thông Tin Máy Tính & Phần Cứng',
+    lbl_os: 'Hệ Điều Hành',
+    lbl_cpu: 'Bộ Xử Lý (CPU)',
+    lbl_ram: 'Bộ Nhớ (RAM)',
+    lbl_uptime: 'Thời Gian Hoạt Động',
 
     // Rules
     title_domain_block: 'Chặn Tên Miền (Domain Blocklist)',
@@ -391,6 +396,11 @@ export const translations = {
     tag_block: 'BLOCK',
     loading: 'Loading data...',
     no_logs: 'No recent query activity',
+    computer_info_title: 'Computer & Hardware Specs',
+    lbl_os: 'Operating System',
+    lbl_cpu: 'Processor (CPU)',
+    lbl_ram: 'Memory (RAM)',
+    lbl_uptime: 'System Uptime',
 
     // Rules
     title_domain_block: 'Domain Blocklist',

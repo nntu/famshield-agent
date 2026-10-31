@@ -13,6 +13,7 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
+sysinfo = { workspace = true }
 
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.58", features = [

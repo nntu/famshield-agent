@@ -2,6 +2,7 @@ import {
   AlertOctagon,
   ArrowRight,
   Layers,
+  Monitor,
   Play,
   RefreshCw,
   ShieldCheck,
@@ -19,6 +20,24 @@ interface DashboardTabProps {
   lang: Language;
   onNavigateTab: (tab: TabType) => void;
   onRefresh: () => void;
+}
+
+function formatUptime(seconds: number, lang: Language): string {
+  if (seconds < 60) {
+    return `${seconds} ${lang === 'vi' ? 'giây' : 'sec'}`;
+  }
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) {
+    return `${minutes} ${lang === 'vi' ? 'phút' : 'min'}`;
+  }
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = minutes % 60;
+  if (hours < 24) {
+    return `${hours}h ${remainingMinutes}m`;
+  }
+  const days = Math.floor(hours / 24);
+  const remainingHours = hours % 24;
+  return `${days}d ${remainingHours}h`;
 }
 
 export const DashboardTab: React.FC<DashboardTabProps> = ({
@@ -278,6 +297,67 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Computer & Hardware Specs Banner */}
+      {status?.system_info && (
+        <div className="bg-white border border-slate-200/80 rounded-xl p-4 sm:p-5 shadow-[0_1px_3px_rgba(15,23,42,0.04)] w-full">
+          <div className="flex items-center justify-between mb-3 pb-2.5 border-b border-slate-100 flex-wrap gap-2">
+            <div className="flex items-center gap-2">
+              <Monitor size={16} className="text-sky-600" />
+              <span className="font-bold text-slate-900 text-sm">
+                {t.computer_info_title}
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="font-mono text-xs font-semibold text-slate-700 bg-slate-100 border border-slate-200/80 px-2 py-0.5 rounded">
+                {status.system_info.computer_name}
+              </span>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
+            <div>
+              <span className="text-slate-400 block text-2xs uppercase tracking-wider mb-0.5 font-medium">
+                {t.lbl_os}
+              </span>
+              <span
+                className="font-medium text-slate-800 text-xs sm:text-sm truncate block"
+                title={status.system_info.os_version}
+              >
+                {status.system_info.os_version || status.system_info.os_name}
+              </span>
+            </div>
+            <div>
+              <span className="text-slate-400 block text-2xs uppercase tracking-wider mb-0.5 font-medium">
+                {t.lbl_cpu}
+              </span>
+              <span
+                className="font-medium text-slate-800 text-xs sm:text-sm truncate block"
+                title={status.system_info.cpu_brand}
+              >
+                {status.system_info.cpu_brand ||
+                  `${status.system_info.cpu_cores} Cores (${status.system_info.cpu_arch})`}
+              </span>
+            </div>
+            <div>
+              <span className="text-slate-400 block text-2xs uppercase tracking-wider mb-0.5 font-medium">
+                {t.lbl_ram}
+              </span>
+              <span className="font-medium text-slate-800 text-xs sm:text-sm">
+                {(status.system_info.used_memory_bytes / (1024 * 1024 * 1024)).toFixed(1)} GB /{' '}
+                {(status.system_info.total_memory_bytes / (1024 * 1024 * 1024)).toFixed(1)} GB
+              </span>
+            </div>
+            <div>
+              <span className="text-slate-400 block text-2xs uppercase tracking-wider mb-0.5 font-medium">
+                {t.lbl_uptime}
+              </span>
+              <span className="font-medium text-slate-800 text-xs sm:text-sm font-mono">
+                {formatUptime(status.system_info.uptime_seconds, lang)}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Mini Recent Query Feed */}
       <div className="bg-white border border-slate-200/80 rounded-xl p-5 sm:p-6 shadow-[0_1px_3px_rgba(15,23,42,0.04)] w-full">

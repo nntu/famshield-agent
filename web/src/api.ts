@@ -27,6 +27,7 @@ import type {
   SetDnsConfigResponse,
   SetupStatusResponse,
   StatusResponse,
+  SystemInfo,
   SyncResponse,
   TestConnectionResponse,
   TotpSetupResponse,
@@ -130,6 +131,21 @@ export const api = {
 
   async getStatus(): Promise<StatusResponse> {
     return apiRequest<StatusResponse>('/api/status');
+  },
+
+  async getSystemInfo(): Promise<SystemInfo> {
+    return apiRequest<SystemInfo>('/api/system/info');
+  },
+
+  async restartService(payload: { master_pin?: string; otp_code?: string } = {}): Promise<{
+    success: boolean;
+    message: string;
+  }> {
+    return apiRequest<{ success: boolean; message: string }>('/api/system/service/restart', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
   },
 
   async getRules(): Promise<LocalRuleRecord[]> {

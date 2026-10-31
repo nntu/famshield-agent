@@ -79,6 +79,8 @@ Root: HKLM; Subkey: "SOFTWARE\Policies\Microsoft\Edge"; ValueType: string; Value
 Filename: "{sys}\sc.exe"; Parameters: "create FamShieldService binPath= ""{app}\famshield-service.exe"" start= auto obj= LocalSystem DisplayName= ""FamShield Security Platform"""; Flags: runhidden
 Filename: "{sys}\sc.exe"; Parameters: "config FamShieldService binPath= ""{app}\famshield-service.exe"" start= auto obj= LocalSystem DisplayName= ""FamShield Security Platform"""; Flags: runhidden
 Filename: "{sys}\sc.exe"; Parameters: "description FamShieldService ""Unified parental control, NUMA DNS proxy and application filtering"""; Flags: runhidden
+Filename: "{sys}\sc.exe"; Parameters: "failure FamShieldService reset= 86400 actions= restart/2000/restart/5000/restart/10000"; Flags: runhidden
+Filename: "{sys}\sc.exe"; Parameters: "sdset FamShieldService ""D:(A;;CCLCSWRPWPDTLOCRRC;;;SY)(A;;CCDCLCSWRPWPDTLOCRSDRCWDWO;;;BA)(A;;CCLCSWLOCRRC;;;IU)(A;;RP;;;AU)"""; Flags: runhidden
 Filename: "{sys}\sc.exe"; Parameters: "start FamShieldService"; Flags: runhidden
 ; Configure active network adapters DNS to 127.0.0.2 for 100% reliable interception
 Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -Command ""Get-NetAdapter | Where-Object {{ $_.Status -eq 'Up' -and $_.InterfaceAlias -notmatch 'vEthernet|WSL|Loopback' }} | ForEach-Object {{ Set-DnsClientServerAddress -InterfaceIndex $_.InterfaceIndex -ServerAddresses '127.0.0.2' -ErrorAction SilentlyContinue }}; ipconfig /flushdns"""; Flags: runhidden
