@@ -11,6 +11,10 @@ export const translations = {
     nav_system_logs: 'Đọc Logs & Lỗi',
     nav_evidence: 'Bằng chứng Vi phạm',
     nav_security: 'Bảo mật & Ghép nối',
+    nav_author: 'Tác Giả & Mã Nguồn',
+    author_modal_title: 'Thông Tin Tác Giả & Mã Nguồn Mở',
+    author_name: 'Nguyễn Ngọc Tú',
+    author_license: 'Giấy phép MIT',
 
     // Dashboard
     card_app_title: 'Ứng dụng Đang Hoạt động',
@@ -373,6 +377,10 @@ export const translations = {
     nav_system_logs: 'System Logs & Errors',
     nav_evidence: 'Visual Evidence',
     nav_security: 'Security & Cloud',
+    nav_author: 'Author & Source',
+    author_modal_title: 'Author & Open Source Information',
+    author_name: 'Nguyen Ngoc Tu',
+    author_license: 'MIT License',
 
     // Dashboard
     card_app_title: 'Active Foreground Application',

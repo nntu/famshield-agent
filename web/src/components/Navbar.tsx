@@ -1,4 +1,4 @@
-import { CheckCircle2, LogOut, Shield } from 'lucide-react';
+import { CheckCircle2, LogOut, Shield, Sparkles } from 'lucide-react';
 import type React from 'react';
 import { translations } from '../i18n';
 import type { Language, TabType } from '../types';
@@ -14,6 +14,7 @@ interface NavbarProps {
   latestVersion?: string;
   onLogout: () => void;
   isAuthenticated: boolean;
+  onOpenAuthorModal?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -27,6 +28,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   latestVersion,
   onLogout,
   isAuthenticated,
+  onOpenAuthorModal,
 }) => {
   const t = translations[lang];
 
@@ -131,6 +133,19 @@ export const Navbar: React.FC<NavbarProps> = ({
               🇺🇸 EN
             </button>
           </div>
+
+          {/* Author & Open Source Info Button */}
+          {onOpenAuthorModal && (
+            <button
+              type="button"
+              onClick={onOpenAuthorModal}
+              title={lang === 'vi' ? 'Thông tin Tác giả & Mã nguồn mở' : 'Author & Open Source Info'}
+              className="flex items-center gap-1.5 bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200/80 px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
+            >
+              <Sparkles size={13} className="text-sky-600" />
+              <span className="hidden sm:inline">{lang === 'vi' ? 'Tác Giả' : 'Author'}</span>
+            </button>
+          )}
 
           {isAuthenticated ? (
             <>

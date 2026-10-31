@@ -2,6 +2,7 @@ import type React from 'react';
 import { useCallback, useEffect, useState } from 'react';
 import { api, setSessionToken } from './api';
 import { ActivityTab } from './components/ActivityTab';
+import { AuthorModal } from './components/AuthorModal';
 import { DashboardTab } from './components/DashboardTab';
 import { ErrorManagementView } from './components/ErrorManagementView';
 import { SystemLogsView } from './components/SystemLogsView';
@@ -29,6 +30,7 @@ export const App: React.FC = () => {
   const [currentTab, setCurrentTab] = useState<TabType>('dashboard');
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [isPinModalOpen, setIsPinModalOpen] = useState<boolean>(false);
+  const [isAuthorModalOpen, setIsAuthorModalOpen] = useState<boolean>(false);
   const [isConfigured, setIsConfigured] = useState<boolean | null>(null);
 
   const [status, setStatus] = useState<StatusResponse | null>(null);
@@ -230,6 +232,7 @@ export const App: React.FC = () => {
         latestVersion={updateInfo?.latest_version}
         onLogout={handleLogout}
         isAuthenticated={isAuthenticated}
+        onOpenAuthorModal={() => setIsAuthorModalOpen(true)}
       />
 
       <main className="flex-1 w-full max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
@@ -305,9 +308,30 @@ export const App: React.FC = () => {
                   ? 'Độc lập Ngoại tuyến'
                   : 'Standalone Offline'}
             </span>
+            <span className="text-slate-300">•</span>
+            <a
+              href="https://github.com/nntu/famshield-agent"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sky-600 hover:text-sky-800 hover:underline font-mono inline-flex items-center gap-1 font-medium"
+            >
+              <span>GitHub (nntu/famshield-agent)</span>
+            </a>
+            <span className="text-slate-300">•</span>
+            <span className="bg-emerald-50 text-emerald-700 border border-emerald-200/80 px-2 py-0.5 rounded text-[11px] font-semibold">
+              MIT License
+            </span>
           </div>
 
           <div className="flex items-center gap-3 text-2xs">
+            <button
+              type="button"
+              onClick={() => setIsAuthorModalOpen(true)}
+              className="text-sky-600 hover:text-sky-800 hover:underline cursor-pointer font-bold flex items-center gap-1"
+            >
+              <span>{lang === 'vi' ? 'Tác giả: Nguyễn Ngọc Tú' : 'Author: Nguyen Ngoc Tu'}</span>
+            </button>
+            <span className="text-slate-300">•</span>
             <button
               type="button"
               onClick={() => setCurrentTab('security')}
@@ -316,7 +340,7 @@ export const App: React.FC = () => {
               {lang === 'vi' ? 'Kiểm tra cập nhật' : 'Check for updates'}
             </button>
             <span className="text-slate-300">•</span>
-            <span>© 2026 FamShield Team</span>
+            <span>© 2026 FamShield</span>
           </div>
         </div>
       </footer>
@@ -325,6 +349,13 @@ export const App: React.FC = () => {
         isOpen={isPinModalOpen}
         lang={lang}
         onSuccess={handleAuthSuccess}
+        appVersion={appVersion}
+      />
+
+      <AuthorModal
+        isOpen={isAuthorModalOpen}
+        onClose={() => setIsAuthorModalOpen(false)}
+        lang={lang}
         appVersion={appVersion}
       />
 

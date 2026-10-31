@@ -15,8 +15,10 @@ resolver = "2"
 [workspace.package]
 version = "1.0.3"
 edition = "2021"
-authors = ["FamShield Team"]
+authors = ["Nguyen Ngoc Tu <ngoctuct@gmail.com>", "FamShield Team"]
 license = "MIT"
+repository = "https://github.com/nntu/famshield-agent"
+homepage = "https://github.com/nntu/famshield-agent"
 
 [workspace.dependencies]
 # Serialization & Schema

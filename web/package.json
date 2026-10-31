@@ -2,6 +2,12 @@
   "name": "famshield-local-admin-web",
   "version": "1.0.3",
   "license": "MIT",
+  "author": "Nguyen Ngoc Tu <ngoctuct@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nntu/famshield-agent.git"
+  },
+  "homepage": "https://github.com/nntu/famshield-agent",
   "private": true,
   "type": "module",
   "scripts": {

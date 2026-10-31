@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1920" viewBox="0 0 1080 1920" role="img" aria-labelledby="title desc">
+  <title id="title">FamShield Agent — bảo vệ gia đình trên Windows</title>
+  <desc id="desc">Infographic tiếng Việt giới thiệu các tính năng, chế độ sử dụng và đường dẫn tải FamShield Agent.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#07172D"/><stop offset="1" stop-color="#102D4A"/></linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0"><stop stop-color="#45D6C5"/><stop offset="1" stop-color="#61A9FF"/></linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="150%"><feDropShadow dx="0" dy="14" stdDeviation="18" flood-color="#020817" flood-opacity=".28"/></filter>
+  </defs>
+  <rect width="1080" height="1920" fill="url(#bg)"/>
+  <circle cx="965" cy="115" r="210" fill="#1C4770" opacity=".34"/><circle cx="66" cy="810" r="170" fill="#124459" opacity=".22"/>
+  <g font-family="Arial, Helvetica, sans-serif">
+    <text x="72" y="86" fill="#8FE8DD" font-size="22" font-weight="700" letter-spacing="4">GIẢI PHÁP BẢO VỆ GIA ĐÌNH</text>
+    <text x="72" y="178" fill="#FFFFFF" font-size="76" font-weight="800">FamShield</text>
+    <text x="75" y="229" fill="#C4D7E8" font-size="30">Agent bảo vệ và quản lý máy tính Windows</text>
+    <g transform="translate(820 93)"><path d="M90 0 169 29v60c0 56-34 98-79 119C45 187 11 145 11 89V29Z" fill="none" stroke="url(#accent)" stroke-width="13"/><path d="m52 91 27 27 52-59" fill="none" stroke="#56D9C5" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/></g>
+    <rect x="72" y="282" width="936" height="118" rx="26" fill="#173A58" stroke="#2E5B7B"/>
+    <text x="106" y="331" fill="#FFFFFF" font-size="26" font-weight="700">Công cụ kiểm soát tại thiết bị, do phụ huynh cấu hình</text>
+    <text x="106" y="370" fill="#B9D2E4" font-size="22">Dành cho Windows 10 (1809+) và Windows 11 · x64</text>
+    <text x="72" y="477" fill="#FFFFFF" font-size="36" font-weight="700">FamShield giúp bạn</text>
+    <g filter="url(#shadow)">
+      <rect x="72" y="512" width="450" height="205" rx="24" fill="#F7FBFF"/><rect x="558" y="512" width="450" height="205" rx="24" fill="#F7FBFF"/>
+      <rect x="72" y="743" width="450" height="205" rx="24" fill="#F7FBFF"/><rect x="558" y="743" width="450" height="205" rx="24" fill="#F7FBFF"/>
+    </g>
+    <g fill="#102D4A"><text x="112" y="570" font-size="24" font-weight="700">Lọc truy cập web</text><text x="112" y="610" font-size="20">Quản lý quy tắc tên miền</text><text x="112" y="640" font-size="20">qua proxy DNS cục bộ.</text>
+      <text x="598" y="570" font-size="24" font-weight="700">Quản lý thời gian</text><text x="598" y="610" font-size="20">Theo dõi ứng dụng và đặt</text><text x="598" y="640" font-size="20">giới hạn theo cấu hình.</text>
+      <text x="112" y="801" font-size="24" font-weight="700">Xem hoạt động</text><text x="112" y="841" font-size="20">Nhật ký DNS, hoạt động ứng</text><text x="112" y="871" font-size="20">dụng và báo cáo tại Web Admin.</text>
+      <text x="598" y="801" font-size="24" font-weight="700">Thiết kế chú trọng riêng tư</text><text x="598" y="841" font-size="20">Dữ liệu lưu cục bộ; ảnh theo sự</text><text x="598" y="871" font-size="20">kiện được làm mờ trước khi lưu.</text></g>
+    <g fill="#36BFAF"><circle cx="108" cy="553" r="9"/><circle cx="594" cy="553" r="9"/><circle cx="108" cy="784" r="9"/><circle cx="594" cy="784" r="9"/></g>
+    <text x="72" y="1030" fill="#FFFFFF" font-size="36" font-weight="700">Chọn cách vận hành</text>
+    <rect x="72" y="1065" width="936" height="178" rx="24" fill="#123C4A" stroke="#2D796F"/>
+    <text x="108" y="1118" fill="#70E4D4" font-size="24" font-weight="700">CỤC BỘ · StandaloneFree</text><text x="108" y="1159" fill="#E2F3F4" font-size="21">Cấu hình và quản lý trực tiếp trên thiết bị. Không cần tài khoản máy chủ.</text><text x="108" y="1196" fill="#B5D5D9" font-size="19">Chế độ này hoạt động cục bộ; kết nối đám mây không bắt buộc.</text>
+    <rect x="72" y="1263" width="936" height="155" rx="24" fill="#173451" stroke="#426286"/>
+    <text x="108" y="1317" fill="#8DC5FF" font-size="24" font-weight="700">QUẢN LÝ TẬP TRUNG · OnlineManaged</text><text x="108" y="1358" fill="#E2EBF5" font-size="21">Dành cho thiết bị được ghép nối với máy chủ FamShield tương thích.</text><text x="108" y="1393" fill="#B5C8DB" font-size="19">Cần địa chỉ máy chủ và mã ghép nối hợp lệ.</text>
+    <text x="72" y="1493" fill="#FFFFFF" font-size="34" font-weight="700">Bắt đầu trên máy Windows</text>
+    <g font-size="21" fill="#DBEAF5"><circle cx="91" cy="1545" r="18" fill="#40CDBB"/><text x="85" y="1553" fill="#082039" font-weight="700">1</text><text x="126" y="1553">Tải bộ cài từ trang chính thức hoặc GitHub Releases.</text>
+      <circle cx="91" cy="1601" r="18" fill="#40CDBB"/><text x="85" y="1609" fill="#082039" font-weight="700">2</text><text x="126" y="1609">Chạy bộ cài với quyền Administrator.</text>
+      <circle cx="91" cy="1657" r="18" fill="#40CDBB"/><text x="85" y="1665" fill="#082039" font-weight="700">3</text><text x="126" y="1665">Tạo Master PIN và thiết lập trong Web Admin.</text></g>
+    <text x="72" y="1740" fill="#9FB8CC" font-size="18">Yêu cầu quyền Administrator để cài đặt dịch vụ và cấu hình DNS.</text>
+    <rect x="72" y="1774" width="936" height="92" rx="23" fill="url(#accent)"/>
+    <text x="105" y="1810" fill="#082039" font-size="18" font-weight="700">TẢI / TÌM HIỂU FAMSHIELD</text>
+    <text x="105" y="1844" fill="#082039" font-size="19" font-weight="700">famshield.ttcantho.io.vn</text>
+    <text x="573" y="1844" fill="#082039" font-size="18" font-weight="700">github.com/nntu/famshield-agent</text>
+    <text x="72" y="1898" fill="#90AABE" font-size="15">FamShield Agent · Thông tin dựa trên README và hướng dẫn sử dụng của dự án.</text>
+  </g>
+</svg>

@@ -114,6 +114,13 @@ cargo test --workspace
 - [Hợp đồng OpenAPI](contracts/openapi.yaml)
 - [JSON Schema chính sách](contracts/policy.schema.json)
 
+## Tác giả & Sáng lập
+
+- **Tác giả chính / Kiến trúc sư:** Nguyễn Ngọc Tú ([@nntu](https://github.com/nntu))
+- **Email liên hệ:** [ngoctuct@gmail.com](mailto:ngoctuct@gmail.com)
+- **Facebook cá nhân:** [https://www.facebook.com/ngoctuct](https://www.facebook.com/ngoctuct)
+- **Kho lưu trữ chính thức:** [https://github.com/nntu/famshield-agent](https://github.com/nntu/famshield-agent)
+
 ## Giấy phép
 
 FamShield Agent được phát hành theo giấy phép [MIT](LICENSE). Trừ khi có thông báo giấy phép riêng, giấy phép này áp dụng cho mã nguồn và tài liệu trong repository. Các thư viện và tài sản của bên thứ ba vẫn tuân theo giấy phép riêng của chúng. Việc cấp phép không đồng nghĩa với việc cấp quyền sử dụng nhãn hiệu hoặc logo FamShield.

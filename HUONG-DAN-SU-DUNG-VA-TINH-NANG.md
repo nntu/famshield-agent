@@ -152,4 +152,14 @@ Khi gỡ, FamShield đặt DNS adapter về DHCP. Nếu máy trước đó dùng
 3. Nếu vừa cài hoặc cập nhật, khởi động lại dịch vụ rồi tải lại trang.
 4. Nếu vẫn gặp lỗi, xem **Đọc Logs & Lỗi** hoặc liên hệ người quản trị máy.
 
+## Thông tin tác giả & Giấy phép mã nguồn mở
+
+- **Tác giả & Sáng lập FamShield:** Nguyễn Ngọc Tú (Kỹ sư Phần mềm & Kiến trúc sư Hệ thống An ninh mạng)
+- **Email liên hệ:** [ngoctuct@gmail.com](mailto:ngoctuct@gmail.com)
+- **Trang GitHub cá nhân:** [https://github.com/nntu/](https://github.com/nntu/)
+- **Facebook cá nhân:** [https://www.facebook.com/ngoctuct](https://www.facebook.com/ngoctuct)
+- **Kho lưu trữ mã nguồn chính thức:** [https://github.com/nntu/famshield-agent](https://github.com/nntu/famshield-agent)
+- **Lệnh sao chép mã nguồn:** `git clone https://github.com/nntu/famshield-agent.git`
+- **Giấy phép phần mềm:** [MIT License](LICENSE) (Mã nguồn mở miễn phí, minh bạch, bảo vệ quyền riêng tư theo tiêu chuẩn COPPA và Nghị định 13/2023/NĐ-CP).
+
 Hướng dẫn cài đặt nằm trong [Hướng dẫn cài đặt và thiết lập lần đầu](docs/17-INSTALLATION-AND-INITIAL-SETUP-GUIDE.md). Các tài liệu kỹ thuật và hợp đồng API được liệt kê trong [chỉ mục tài liệu](docs/README.md); trạng thái thay đổi theo phiên bản được ghi trong [changelog](CHANGELOG.md).

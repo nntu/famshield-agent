@@ -378,11 +378,30 @@ export const PinModal: React.FC<PinModalProps> = ({ isOpen, lang, onSuccess, app
         )}
 
         {/* Footer version indicator */}
-        <div className="mt-5 pt-3 border-t border-slate-100 flex items-center justify-between text-2xs text-slate-400 font-medium">
-          <span>FamShield Windows Agent</span>
-          <span className="font-mono text-slate-500 bg-slate-100 px-2 py-0.5 rounded border border-slate-200/60 font-semibold">
-            v{appVersion || '1.0.3'}
-          </span>
+        <div className="mt-5 pt-3 border-t border-slate-100 flex flex-col gap-1.5 text-2xs text-slate-400 font-medium">
+          <div className="flex items-center justify-between">
+            <span>FamShield Windows Agent</span>
+            <span className="font-mono text-slate-500 bg-slate-100 px-2 py-0.5 rounded border border-slate-200/60 font-semibold">
+              v{appVersion || '1.0.3'}
+            </span>
+          </div>
+          <div className="flex items-center justify-between text-[10px] text-slate-500 pt-1 border-t border-slate-50">
+            <span>
+              {isVi ? 'Tác giả:' : 'Author:'} <strong className="text-slate-700">Nguyễn Ngọc Tú</strong>
+            </span>
+            <div className="flex items-center gap-1.5">
+              <a
+                href="https://github.com/nntu/famshield-agent"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sky-600 hover:text-sky-800 hover:underline font-mono"
+              >
+                GitHub
+              </a>
+              <span>•</span>
+              <span className="text-emerald-700 font-semibold">MIT License</span>
+            </div>
+          </div>
         </div>
       </div>
     </div>
