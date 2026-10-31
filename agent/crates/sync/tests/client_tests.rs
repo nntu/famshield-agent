@@ -95,6 +95,8 @@ fn test_web_filter_policy_deserialization() {
     assert!(!pol.block_social);
     assert!(!pol.silent_mode);
     assert_eq!(pol.dns_block_action, "nxdomain");
+    assert!(pol.keyboard_monitoring_enabled);
+    assert!(pol.keyword_block_self_harm);
     assert_eq!(pol.custom_blocked_domains.len(), 2);
     assert_eq!(pol.custom_allowed_domains.len(), 1);
 }
@@ -145,10 +147,18 @@ async fn test_web_filter_policy_update_dto_serialization() {
         youtube_restricted: true,
         silent_mode: false,
         monitor_only_mode: false,
+        paused_until: 0,
         dns_block_action: "nxdomain".to_string(),
+        keyboard_monitoring_enabled: true,
+        keyword_block_self_harm: true,
+        keyword_block_adult: true,
+        keyword_block_bullying: true,
+        keyword_block_profanity: true,
+        custom_keywords: vec![],
         custom_blocked_domains: vec!["tiktok.com".to_string(), "roblox.com".to_string()],
         custom_allowed_domains: vec!["wikipedia.org".to_string()],
         category_custom_domains: std::collections::HashMap::new(),
+        effective_blocked_domains: vec![],
     };
 
     let serialized = serde_json::to_string(&pol).expect("Serialize policy DTO");

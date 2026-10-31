@@ -32,6 +32,65 @@ fn test_blocklist_exact_and_subdomain_matching() {
 }
 
 #[test]
+fn test_blocklist_pause_and_heap_bytes() {
+    let blocklist = BlocklistStore::new();
+    blocklist.replace_blocklist(vec!["ads.google.com", "doubleclick.net"]);
+
+    assert!(blocklist.should_block("doubleclick.net"));
+    assert_eq!(blocklist.len(), 2);
+    assert!(blocklist.heap_bytes() > 0);
+
+    // Pause for 60 seconds
+    blocklist.pause(60);
+    assert!(blocklist.is_paused());
+    assert!(blocklist.paused_remaining_secs() > 0);
+    assert!(!blocklist.should_block("doubleclick.net"));
+
+    // Unpause
+    blocklist.unpause();
+    assert!(!blocklist.is_paused());
+    assert_eq!(blocklist.paused_remaining_secs(), 0);
+    assert!(blocklist.should_block("doubleclick.net"));
+}
+
+#[test]
+fn test_blocklist_whitelist_priority_and_name_pattern_blocking() {
+    let blocklist = BlocklistStore::new();
+
+    // Configure:
+    // 1. Block by name pattern: "thiendia" (should match thiendia.us, thiendia.vn, sub.thiendia.org)
+    // 2. Custom Whitelist: "thiendia.com"
+    blocklist.replace_custom_blocked(vec!["thiendia"]);
+    blocklist.replace_whitelist(vec!["thiendia.com"]);
+
+    // thiendia.us -> BLOCKED by name pattern
+    assert!(blocklist.should_block("thiendia.us"));
+
+    // thiendia.vn -> BLOCKED by name pattern
+    assert!(blocklist.should_block("thiendia.vn"));
+
+    // sub.thiendia.org -> BLOCKED by name pattern
+    assert!(blocklist.should_block("sub.thiendia.org"));
+
+    // thiendia-vip.com -> BLOCKED by name pattern
+    assert!(blocklist.should_block("thiendia-vip.com"));
+
+    // thiendia.com -> ALLOWED (in Whitelist!)
+    assert!(!blocklist.should_block("thiendia.com"));
+    assert!(blocklist.is_whitelisted("thiendia.com"));
+
+    // mail.thiendia.com -> ALLOWED (subdomain of whitelisted domain!)
+    assert!(!blocklist.should_block("mail.thiendia.com"));
+    assert!(blocklist.is_whitelisted("mail.thiendia.com"));
+
+    // Core system whitelist (e.g. google.com, windowsupdate.com) is never blocked
+    blocklist.replace_blocklist(vec!["google.com", "windowsupdate.com"]);
+    assert!(!blocklist.should_block("google.com"));
+    assert!(!blocklist.should_block("mail.google.com"));
+    assert!(!blocklist.should_block("windowsupdate.com"));
+}
+
+#[test]
 fn test_serve_stale_dns_cache() {
     let cache = DnsCache::new();
     let key = "example.com:1".to_string();

@@ -310,18 +310,36 @@ impl IpcDispatcher {
                 let record = famshield_storage::KeywordViolationRecord {
                     id: format!("kw_v_{}_{}", Utc::now().timestamp_micros(), session_id),
                     timestamp_utc: Utc::now(),
-                    app_name,
-                    keyword_matched,
-                    category,
-                    severity,
-                    snippet_masked,
+                    app_name: app_name.clone(),
+                    keyword_matched: keyword_matched.clone(),
+                    category: category.clone(),
+                    severity: severity.clone(),
+                    snippet_masked: snippet_masked.clone(),
                 };
                 match self.storage.record_keyword_violation(&record) {
-                    Ok(()) => IpcMessage::Response {
-                        request_id: "kw_violation".into(),
-                        success: true,
-                        message: "Keyword violation recorded".into(),
-                    },
+                    Ok(()) => {
+                        let outbox_payload = serde_json::json!({
+                            "app_name": app_name,
+                            "keyword_matched": keyword_matched,
+                            "category": category,
+                            "severity": severity,
+                            "snippet_masked": snippet_masked,
+                        });
+                        let event_id = format!("evt-kw-{}", record.id);
+                        if let Err(e) = self.storage.enqueue_outbox(
+                            &event_id,
+                            "keyword.violation",
+                            record.timestamp_utc,
+                            &outbox_payload.to_string(),
+                        ) {
+                            debug!("Failed to enqueue keyword violation to telemetry outbox: {}", e);
+                        }
+                        IpcMessage::Response {
+                            request_id: "kw_violation".into(),
+                            success: true,
+                            message: "Keyword violation recorded".into(),
+                        }
+                    }
                     Err(e) => {
                         error!("Failed to record keyword violation: {}", e);
                         IpcMessage::Response {
@@ -348,9 +366,46 @@ impl IpcDispatcher {
                     .map(|s| s != "false")
                     .unwrap_or(true);
 
+                let block_self_harm = self
+                    .storage
+                    .get_meta("keyword_block_self_harm")
+                    .unwrap_or(None)
+                    .map(|s| s != "false")
+                    .unwrap_or(true);
+                let block_adult = self
+                    .storage
+                    .get_meta("keyword_block_adult")
+                    .unwrap_or(None)
+                    .map(|s| s != "false")
+                    .unwrap_or(true);
+                let block_bullying = self
+                    .storage
+                    .get_meta("keyword_block_bullying")
+                    .unwrap_or(None)
+                    .map(|s| s != "false")
+                    .unwrap_or(true);
+                let block_profanity = self
+                    .storage
+                    .get_meta("keyword_block_profanity")
+                    .unwrap_or(None)
+                    .map(|s| s != "false")
+                    .unwrap_or(true);
+
                 let mut rules = famshield_core::keyword::default_keyword_rules();
-                // Apply disabled overrides from metadata
+                // Apply disabled overrides from metadata and category switches
                 for r in &mut rules {
+                    let cat_enabled = match r.category {
+                        famshield_core::keyword::KeywordCategory::SelfHarm => block_self_harm,
+                        famshield_core::keyword::KeywordCategory::Adult => block_adult,
+                        famshield_core::keyword::KeywordCategory::Bullying => block_bullying,
+                        famshield_core::keyword::KeywordCategory::Profanity => block_profanity,
+                        famshield_core::keyword::KeywordCategory::Custom => true,
+                    };
+                    if !cat_enabled {
+                        r.enabled = false;
+                        continue;
+                    }
+
                     let override_key = format!("kw_disabled_{}", r.id);
                     if self
                         .storage
@@ -365,12 +420,41 @@ impl IpcDispatcher {
                 // Append custom keyword rules from SQLite
                 if let Ok(customs) = self.storage.list_custom_keywords() {
                     for c in customs {
+                        let cat = match c.category.to_lowercase().as_str() {
+                            "self_harm" => famshield_core::keyword::KeywordCategory::SelfHarm,
+                            "adult" => famshield_core::keyword::KeywordCategory::Adult,
+                            "bullying" => famshield_core::keyword::KeywordCategory::Bullying,
+                            "profanity" => famshield_core::keyword::KeywordCategory::Profanity,
+                            _ => famshield_core::keyword::KeywordCategory::Custom,
+                        };
+                        let cat_enabled = match cat {
+                            famshield_core::keyword::KeywordCategory::SelfHarm => block_self_harm,
+                            famshield_core::keyword::KeywordCategory::Adult => block_adult,
+                            famshield_core::keyword::KeywordCategory::Bullying => block_bullying,
+                            famshield_core::keyword::KeywordCategory::Profanity => block_profanity,
+                            famshield_core::keyword::KeywordCategory::Custom => true,
+                        };
+                        let sev = match c.severity.to_lowercase().as_str() {
+                            "critical" => famshield_core::keyword::KeywordSeverity::Critical,
+                            "high" => famshield_core::keyword::KeywordSeverity::High,
+                            "low" => famshield_core::keyword::KeywordSeverity::Low,
+                            _ => famshield_core::keyword::KeywordSeverity::Medium,
+                        };
+
+                        let override_key = format!("kw_disabled_{}", c.id);
+                        let is_disabled = self
+                            .storage
+                            .get_meta(&override_key)
+                            .unwrap_or(None)
+                            .as_deref()
+                            == Some("1");
+
                         rules.push(famshield_core::keyword::KeywordRule {
                             id: c.id,
                             pattern: c.pattern,
-                            category: famshield_core::keyword::KeywordCategory::Custom,
-                            severity: famshield_core::keyword::KeywordSeverity::Medium,
-                            enabled: c.enabled,
+                            category: cat,
+                            severity: sev,
+                            enabled: c.enabled && cat_enabled && !is_disabled,
                         });
                     }
                 }

@@ -670,21 +670,22 @@ fn sync_dns_blocklist(state: &ServerState) {
     if let Some(blocklist) = &state.dns_blocklist {
         blocklist.set_monitor_mode(state.service.is_monitor_mode());
 
-        let mut active_domains: Vec<String> = Vec::new();
+        let mut general_domains: Vec<String> = Vec::new();
+        let mut custom_rules: Vec<String> = Vec::new();
         let mut allowed_domains: Vec<String> = Vec::new();
 
         // 1. Load from cached_blocklist if present (atomic pre-compiled list from cloud sync/NATS)
         if let Ok(Some(cached_json)) = state.service.storage().get_meta("cached_blocklist") {
             if let Ok(domains) = serde_json::from_str::<Vec<String>>(&cached_json) {
-                active_domains.extend(domains);
+                general_domains.extend(domains);
             }
         }
 
-        // 2. Load from local rules in SQLite
+        // 2. Load from local rules in SQLite (Highest custom priority on client!)
         if let Ok(rules) = state.service.list_rules() {
             for r in rules {
-                if r.rule_type == "domain" && r.enabled {
-                    active_domains.push(r.rule_id);
+                if (r.rule_type == "domain" || r.rule_type == "pattern") && r.enabled {
+                    custom_rules.push(r.rule_id);
                 }
             }
         }
@@ -719,7 +720,15 @@ fn sync_dns_blocklist(state: &ServerState) {
                     .and_then(|v| v.as_object())
                 {
                     for (cat, arr) in cat_map {
-                        let is_blocked = match cat.as_str() {
+                        let norm_cat = match cat.to_lowercase().trim() {
+                            "adult" | "18+" | "18" | "porn" | "xxx" | "nsfw" => "adult",
+                            "gambling" | "bet" | "casino" => "gambling",
+                            "violence" | "gore" => "violence",
+                            "social" => "social",
+                            "gaming" | "game" => "gaming",
+                            other => other,
+                        };
+                        let is_blocked = match norm_cat {
                             "adult" => block_adult,
                             "gambling" => block_gambling,
                             "violence" => block_violence,
@@ -731,7 +740,7 @@ fn sync_dns_blocklist(state: &ServerState) {
                             if let Some(arr) = arr.as_array() {
                                 for d in arr {
                                     if let Some(s) = d.as_str() {
-                                        active_domains.push(s.to_string());
+                                        general_domains.push(s.to_string());
                                     }
                                 }
                             }
@@ -745,7 +754,7 @@ fn sync_dns_blocklist(state: &ServerState) {
                 {
                     for d_val in domains {
                         if let Some(d) = d_val.as_str() {
-                            active_domains.push(d.to_string());
+                            custom_rules.push(d.to_string());
                         }
                     }
                 }
@@ -763,29 +772,13 @@ fn sync_dns_blocklist(state: &ServerState) {
             }
         }
 
-        // Strict normalization
-        let mut normalized_block: Vec<String> = active_domains
-            .into_iter()
-            .map(|d| d.trim().trim_end_matches('.').to_ascii_lowercase())
-            .filter(|d| !d.is_empty())
-            .collect();
-
-        // Strict whitelist exclusion (highest priority)
-        if !allowed_domains.is_empty() {
-            let allows: std::collections::HashSet<String> = allowed_domains
-                .iter()
-                .map(|d| d.trim().trim_end_matches('.').to_ascii_lowercase())
-                .filter(|d| !d.is_empty())
-                .collect();
-
-            normalized_block.retain(|d| {
-                !allows.contains(d) && !allows.iter().any(|a| d.ends_with(&format!(".{}", a)))
-            });
-        }
-
-        normalized_block.sort();
-        normalized_block.dedup();
-        blocklist.replace_blocklist(normalized_block);
+        // Apply to BlocklistStore with exact hierarchical priority:
+        // Priority 1: Whitelist (allowed_domains)
+        // Priority 2: Custom Client Rules (domains + name patterns like "thiendia")
+        // Priority 3: General Threat Feed
+        blocklist.replace_whitelist(allowed_domains);
+        blocklist.replace_custom_blocked(custom_rules);
+        blocklist.replace_blocklist(general_domains);
     }
 
     if let Some(cache) = &state.dns_cache {

@@ -358,8 +358,52 @@ impl TelemetrySyncWorker {
                     pol.block_gaming
                 );
 
-                // Merge category seeds into active domain list
-                let mut block_domains: Vec<String> = pol.custom_blocked_domains.clone();
+                // Compile active domain list: prefer server-compiled dynamic database list
+                let mut block_domains: Vec<String> = if !pol.effective_blocked_domains.is_empty() {
+                    pol.effective_blocked_domains.clone()
+                } else {
+                    let mut list = pol.custom_blocked_domains.clone();
+
+                    if pol.block_adult {
+                        list.extend(ADULT_DOMAINS.iter().map(|d| d.to_string()));
+                    }
+                    if pol.block_gambling {
+                        list.extend(GAMBLING_DOMAINS.iter().map(|d| d.to_string()));
+                    }
+                    if pol.block_violence {
+                        list.extend(VIOLENCE_DOMAINS.iter().map(|d| d.to_string()));
+                    }
+                    if pol.block_social {
+                        list.extend(SOCIAL_DOMAINS.iter().map(|d| d.to_string()));
+                    }
+                    if pol.block_gaming {
+                        list.extend(GAMING_DOMAINS.iter().map(|d| d.to_string()));
+                    }
+
+                    // Merge custom category domains if category is blocked
+                    for (cat, custom_seeds) in &pol.category_custom_domains {
+                        let norm_cat = match cat.to_lowercase().trim() {
+                            "adult" | "18+" | "18" | "porn" | "xxx" | "nsfw" => "adult",
+                            "gambling" | "bet" | "casino" => "gambling",
+                            "violence" | "gore" => "violence",
+                            "social" => "social",
+                            "gaming" | "game" => "gaming",
+                            other => other,
+                        };
+                        let is_blocked = match norm_cat {
+                            "adult" => pol.block_adult,
+                            "gambling" => pol.block_gambling,
+                            "violence" => pol.block_violence,
+                            "social" => pol.block_social,
+                            "gaming" => pol.block_gaming,
+                            _ => false,
+                        };
+                        if is_blocked {
+                            list.extend(custom_seeds.iter().cloned());
+                        }
+                    }
+                    list
+                };
 
                 // Merge local custom rules from endpoint storage to preserve parent rules
                 if let Ok(local_rules) = self.storage.list_local_rules() {
@@ -367,37 +411,6 @@ impl TelemetrySyncWorker {
                         if r.rule_type == "domain" && r.enabled {
                             block_domains.push(r.rule_id);
                         }
-                    }
-                }
-
-                if pol.block_adult {
-                    block_domains.extend(ADULT_DOMAINS.iter().map(|d| d.to_string()));
-                }
-                if pol.block_gambling {
-                    block_domains.extend(GAMBLING_DOMAINS.iter().map(|d| d.to_string()));
-                }
-                if pol.block_violence {
-                    block_domains.extend(VIOLENCE_DOMAINS.iter().map(|d| d.to_string()));
-                }
-                if pol.block_social {
-                    block_domains.extend(SOCIAL_DOMAINS.iter().map(|d| d.to_string()));
-                }
-                if pol.block_gaming {
-                    block_domains.extend(GAMING_DOMAINS.iter().map(|d| d.to_string()));
-                }
-
-                // Merge custom category domains if category is blocked
-                for (cat, custom_seeds) in &pol.category_custom_domains {
-                    let is_blocked = match cat.as_str() {
-                        "adult" => pol.block_adult,
-                        "gambling" => pol.block_gambling,
-                        "violence" => pol.block_violence,
-                        "social" => pol.block_social,
-                        "gaming" => pol.block_gaming,
-                        _ => false,
-                    };
-                    if is_blocked {
-                        block_domains.extend(custom_seeds.iter().cloned());
                     }
                 }
 
@@ -430,15 +443,36 @@ impl TelemetrySyncWorker {
 
                 // Update runtime DNS proxy blocklist in memory
                 if let Some(blocklist) = &self.dns_blocklist {
+                    // 1. Whitelist has HIGHEST priority
+                    blocklist.replace_whitelist(pol.custom_allowed_domains.clone());
+
+                    // 2. Custom Blocked (Domains and Name Patterns)
+                    blocklist.replace_custom_blocked(pol.custom_blocked_domains.clone());
+
+                    // 3. General Threat Blocklist
                     blocklist.replace_blocklist(normalized_block.clone());
+
                     blocklist.set_safesearch_enabled(pol.safesearch_enabled);
                     blocklist.set_youtube_restricted(pol.youtube_restricted);
+                    blocklist.set_monitor_mode(pol.monitor_only_mode);
+
+                    let now = std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .unwrap_or_default()
+                        .as_secs();
+                    if pol.paused_until > now {
+                        blocklist.pause(pol.paused_until - now);
+                    } else {
+                        blocklist.unpause();
+                    }
+
                     info!(
-                        "Dynamic DNS blocklist refreshed with {} domains (safesearch={}, youtube_restricted={}, silent_mode={})",
+                        "Dynamic DNS blocklist refreshed with {} domains (safesearch={}, youtube_restricted={}, monitor_mode={}, paused={})",
                         normalized_block.len(),
                         pol.safesearch_enabled,
                         pol.youtube_restricted,
-                        pol.silent_mode
+                        pol.monitor_only_mode,
+                        blocklist.is_paused()
                     );
                 }
 
@@ -467,6 +501,40 @@ impl TelemetrySyncWorker {
                 if let Ok(policy_str) = serde_json::to_string(&pol) {
                     let _ = self.storage.set_meta("cached_cloud_policy", &policy_str);
                 }
+
+                // Synchronize custom keywords from cloud policy into local storage
+                for kw in &pol.custom_keywords {
+                    let _ = self.storage.upsert_custom_keyword(&famshield_storage::CustomKeywordRecord {
+                        id: if kw.id.is_empty() { format!("kw_cloud_{}", kw.pattern) } else { kw.id.clone() },
+                        pattern: kw.pattern.clone(),
+                        category: kw.category.clone(),
+                        severity: kw.severity.clone(),
+                        enabled: kw.enabled,
+                        created_at: chrono::Utc::now(),
+                    });
+                }
+
+                // Update keyboard monitoring meta settings
+                let _ = self.storage.set_meta(
+                    "keyboard_monitoring_enabled",
+                    if pol.keyboard_monitoring_enabled { "true" } else { "false" },
+                );
+                let _ = self.storage.set_meta(
+                    "keyword_block_self_harm",
+                    if pol.keyword_block_self_harm { "true" } else { "false" },
+                );
+                let _ = self.storage.set_meta(
+                    "keyword_block_adult",
+                    if pol.keyword_block_adult { "true" } else { "false" },
+                );
+                let _ = self.storage.set_meta(
+                    "keyword_block_bullying",
+                    if pol.keyword_block_bullying { "true" } else { "false" },
+                );
+                let _ = self.storage.set_meta(
+                    "keyword_block_profanity",
+                    if pol.keyword_block_profanity { "true" } else { "false" },
+                );
 
                 // Persist new policy version in storage
                 let _ = self
