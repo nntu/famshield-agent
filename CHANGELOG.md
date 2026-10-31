@@ -23,6 +23,13 @@ Tất cả các thay đổi quan trọng của dự án **FamShield Windows Agen
 - **Cập Nhật Tiêu Chuẩn Kiểm Thử Phân Tầng Dành Cho AI Agents ([`AGENTS.md`](AGENTS.md))**:
   - Hướng dẫn các AI coding agents sử dụng `.\test.ps1 -Changed` và `.\test.ps1 -Target <crate>` trong inner loop để bảo tồn token và thời gian phản hồi.
 
+- **Tối Ưu Hóa Hệ Thống Chỉ Mục SQLite Cục Bộ Client (Database Index Optimization & Migration V7, `famshield-storage`)**:
+  - **Migration `V7__optimize_indexes.sql`**: Bổ sung các chỉ mục chuyên sâu giải quyết triệt để các điểm nghẽn hiệu năng khi truy vấn dữ liệu cục bộ:
+    - `idx_usage_segments_start` (`start_utc DESC`) & `idx_usage_segments_rule_start` (`rule_id, start_utc DESC`): Tối ưu hóa truy vấn tính toán thời lượng dùng ứng dụng và tổng thời gian sử dụng thiết bị hàng ngày (screen-time), loại bỏ hoàn toàn tình trạng Full Table Scan.
+    - `idx_visual_evidence_time` (`occurred_at DESC`): Ngăn chặn việc nạp các trường dữ liệu ảnh chụp nhị phân kích thước lớn (`image_payload BLOB`) vào bộ nhớ/tệp tạm khi sắp xếp danh sách bằng chứng trực quan mới nhất.
+    - `idx_query_logs_domain_time` (`domain, occurred_at DESC`): Tăng tốc truy vấn chi tiết lịch sử phân giải DNS (drill-down logs) theo từng tên miền và biểu đồ phân bổ theo giờ (`get_hourly_frequency`).
+    - `idx_outbox_schedule` (`next_attempt_at, occurred_at ASC`): Tối ưu hóa hàng đợi outbox cho việc quét các gói tin telemetry đến hạn gửi lại và điều phối dữ liệu theo thứ tự thời gian.
+  - **Nâng cấp Schema Version**: Cập nhật `CURRENT_SCHEMA_VERSION = 7` trong `famshield-storage` và bổ sung kiểm thử xác thực cấu trúc index tự động trong unit test.
 
 ## [1.0.4] - 2026-10-31
 

@@ -18,6 +18,10 @@
     {
       "pattern": "famshield.ttcantho.io.vn/download/*",
       "zone_name": "ttcantho.io.vn"
+    },
+    {
+      "pattern": "famshield.ttcantho.io.vn/v1/download/*",
+      "zone_name": "ttcantho.io.vn"
     }
   ],
  "kv_namespaces": [

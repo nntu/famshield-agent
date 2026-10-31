@@ -110,8 +110,12 @@ export default {
       });
     }
 
-    // 4. Convenience redirect to latest installer binary: GET /download/latest
-    if (url.pathname.startsWith("/download/") || url.pathname === "/v1/release/download") {
+    // 4. Convenience redirect to latest installer/service binary: GET /download/*, GET /v1/download/*, GET /v1/release/download
+    if (
+      url.pathname.startsWith("/download/") ||
+      url.pathname.startsWith("/v1/download/") ||
+      url.pathname === "/v1/release/download"
+    ) {
       let release = DEFAULT_METADATA;
       if (kv) {
         const stored = await kv.get("latest_release", { type: "json" });
@@ -119,7 +123,15 @@ export default {
           release = stored as ReleaseMetadata;
         }
       }
-      return Response.redirect(release.installer_url, 302);
+
+      const isServiceBinary =
+        url.searchParams.get("type") === "service" ||
+        url.searchParams.get("binary") === "service";
+      const targetUrl = isServiceBinary
+        ? (release.service_binary_url || release.installer_url)
+        : release.installer_url;
+
+      return Response.redirect(targetUrl, 302);
     }
 
     // 5. Admin API to publish new release: POST /v1/release/publish (or /v1/admin/release)
