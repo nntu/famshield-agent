@@ -26,19 +26,19 @@ export interface ReleaseMetadata {
 }
 
 const DEFAULT_METADATA: ReleaseMetadata = {
-  version: "1.0.4",
+  version: "1.0.5",
   release_date: "2026-10-31",
   channel: "stable",
   min_supported_version: "1.0.0",
   changelog: [
-    "Cơ chế giám sát chéo 2 chiều giữa famshield-session và famshield-service & khởi động lại dịch vụ từ khay hệ thống",
-    "Tích hợp thư viện chuyên dụng sysinfo thu thập thông tin máy tính & phần cứng toàn diện",
-    "Phân biệt nguồn gốc chính sách chặn Cloud Server & Cục bộ tại chỗ (Cloud vs Local Policy)",
-    "Định danh phần cứng bất biến qua MachineGuid & tự động chống trùng lặp tên máy tính",
-    "Tối ưu hóa thư viện mã hóa hex hiệu năng cao và chuẩn hóa Tenant Sync"
+    "Khắc phục nhận diện nhầm mã độc & tối ưu hóa bộ cài đặt Inno Setup chuẩn PE Header",
+    "Tái cấu trúc và phân rã các module lớn trên Web Frontend nâng cao hiệu năng",
+    "Tối ưu bảng dữ liệu nhật ký DNS với TanStack Virtual Table 60fps & giảm 90% bundle size",
+    "Thu thập thông tin card mạng và danh sách địa chỉ IP đa giao diện qua sysinfo",
+    "Nâng cấp đồng bộ dependencies workspace (Tokio 1.43, NATS 0.51) và tối ưu hóa index SQLite V7"
   ],
-  installer_url: "https://github.com/nntu/famshield-agent/releases/download/1.0.4/FamShieldSetup-1.0.4.exe",
-  service_binary_url: "https://github.com/nntu/famshield-agent/releases/download/1.0.4/famshield-service.exe",
+  installer_url: "https://github.com/nntu/famshield-agent/releases/download/1.0.5/FamShieldSetup-1.0.5.exe",
+  service_binary_url: "https://github.com/nntu/famshield-agent/releases/download/1.0.5/famshield-service.exe",
   service_sha256: "8087b59a0422c3222c8b320ed053c7163ff5de40c24e9812d302d90e0c17bf62"
 };
 

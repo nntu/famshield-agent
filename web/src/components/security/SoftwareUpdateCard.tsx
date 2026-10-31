@@ -145,7 +145,7 @@ export const SoftwareUpdateCard: React.FC<SoftwareUpdateCardProps> = ({
                 border: updateInfo?.update_available ? '1px solid #f59e0b40' : '1px solid #10b98140',
               }}
             >
-              v{updateInfo?.current_version || '1.0.4'}
+              v{updateInfo?.current_version || '1.0.5'}
             </span>
           </div>
           <p style={{ fontSize: '0.85rem', color: '#94a3b8', margin: 0, maxWidth: 650 }}>

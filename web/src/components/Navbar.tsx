@@ -81,8 +81,8 @@ export const Navbar: React.FC<NavbarProps> = ({
                   ? `Có bản cập nhật mới v${latestVersion}! Bấm để mở Cài đặt & Cập nhật.`
                   : `New update v${latestVersion} available! Click to open Security & Updates.`
                 : lang === 'vi'
-                  ? `Phiên bản hiện tại: v${appVersion || '1.0.4'}. Bấm để kiểm tra bản mới.`
-                  : `Current version: v${appVersion || '1.0.4'}. Click to check updates.`
+                  ? `Phiên bản hiện tại: v${appVersion || '1.0.5'}. Bấm để kiểm tra bản mới.`
+                  : `Current version: v${appVersion || '1.0.5'}. Click to check updates.`
             }
             className={`px-2.5 py-0.5 rounded-full text-xs font-mono font-medium flex items-center gap-1.5 transition-all cursor-pointer ${
               updateAvailable
@@ -93,13 +93,13 @@ export const Navbar: React.FC<NavbarProps> = ({
             {updateAvailable ? (
               <>
                 <span aria-hidden="true">🚀</span>
-                <span>v{appVersion || '1.0.4'}</span>
+                <span>v{appVersion || '1.0.5'}</span>
                 <span className="text-2xs font-sans font-semibold text-amber-700 ml-0.5">
                   ({lang === 'vi' ? 'Bản mới' : 'Update'} v{latestVersion})
                 </span>
               </>
             ) : (
-              <span>v{appVersion || '1.0.4'}</span>
+              <span>v{appVersion || '1.0.5'}</span>
             )}
           </button>
         </div>

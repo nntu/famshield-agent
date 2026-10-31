@@ -28,7 +28,7 @@ Tài liệu này định nghĩa các nguyên tắc và chỉ thị bắt buộc 
 Khi thực thi bất kỳ lệnh shell nào trên hệ thống (terminal / powershell), AI Agent **BẮT BUỘC** phải gắn tiền tố `rtk`:
 
 ```bash
-rtk cargo test
+rtk cargo nextest run
 rtk cargo clippy --workspace --all-targets -- -D warnings
 rtk git status
 rtk git diff
@@ -44,7 +44,7 @@ rtk git diff
 Nhằm tối ưu hóa tốc độ phát triển (Developer Experience), bảo tồn tài nguyên CPU và tiết kiệm token ngữ cảnh của AI Agent, quy trình kiểm thử và chất lượng mã nguồn bắt buộc tuân theo **Chiến Lược Kiểm Thử Phân Tầng (Tiered Testing Strategy)**:
 
 ### 3.1. Trong Quá Trình Code (Fast Inner Loop - TDD)
-> 🛑 **NGHIÊM CẤM:** Tuyệt đối không chạy full workspace test (`rtk cargo test --workspace`) sau mỗi thay đổi nhỏ hoặc mỗi hàm vừa viết xong. Việc này gây lãng phí 15–45s và tiêu tốn hàng nghìn token không cần thiết.
+> 🛑 **NGHIÊM CẤM:** Tuyệt đối không chạy full workspace test (`rtk cargo nextest run --workspace`) sau mỗi thay đổi nhỏ hoặc mỗi hàm vừa viết xong. Việc này gây lãng phí 15–45s và tiêu tốn hàng nghìn token không cần thiết.
 
 - **Sử dụng Test Runner Tối Ưu (`test.ps1`):**
   - **Chỉ test các module bị thay đổi (Changed Modules Only):**
@@ -59,8 +59,8 @@ Nhằm tối ưu hóa tốc độ phát triển (Developer Experience), bảo t�
     .\test.ps1 -Target dns
     .\test.ps1 -Target local-admin -Filter totp
     # Hoặc qua cargo trực tiếp:
-    rtk cargo test -p famshield-local-admin -- totp
-    rtk cargo test -p famshield-dns -- cache
+    rtk cargo nextest run -p famshield-local-admin -- totp
+    rtk cargo nextest run -p famshield-dns -- cache
     ```
 - **Kiểm tra biên dịch & cảnh báo nhẹ cục bộ:**
   ```bash
@@ -74,7 +74,7 @@ Nhằm tối ưu hóa tốc độ phát triển (Developer Experience), bảo t�
 1. **Format:** `rtk cargo fmt --all -- --check` (Không có sai lệch định dạng).
 2. **Biên dịch:** `rtk cargo check --workspace --all-targets` (Biên dịch thành công).
 3. **Clippy Linter:** `rtk cargo clippy --workspace --all-targets -- -D warnings` (Tuyệt đối **0 errors, 0 warnings**).
-4. **Unit Tests:** `rtk powershell -File .\test.ps1 -All` hoặc `rtk cargo nextest run --workspace` (Fallback `rtk cargo test --workspace`) (Toàn bộ các test suite phải **PASS 100%**).
+4. **Unit Tests:** `rtk powershell -File .\test.ps1 -All` hoặc `rtk cargo nextest run --workspace` (Toàn bộ các test suite phải **PASS 100%**).
 5. **Frontend (nếu có thay đổi UI):** `rtk pnpm --prefix web run build` (Biên dịch Vite thành công; hỗ trợ pnpm v12.x standalone).
 
 ### 3.3. Rà Soát & Quản Lý Phiên Bản Thư Viện (Dependency Versioning & Modern Standards)
@@ -140,7 +140,7 @@ Mỗi khi thay đổi API, tính năng hiển thị cho người dùng, hoặc q
 >    - Đảm bảo Go Server đã hỗ trợ trường mới và luôn duy trì **tính tương thích ngược (Backward Compatibility)** cho các agent phiên bản cũ.
 >
 > 4. **Chạy Bộ Test Đối Chiếu (Verification Gate):**
->    - Phía Client: `rtk cargo test -p famshield-sync` (PASS 100%).
+>    - Phía Client: `rtk cargo nextest run -p famshield-sync` (PASS 100%).
 >    - Phía Server: `rtk go test -v ./pkg/api -run TestTelemetryClientReconciliation` (PASS 100%).
 >    - Ghi nhận chi tiết thay đổi Telemetry Version vào `CHANGELOG.md`.
 

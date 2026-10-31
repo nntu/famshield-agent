@@ -10,7 +10,7 @@ Examples:
 
 ```bash
 rtk git status
-rtk cargo test
+rtk cargo nextest run
 rtk ls src/
 rtk grep "pattern" src/
 rtk find "*.rs" .

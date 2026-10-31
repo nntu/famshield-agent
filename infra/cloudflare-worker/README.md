@@ -66,7 +66,7 @@ npx wrangler deploy
 ## 4. Cách Đăng Phiên Bản Mới (Publishing a New Release)
 
 Khi bạn ra mắt phiên bản mới (ví dụ `v1.0.1`):
-1. Đẩy file `FamShieldSetup-1.0.4.exe` lên mục **Releases** của GitHub repo `nntu/famshield-agent`.
+1. Đẩy file `FamShieldSetup-1.0.5.exe` lên mục **Releases** của GitHub repo `nntu/famshield-agent`.
 2. Gửi request cập nhật lên Worker:
 
 ```bash
@@ -80,8 +80,8 @@ curl -X POST https://famshield.ttcantho.io.vn/v1/admin/release \
       "Bổ sung chụp màn hình sắc nét khi truy cập web xấu",
       "Sửa lỗi kill tiến trình cũ khi cài đặt"
     ],
-    "installer_url": "https://github.com/nntu/famshield-agent/releases/download/1.0.4/FamShieldSetup-1.0.4.exe",
-    "service_binary_url": "https://github.com/nntu/famshield-agent/releases/download/1.0.4/famshield-service.exe",
+    "installer_url": "https://github.com/nntu/famshield-agent/releases/download/1.0.5/FamShieldSetup-1.0.5.exe",
+    "service_binary_url": "https://github.com/nntu/famshield-agent/releases/download/1.0.5/famshield-service.exe",
     "service_sha256": "4b227777d4dd1fc61c6f884f48641d02b4d121d3fd328cb08b5531fcacdabf8a"
   }'
 ```

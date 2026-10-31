@@ -13,7 +13,7 @@ members = [
 resolver = "2"
 
 [workspace.package]
-version = "1.0.4"
+version = "1.0.5"
 edition = "2021"
 authors = ["Nguyen Ngoc Tu <ngoctuct@gmail.com>", "FamShield Team"]
 license = "MIT"
@@ -34,19 +34,19 @@ async-nats = "0.51"
 futures-util = "0.3"
 arc-swap = "1.9"
 thiserror = "2.0"
-log = "0.4"
+log = "0.4.35"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 tracing-appender = "0.2"
 hickory-proto = "0.26"
 
 # HTTP API & Middleware (Local Admin)
-axum = "0.7"
+axum = "0.8"
 tower = { version = "0.5", features = ["util"] }
 http-body-util = "0.1"
 
 # Database & Cryptography
-rusqlite = { version = "0.31", features = ["bundled", "backup"] }
+rusqlite = { version = "0.40.0", features = ["bundled", "backup"] }
 refinery = { version = "0.10", features = ["rusqlite"] }
 argon2 = "0.5"
 sha2 = "0.10"

@@ -128,7 +128,7 @@ Khi người dùng cài đặt FamShield Agent lên máy tính cần bảo vệ 
   ```json
   {
     "device_id": "dev-a1b2c3d4",
-    "agent_version": "1.0.4",
+    "agent_version": "1.0.5",
     "policy_version": 1,
     "health_status": "healthy",
     "uptime_seconds": 3600,

@@ -250,7 +250,7 @@ export const App: React.FC = () => {
     );
   }
 
-  const appVersion = status?.app_version || updateInfo?.current_version || '1.0.4';
+  const appVersion = status?.app_version || updateInfo?.current_version || '1.0.5';
 
   return (
     <div className="w-full min-h-[100dvh] flex flex-col bg-slate-50 text-slate-800 antialiased">

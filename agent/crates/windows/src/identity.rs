@@ -145,6 +145,7 @@ pub fn get_machine_guid() -> Option<String> {
 /// a safe default `"DESKTOP-FAMSHIELD"`.
 pub fn get_computer_name() -> String {
     sysinfo::System::host_name()
+        .ok()
         .map(|h| h.trim().to_string())
         .filter(|h| !h.is_empty())
         .or_else(|| {
@@ -179,16 +180,33 @@ pub fn get_disambiguated_device_name(custom_name: Option<&str>) -> String {
 
 /// Collect comprehensive hardware and OS information using the specialized `sysinfo` library.
 pub fn get_system_info() -> SystemInfo {
-    let mut sys = sysinfo::System::new_with_specifics(
+    let sys_opt = sysinfo::System::new_with_specifics(
         sysinfo::RefreshKind::nothing()
             .with_memory(sysinfo::MemoryRefreshKind::nothing().with_ram())
             .with_cpu(sysinfo::CpuRefreshKind::nothing()),
-    );
-    sys.refresh_memory();
+    )
+    .ok();
+
+    let (cpu_brand, cpu_cores, total_memory_bytes, used_memory_bytes) =
+        if let Some(mut sys) = sys_opt {
+            sys.refresh_memory();
+            let brand = sys
+                .cpus()
+                .first()
+                .map(|c| c.brand().trim().to_string())
+                .filter(|b| !b.is_empty())
+                .unwrap_or_else(|| "Unknown CPU".to_string());
+            let cores = sys.cpus().len();
+            let total = sys.total_memory();
+            let used = sys.used_memory();
+            (brand, cores, total, used)
+        } else {
+            ("Unknown CPU".to_string(), 0, 0, 0)
+        };
 
     let host_name = get_computer_name();
 
-    let os_name = sysinfo::System::name().unwrap_or_else(|| {
+    let os_name = sysinfo::System::name().ok().unwrap_or_else(|| {
         if cfg!(windows) {
             "Windows".to_string()
         } else if cfg!(target_os = "macos") {
@@ -199,11 +217,11 @@ pub fn get_system_info() -> SystemInfo {
     });
 
     let os_version = sysinfo::System::long_os_version()
-        .or_else(sysinfo::System::os_version)
-        .unwrap_or_else(|| "Unknown Version".to_string());
+        .or_else(|_| sysinfo::System::os_version())
+        .unwrap_or_else(|_| "Unknown Version".to_string());
 
     let kernel_version =
-        sysinfo::System::kernel_version().unwrap_or_else(|| "Unknown Kernel".to_string());
+        sysinfo::System::kernel_version().unwrap_or_else(|_| "Unknown Kernel".to_string());
 
     let detected_arch = sysinfo::System::cpu_arch();
     let cpu_arch = if detected_arch.is_empty() {
@@ -212,37 +230,28 @@ pub fn get_system_info() -> SystemInfo {
         detected_arch
     };
 
-    let cpus = sys.cpus();
-    let cpu_brand = cpus
-        .first()
-        .map(|c| c.brand().trim().to_string())
-        .filter(|b| !b.is_empty())
-        .unwrap_or_else(|| "Unknown CPU".to_string());
-    let cpu_cores = cpus.len();
-
-    let total_memory_bytes = sys.total_memory();
-    let used_memory_bytes = sys.used_memory();
-    let uptime_seconds = sysinfo::System::uptime();
+    let uptime_seconds = sysinfo::System::uptime().unwrap_or(0);
     let machine_guid = get_machine_guid();
     let computer_name = get_disambiguated_device_name(None);
 
-    let networks_data = sysinfo::Networks::new_with_refreshed_list();
     let mut networks = Vec::new();
-    for (name, net) in &networks_data {
-        let mac_address = net.mac_address().to_string();
-        let ip_addresses: Vec<String> = net
-            .ip_networks()
-            .iter()
-            .map(|ip_net| ip_net.addr.to_string())
-            .collect();
+    if let Ok(networks_data) = sysinfo::Networks::new_with_refreshed_list() {
+        for (name, net) in &networks_data {
+            let mac_address = net.mac_address().to_string();
+            let ip_addresses: Vec<String> = net
+                .ip_networks()
+                .iter()
+                .map(|ip_net| ip_net.addr.to_string())
+                .collect();
 
-        networks.push(NetworkInterfaceInfo {
-            name: name.clone(),
-            mac_address,
-            ip_addresses,
-            total_received_bytes: net.total_received(),
-            total_transmitted_bytes: net.total_transmitted(),
-        });
+            networks.push(NetworkInterfaceInfo {
+                name: name.to_string_lossy().to_string(),
+                mac_address,
+                ip_addresses,
+                total_received_bytes: net.total_received(),
+                total_transmitted_bytes: net.total_transmitted(),
+            });
+        }
     }
 
     SystemInfo {

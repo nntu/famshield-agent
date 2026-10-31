@@ -398,7 +398,7 @@ impl LocalAdminServer {
     pub fn router(&self) -> Router {
         Router::new()
             .route("/", get(handle_index))
-            .route("/assets/*path", get(handle_assets))
+            .route("/assets/{*path}", get(handle_assets))
             .route("/api/auth/login", post(handle_login))
             .route("/api/auth/login/totp", post(handle_login_totp))
             .route("/api/auth/logout", post(handle_logout))
@@ -425,7 +425,7 @@ impl LocalAdminServer {
             .route("/api/filter/pause", post(handle_filter_pause))
             .route("/api/filter/unpause", post(handle_filter_unpause))
             .route("/api/filter/inspect", post(handle_filter_inspect))
-            .route("/api/rules/:rule_id", delete(handle_delete_rule))
+            .route("/api/rules/{rule_id}", delete(handle_delete_rule))
             .route("/api/logs/dns", get(handle_list_logs))
             .route("/api/logs/dns/summary", get(handle_get_dns_summary))
             .route("/api/logs/dns/hourly", get(handle_get_dns_hourly))
@@ -441,7 +441,7 @@ impl LocalAdminServer {
             .route("/api/errors/push-nats", post(handle_push_errors_nats))
             .route("/api/evidence", get(handle_list_evidence))
             .route(
-                "/api/evidence/:evidence_id/thumbnail",
+                "/api/evidence/{evidence_id}/thumbnail",
                 get(handle_get_thumbnail),
             )
             .route("/api/settings/pin", post(handle_change_pin))
@@ -488,7 +488,7 @@ impl LocalAdminServer {
                 "/api/keywords",
                 get(handle_get_keywords).post(handle_add_keyword),
             )
-            .route("/api/keywords/:keyword_id", delete(handle_delete_keyword))
+            .route("/api/keywords/{keyword_id}", delete(handle_delete_keyword))
             .route("/api/keywords/toggle", post(handle_toggle_keyword))
             .route(
                 "/api/keywords/monitoring",
@@ -688,11 +688,15 @@ fn sync_dns_blocklist(state: &ServerState) {
         if let Ok(rules) = state.service.list_rules() {
             for r in rules {
                 if (r.rule_type == "domain" || r.rule_type == "pattern") && r.enabled {
-                    let is_allowed = if let Ok(val) = serde_json::from_str::<serde_json::Value>(&r.payload) {
-                        val.get("action").and_then(|v| v.as_str()).map(|s| s.to_uppercase()) == Some("ALLOW".to_string())
-                    } else {
-                        false
-                    };
+                    let is_allowed =
+                        if let Ok(val) = serde_json::from_str::<serde_json::Value>(&r.payload) {
+                            val.get("action")
+                                .and_then(|v| v.as_str())
+                                .map(|s| s.to_uppercase())
+                                == Some("ALLOW".to_string())
+                        } else {
+                            false
+                        };
                     if is_allowed {
                         allowed_domains.push(r.rule_id);
                     } else {
@@ -2059,9 +2063,15 @@ async fn handle_filter_pause(
         .unwrap_or_default()
         .as_secs();
     let paused_until = now + secs;
-    let _ = state.service.storage().set_meta("filter_paused_until", &paused_until.to_string());
+    let _ = state
+        .service
+        .storage()
+        .set_meta("filter_paused_until", &paused_until.to_string());
 
-    info!("DNS & Web filtering paused for {} seconds (until {})", secs, paused_until);
+    info!(
+        "DNS & Web filtering paused for {} seconds (until {})",
+        secs, paused_until
+    );
 
     Ok(Json(serde_json::json!({
         "success": true,
@@ -2116,7 +2126,11 @@ async fn handle_filter_inspect(
         ));
     }
 
-    let raw = body.domain.trim().trim_end_matches('.').to_ascii_lowercase();
+    let raw = body
+        .domain
+        .trim()
+        .trim_end_matches('.')
+        .to_ascii_lowercase();
     if raw.is_empty() {
         return Err((
             StatusCode::BAD_REQUEST,
@@ -2147,7 +2161,11 @@ async fn handle_filter_inspect(
     };
 
     let action = if is_blocked { "block" } else { "allow" };
-    let effective_cat = if is_blocked { "Danh mục cấm / Blacklist" } else { "Hợp lệ / Whitelist" };
+    let effective_cat = if is_blocked {
+        "Danh mục cấm / Blacklist"
+    } else {
+        "Hợp lệ / Whitelist"
+    };
 
     Ok(Json(serde_json::json!({
         "domain": raw,

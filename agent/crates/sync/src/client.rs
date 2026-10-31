@@ -81,11 +81,15 @@ impl PcInfoDto {
         let used_ram_mb = sys_info.used_memory_bytes / (1024 * 1024);
         let available_ram_mb = total_ram_mb.saturating_sub(used_ram_mb);
 
-        let ip_from_sys = sys_info.networks.iter().find_map(|net| {
-            net.ip_addresses.iter().find(|ip| {
-                !ip.starts_with("127.") && !ip.contains(':') && *ip != "0.0.0.0"
+        let ip_from_sys = sys_info
+            .networks
+            .iter()
+            .find_map(|net| {
+                net.ip_addresses
+                    .iter()
+                    .find(|ip| !ip.starts_with("127.") && !ip.contains(':') && *ip != "0.0.0.0")
             })
-        }).cloned();
+            .cloned();
 
         let ip_address = ip_from_sys.unwrap_or_else(|| {
             std::net::UdpSocket::bind("0.0.0.0:0")
