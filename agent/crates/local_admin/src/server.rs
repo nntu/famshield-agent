@@ -666,6 +666,16 @@ fn sync_dns_blocklist(state: &ServerState) {
         blocklist.set_monitor_mode(state.service.is_monitor_mode());
 
         let mut active_domains: Vec<String> = Vec::new();
+        let mut allowed_domains: Vec<String> = Vec::new();
+
+        // 1. Load from cached_blocklist if present (atomic pre-compiled list from cloud sync/NATS)
+        if let Ok(Some(cached_json)) = state.service.storage().get_meta("cached_blocklist") {
+            if let Ok(domains) = serde_json::from_str::<Vec<String>>(&cached_json) {
+                active_domains.extend(domains);
+            }
+        }
+
+        // 2. Load from local rules in SQLite
         if let Ok(rules) = state.service.list_rules() {
             for r in rules {
                 if r.rule_type == "domain" && r.enabled {
@@ -674,24 +684,103 @@ fn sync_dns_blocklist(state: &ServerState) {
             }
         }
 
+        // 3. Merge from cached cloud policy (if present)
         if let Ok(Some(cached)) = state.service.storage().get_meta("cached_cloud_policy") {
             if let Ok(cloud_policy) = serde_json::from_str::<serde_json::Value>(&cached) {
+                let block_adult = cloud_policy
+                    .get("block_adult")
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(false);
+                let block_gambling = cloud_policy
+                    .get("block_gambling")
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(false);
+                let block_violence = cloud_policy
+                    .get("block_violence")
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(false);
+                let block_social = cloud_policy
+                    .get("block_social")
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(false);
+                let block_gaming = cloud_policy
+                    .get("block_gaming")
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(false);
+
+                // Category custom domains
+                if let Some(cat_map) = cloud_policy
+                    .get("category_custom_domains")
+                    .and_then(|v| v.as_object())
+                {
+                    for (cat, arr) in cat_map {
+                        let is_blocked = match cat.as_str() {
+                            "adult" => block_adult,
+                            "gambling" => block_gambling,
+                            "violence" => block_violence,
+                            "social" => block_social,
+                            "gaming" => block_gaming,
+                            _ => false,
+                        };
+                        if is_blocked {
+                            if let Some(arr) = arr.as_array() {
+                                for d in arr {
+                                    if let Some(s) = d.as_str() {
+                                        active_domains.push(s.to_string());
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
                 if let Some(domains) = cloud_policy
                     .get("custom_blocked_domains")
                     .and_then(|v| v.as_array())
                 {
                     for d_val in domains {
                         if let Some(d) = d_val.as_str() {
-                            active_domains.push(d.to_lowercase());
+                            active_domains.push(d.to_string());
+                        }
+                    }
+                }
+
+                if let Some(domains) = cloud_policy
+                    .get("custom_allowed_domains")
+                    .and_then(|v| v.as_array())
+                {
+                    for d_val in domains {
+                        if let Some(d) = d_val.as_str() {
+                            allowed_domains.push(d.to_string());
                         }
                     }
                 }
             }
         }
 
-        active_domains.sort();
-        active_domains.dedup();
-        blocklist.replace_blocklist(active_domains);
+        // Strict normalization
+        let mut normalized_block: Vec<String> = active_domains
+            .into_iter()
+            .map(|d| d.trim().trim_end_matches('.').to_ascii_lowercase())
+            .filter(|d| !d.is_empty())
+            .collect();
+
+        // Strict whitelist exclusion (highest priority)
+        if !allowed_domains.is_empty() {
+            let allows: std::collections::HashSet<String> = allowed_domains
+                .iter()
+                .map(|d| d.trim().trim_end_matches('.').to_ascii_lowercase())
+                .filter(|d| !d.is_empty())
+                .collect();
+
+            normalized_block.retain(|d| {
+                !allows.contains(d) && !allows.iter().any(|a| d.ends_with(&format!(".{}", a)))
+            });
+        }
+
+        normalized_block.sort();
+        normalized_block.dedup();
+        blocklist.replace_blocklist(normalized_block);
     }
 
     if let Some(cache) = &state.dns_cache {

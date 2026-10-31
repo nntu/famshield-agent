@@ -65,16 +65,24 @@ impl ServiceController {
         let installer = Arc::new(InstallerInterceptor::new());
         let process_monitor = Arc::new(ProcessMonitor::new());
 
-        // Pre-populate DNS blocklist from persistent local rules in SQLite
-        if let Ok(rules) = storage.list_local_rules() {
-            let domain_rules: Vec<String> = rules
-                .into_iter()
-                .filter(|r| r.rule_type == "domain" && r.enabled)
-                .map(|r| r.rule_id)
-                .collect();
-            if !domain_rules.is_empty() {
-                dns_blocklist.replace_blocklist(domain_rules);
+        // Pre-populate DNS blocklist from persistent local rules and cached cloud blocklist
+        let mut initial_domains: Vec<String> = Vec::new();
+        if let Ok(Some(cached_json)) = storage.get_meta("cached_blocklist") {
+            if let Ok(domains) = serde_json::from_str::<Vec<String>>(&cached_json) {
+                initial_domains.extend(domains);
             }
+        }
+        if let Ok(rules) = storage.list_local_rules() {
+            for r in rules {
+                if r.rule_type == "domain" && r.enabled {
+                    initial_domains.push(r.rule_id);
+                }
+            }
+        }
+        if !initial_domains.is_empty() {
+            initial_domains.sort();
+            initial_domains.dedup();
+            dns_blocklist.replace_blocklist(initial_domains);
         }
 
         // Read enrolled device_id from storage meta or fallback to standalone ID
@@ -391,6 +399,7 @@ impl ServiceController {
         let dns_storage = self.storage.clone();
         let dns_telemetry = self.telemetry_pipeline.clone();
         let dns_dispatcher = self.ipc_dispatcher.clone();
+        let active_app_ref = self.local_admin_server.state().active_app.clone();
         tokio::spawn(async move {
             let mut batch = Vec::with_capacity(32);
             let mut interval = tokio::time::interval(std::time::Duration::from_millis(500));
@@ -400,12 +409,18 @@ impl ServiceController {
                         match entry_opt {
                             Some(entry) => {
                                 let now = chrono::Utc::now();
+                                let cur_app = active_app_ref.lock().await.clone();
+                                let app_name = if !cur_app.is_empty() && cur_app != "unknown" {
+                                    Some(cur_app)
+                                } else {
+                                    entry.rule_id.clone()
+                                };
                                 let record = famshield_storage::QueryLogRecord {
                                     domain: entry.domain.clone(),
                                     qtype: entry.qtype.clone(),
                                     action: entry.action.clone(),
                                     reason: entry.reason.clone(),
-                                    rule_id: entry.rule_id.clone(),
+                                    rule_id: app_name,
                                     occurred_at: now,
                                 };
                                 batch.push(record);

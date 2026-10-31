@@ -3,7 +3,7 @@ pub mod error;
 pub mod schema;
 
 pub use engine::{
-    AppUsageGroupRecord, CustomKeywordRecord, DomainQuerySummary, ErrorLogRecord, HourlyFrequency,
+    AppUsageGroupRecord, CustomKeywordRecord, DomainQuerySummary, DomainRollupItem, ErrorLogRecord, HourlyFrequency,
     KeywordViolationRecord, LocalRuleRecord, OutboxRecord, ParentTotpConfigRecord, QueryLogFilter,
     QueryLogRecord, ResetReportStats, StorageEngine, UsageSegmentRecord, VisualEvidenceRecord,
 };

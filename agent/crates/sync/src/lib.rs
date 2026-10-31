@@ -15,7 +15,9 @@ pub use enrollment::{
     EnrollmentResponse, OperatingMode,
 };
 pub use error::SyncError;
-pub use nats_dispatcher::{compute_command_hmac, NatsDispatcher, RemoteCommand};
+pub use nats_dispatcher::{
+    compute_command_hmac, AppUsageRollupItem, NatsDispatcher, RemoteCommand, RollupSummaryBatch,
+};
 pub use nats_worker::NatsConnectionWorker;
 pub use telemetry::{
     AppUsagePayload, DnsQueryPayload, HeartbeatPayload, SecurityAlertPayload, TelemetryEnvelope,

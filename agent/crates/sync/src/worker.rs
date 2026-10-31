@@ -385,29 +385,65 @@ impl TelemetrySyncWorker {
                     block_domains.extend(GAMING_DOMAINS.iter().map(|d| d.to_string()));
                 }
 
-                block_domains.sort();
-                block_domains.dedup();
+                // Merge custom category domains if category is blocked
+                for (cat, custom_seeds) in &pol.category_custom_domains {
+                    let is_blocked = match cat.as_str() {
+                        "adult" => pol.block_adult,
+                        "gambling" => pol.block_gambling,
+                        "violence" => pol.block_violence,
+                        "social" => pol.block_social,
+                        "gaming" => pol.block_gaming,
+                        _ => false,
+                    };
+                    if is_blocked {
+                        block_domains.extend(custom_seeds.iter().cloned());
+                    }
+                }
 
-                // If allowlist has domains, exclude them
+                // Strict normalization: lowercase, trim whitespace and trailing dots
+                let mut normalized_block: Vec<String> = block_domains
+                    .into_iter()
+                    .map(|d| d.trim().trim_end_matches('.').to_ascii_lowercase())
+                    .filter(|d| !d.is_empty())
+                    .collect();
+
+                normalized_block.sort();
+                normalized_block.dedup();
+
+                // Whitelist exclusion has the HIGHEST priority (applies across categories and blacklists)
                 if !pol.custom_allowed_domains.is_empty() {
-                    let allows: std::collections::HashSet<String> =
-                        pol.custom_allowed_domains.iter().cloned().collect();
-                    block_domains.retain(|d| !allows.contains(d));
+                    let allows: std::collections::HashSet<String> = pol
+                        .custom_allowed_domains
+                        .iter()
+                        .map(|d| d.trim().trim_end_matches('.').to_ascii_lowercase())
+                        .filter(|d| !d.is_empty())
+                        .collect();
+
+                    normalized_block.retain(|d| {
+                        !allows.contains(d)
+                            && !allows.iter().any(|allowed| d.ends_with(&format!(".{}", allowed)))
+                    });
                 }
 
                 // Update runtime DNS proxy blocklist in memory
                 if let Some(blocklist) = &self.dns_blocklist {
-                    blocklist.replace_blocklist(block_domains.clone());
+                    blocklist.replace_blocklist(normalized_block.clone());
                     blocklist.set_safesearch_enabled(pol.safesearch_enabled);
                     blocklist.set_youtube_restricted(pol.youtube_restricted);
                     info!(
                         "Dynamic DNS blocklist refreshed with {} domains (safesearch={}, youtube_restricted={}, silent_mode={})",
-                        block_domains.len(),
+                        normalized_block.len(),
                         pol.safesearch_enabled,
                         pol.youtube_restricted,
                         pol.silent_mode
                     );
                 }
+
+                // Persist cached blocklist and policy version to storage for resilient offline reboot
+                if let Ok(json_str) = serde_json::to_string(&normalized_block) {
+                    let _ = self.storage.set_meta("cached_blocklist", &json_str);
+                }
+                let _ = self.storage.set_meta("policy_version", &pol.version.to_string());
 
                 // Persist silent_mode in storage
                 let _ = self.storage.set_meta(

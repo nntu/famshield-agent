@@ -22,6 +22,24 @@ pub struct RemoteCommand {
     pub signature: Option<String>, // HMAC-SHA256 signature
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct AppUsageRollupItem {
+    pub app_name: String,
+    pub total_duration_minutes: u64,
+    pub sessions: usize,
+    pub last_active: chrono::DateTime<chrono::Utc>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct RollupSummaryBatch {
+    pub event_id: String,
+    pub device_id: String,
+    pub event_type: String, // "web_rollup"
+    pub occurred_at: chrono::DateTime<chrono::Utc>,
+    pub domains: Vec<famshield_storage::DomainRollupItem>,
+    pub apps: Vec<AppUsageRollupItem>,
+}
+
 /// Canonical HMAC-SHA256 signature calculation over RemoteCommand fields:
 /// `command_id:device_id:command_type:timestamp:payload_json`
 pub fn compute_command_hmac(secret_key: &str, cmd: &RemoteCommand) -> String {
@@ -196,6 +214,24 @@ impl NatsDispatcher {
         serde_json::to_string(&batch).map_err(SyncError::Serialization)
     }
 
+    /// Serialize a rollup summary of domain visits and app usage ready for pushing to Server via NATS
+    pub fn format_rollup_summary(
+        &self,
+        domains: Vec<famshield_storage::DomainRollupItem>,
+        apps: Vec<AppUsageRollupItem>,
+    ) -> Result<String, SyncError> {
+        let now = chrono::Utc::now();
+        let batch = RollupSummaryBatch {
+            event_id: format!("rollup-{}-{}", self.device_id, now.timestamp_millis()),
+            device_id: self.device_id.clone(),
+            event_type: "web_rollup".to_string(),
+            occurred_at: now,
+            domains,
+            apps,
+        };
+        serde_json::to_string(&batch).map_err(SyncError::Serialization)
+    }
+
     /// Verify command authenticity, integrity, and anti-replay window
     pub fn verify_command(&self, cmd: &RemoteCommand) -> Result<(), SyncError> {
         // 1. Verify target device
@@ -285,6 +321,9 @@ impl NatsDispatcher {
                     domains.len()
                 );
                 self.blocklist.replace_blocklist(&domains);
+                if let Ok(json_str) = serde_json::to_string(&domains) {
+                    let _ = self.storage.set_meta("cached_blocklist", &json_str);
+                }
                 info!("DNS blocklist successfully updated with 0 downtime.");
                 Ok(())
             }

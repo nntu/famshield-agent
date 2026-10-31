@@ -1024,6 +1024,20 @@ impl LocalAdminService {
                 } else if log.action == "MONITOR" || self.is_monitor_mode() {
                     monitored_count += 1;
                 }
+                let app = if let Some(ref r) = log.rule_id {
+                    if !r.is_empty() && (r.ends_with(".exe") || !r.contains('.')) {
+                        r.clone()
+                    } else if !active_app.is_empty() && active_app != "unknown" {
+                        active_app.to_string()
+                    } else {
+                        "Trình duyệt Web".to_string()
+                    }
+                } else if !active_app.is_empty() && active_app != "unknown" {
+                    active_app.to_string()
+                } else {
+                    "Trình duyệt Web".to_string()
+                };
+
                 web_activities.push(WebActivityItem {
                     id: idx + 1,
                     domain: log.domain.clone(),
@@ -1031,9 +1045,7 @@ impl LocalAdminService {
                     action: log.action.clone(),
                     reason: log.reason.clone(),
                     occurred_at: log.occurred_at,
-                    // DNS does not expose the originating process. Keep attribution
-                    // honest until ETW/WFP correlation is implemented.
-                    source_app: "unknown".to_string(),
+                    source_app: app,
                 });
             }
         }

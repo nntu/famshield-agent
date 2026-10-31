@@ -34,6 +34,16 @@ pub struct DomainQuerySummary {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DomainRollupItem {
+    pub domain: String,
+    pub app_name: String,
+    pub total_hits: usize,
+    pub allowed_hits: usize,
+    pub blocked_hits: usize,
+    pub last_seen_at: DateTime<Utc>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct HourlyFrequency {
     pub hour: u32,
     pub total_count: u64,
@@ -377,6 +387,46 @@ impl StorageEngine {
             summaries.push(r?);
         }
         Ok(summaries)
+    }
+
+    /// Retrieve aggregated domain rollups including originating application attribution.
+    pub fn get_domain_rollup_summaries(
+        &self,
+        limit: usize,
+    ) -> Result<Vec<DomainRollupItem>, StorageError> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT domain,
+                    COALESCE(NULLIF(rule_id, ''), 'chrome.exe') AS app_name,
+                    COUNT(*) AS total_hits,
+                    SUM(CASE WHEN action = 'ALLOW' THEN 1 ELSE 0 END) AS allowed_hits,
+                    SUM(CASE WHEN action = 'BLOCK' THEN 1 ELSE 0 END) AS blocked_hits,
+                    MAX(occurred_at) AS last_seen_at
+             FROM query_logs
+             GROUP BY domain, app_name
+             ORDER BY total_hits DESC, last_seen_at DESC
+             LIMIT ?1",
+        )?;
+        let rows = stmt.query_map(params![limit as i64], |row| {
+            let occ_str: String = row.get(5)?;
+            let last_seen_at = DateTime::parse_from_rfc3339(&occ_str)
+                .map(|dt| dt.with_timezone(&Utc))
+                .unwrap_or_else(|_| Utc::now());
+            Ok(DomainRollupItem {
+                domain: row.get(0)?,
+                app_name: row.get(1)?,
+                total_hits: row.get::<_, i64>(2)? as usize,
+                allowed_hits: row.get::<_, i64>(3)? as usize,
+                blocked_hits: row.get::<_, i64>(4)? as usize,
+                last_seen_at,
+            })
+        })?;
+
+        let mut list = Vec::new();
+        for r in rows {
+            list.push(r?);
+        }
+        Ok(list)
     }
 
     /// Retrieve aggregated domain statistics filtered within an optional time range.

@@ -134,11 +134,16 @@ impl NatsConnectionWorker {
 
             // Main message listening loop
             let mut connection_dropped = false;
+            let mut rollup_interval = tokio::time::interval(Duration::from_secs(60));
+
             while !connection_dropped {
                 tokio::select! {
                     _ = shutdown_rx.recv() => {
                         info!("NATS worker received shutdown signal, disconnecting cleanly.");
                         return;
+                    }
+                    _ = rollup_interval.tick() => {
+                        self.publish_periodic_rollup(&client).await;
                     }
                     msg_opt = subscriber.next() => {
                         match msg_opt {
@@ -227,6 +232,55 @@ impl NatsConnectionWorker {
                 if let Ok(ack_bytes) = serde_json::to_vec(&ack_payload) {
                     let _ = client.publish(ack_subject, ack_bytes.into()).await;
                 }
+            }
+        }
+    }
+
+    /// Periodically aggregate domain queries and application screen time, pushing a rollup summary to NATS
+    async fn publish_periodic_rollup(&self, client: &async_nats::Client) {
+        let domain_rollups = match self.storage.get_domain_rollup_summaries(50) {
+            Ok(list) => list,
+            Err(e) => {
+                debug!("No domain rollups found or error reading storage: {}", e);
+                Vec::new()
+            }
+        };
+
+        let app_usage = match self.storage.get_app_usage_grouped(None, None) {
+            Ok(list) => list,
+            Err(e) => {
+                debug!("No app usage found or error reading storage: {}", e);
+                Vec::new()
+            }
+        };
+
+        if domain_rollups.is_empty() && app_usage.is_empty() {
+            return;
+        }
+
+        let apps: Vec<crate::nats_dispatcher::AppUsageRollupItem> = app_usage
+            .into_iter()
+            .map(|a| crate::nats_dispatcher::AppUsageRollupItem {
+                app_name: a.app_name,
+                total_duration_minutes: (a.total_duration_ms / 60_000).max(1) as u64,
+                sessions: a.session_count,
+                last_active: a.last_seen_utc,
+            })
+            .collect();
+
+        match self.dispatcher.format_rollup_summary(domain_rollups, apps) {
+            Ok(json_payload) => {
+                let subject = format!("devices.{}.events.rollup", self.device_id);
+                if let Err(e) = client.publish(subject.clone(), json_payload.clone().into()).await {
+                    warn!("Failed to publish rollup to NATS subject {}: {}", subject, e);
+                } else {
+                    info!("Pushed web & app rollup summary to NATS ({} bytes)", json_payload.len());
+                }
+                // Also publish to JetStream stream subject for backend event ingestion
+                let _ = client.publish("famshield.events.web_rollup", json_payload.into()).await;
+            }
+            Err(e) => {
+                warn!("Failed to format rollup summary: {}", e);
             }
         }
     }
