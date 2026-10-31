@@ -137,11 +137,7 @@ impl BlocklistStore {
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
             .as_secs();
-        if until > now {
-            until - now
-        } else {
-            0
-        }
+        until.saturating_sub(now)
     }
 
     /// Check if target domain matches Whitelist (either user whitelist or core system whitelist).
@@ -416,7 +412,7 @@ impl BlocklistStore {
 
         self.domains.store(Arc::new(pruned_set));
         if !patterns.is_empty() {
-            let mut existing = (*self.name_patterns.load()).clone();
+            let mut existing = (**self.name_patterns.load()).clone();
             existing.extend(patterns);
             self.name_patterns.store(Arc::new(existing));
         }
@@ -444,7 +440,9 @@ impl BlocklistStore {
             self.core_whitelist.load(),
         ];
         sets.iter()
-            .map(|s| s.capacity() * per_slot_overhead + s.iter().map(|d| d.capacity()).sum::<usize>())
+            .map(|s| {
+                s.capacity() * per_slot_overhead + s.iter().map(|d| d.capacity()).sum::<usize>()
+            })
             .sum()
     }
 }

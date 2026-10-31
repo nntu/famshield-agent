@@ -720,7 +720,8 @@ fn sync_dns_blocklist(state: &ServerState) {
                     .and_then(|v| v.as_object())
                 {
                     for (cat, arr) in cat_map {
-                        let norm_cat = match cat.to_lowercase().trim() {
+                        let cat_lower = cat.to_lowercase();
+                        let norm_cat = match cat_lower.trim() {
                             "adult" | "18+" | "18" | "porn" | "xxx" | "nsfw" => "adult",
                             "gambling" | "bet" | "casino" => "gambling",
                             "violence" | "gore" => "violence",

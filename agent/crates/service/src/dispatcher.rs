@@ -332,7 +332,10 @@ impl IpcDispatcher {
                             record.timestamp_utc,
                             &outbox_payload.to_string(),
                         ) {
-                            debug!("Failed to enqueue keyword violation to telemetry outbox: {}", e);
+                            debug!(
+                                "Failed to enqueue keyword violation to telemetry outbox: {}",
+                                e
+                            );
                         }
                         IpcMessage::Response {
                             request_id: "kw_violation".into(),

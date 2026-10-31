@@ -422,7 +422,8 @@ impl NatsDispatcher {
                         info!("Policy v{} applied and persisted.", policy.version);
                     }
                 }
-                if let Some(paused_until) = cmd.payload.get("paused_until").and_then(|v| v.as_u64()) {
+                if let Some(paused_until) = cmd.payload.get("paused_until").and_then(|v| v.as_u64())
+                {
                     let now = std::time::SystemTime::now()
                         .duration_since(std::time::UNIX_EPOCH)
                         .unwrap_or_default()
@@ -443,7 +444,10 @@ impl NatsDispatcher {
                     .and_then(|v| v.as_u64())
                     .unwrap_or(900);
                 self.blocklist.pause(seconds);
-                info!("DNS/Web blocking paused for {}s via cloud command.", seconds);
+                info!(
+                    "DNS/Web blocking paused for {}s via cloud command.",
+                    seconds
+                );
                 Ok(())
             }
 
