@@ -6,7 +6,7 @@ use crate::error::SyncError;
 use famshield_dns::blocklist::BlocklistStore;
 use famshield_local_admin::MasterPinAuthenticator;
 use famshield_storage::StorageEngine;
-use famshield_windows::{InstallerInterceptor, SessionManager};
+use famshield_windows::{restart_service, InstallerInterceptor, SessionManager};
 
 /// Command payload pushed from Server via NATS JetStream: `devices.{device_id}.commands`
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -299,6 +299,33 @@ impl NatsDispatcher {
                 Ok(())
             }
 
+            "restart_service" => {
+                info!("Executing remote service restart command from cloud server...");
+                let now = chrono::Utc::now();
+                let alert_payload = serde_json::json!({
+                    "alert_type": "service_restarted_remotely",
+                    "severity": "INFO",
+                    "reason": "Phụ huynh đã khởi động lại FamShield Service từ xa qua Web Console",
+                    "timestamp": now.to_rfc3339(),
+                });
+                let _ = self.storage.enqueue_outbox(
+                    &format!("alert-remote-restart-{}", now.timestamp_micros()),
+                    "security_alert",
+                    now,
+                    &alert_payload.to_string(),
+                );
+                let _ = self.storage.record_error_log(
+                    "service_control",
+                    "INFO",
+                    "Khởi động lại FamShield Service từ xa theo lệnh của Phụ huynh từ Web Console",
+                    None,
+                );
+                restart_service("FamShieldService").map_err(|e| {
+                    SyncError::Command(format!("Failed to restart service: {}", e))
+                })?;
+                Ok(())
+            }
+
             "update_blacklist" => {
                 // Extract list of domain strings from payload
                 let domains: Vec<String> =
@@ -552,6 +579,33 @@ mod tests {
         });
         dispatcher.dispatch_command(&approve_cmd).unwrap();
         assert!(installer.is_hash_approved("hash-game-123"));
+    }
+
+    #[test]
+    fn test_dispatch_restart_service() {
+        let storage = StorageEngine::in_memory().unwrap();
+        let blocklist = Arc::new(BlocklistStore::new());
+        let installer = Arc::new(InstallerInterceptor::new());
+        let dispatcher = NatsDispatcher::new("dev-123456", storage.clone(), blocklist, installer)
+            .with_signing_key(TEST_SIGNING_KEY);
+
+        let cmd = sign_command(RemoteCommand {
+            command_id: "cmd-restart-01".into(),
+            device_id: "dev-123456".into(),
+            command_type: "restart_service".into(),
+            timestamp: 0,
+            payload: serde_json::json!({
+                "reason": "Remote restart from server"
+            }),
+            signature: None,
+        });
+
+        let res = dispatcher.dispatch_command(&cmd);
+        assert!(res.is_ok());
+
+        // Verify that error_log record was saved
+        let errors = storage.list_unsynced_errors(10).unwrap();
+        assert!(errors.iter().any(|e| e.module == "service_control"));
     }
 
     #[test]

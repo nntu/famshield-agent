@@ -28,14 +28,12 @@ Both modes use the Windows agent. Online Managed mode depends on the server serv
 
 ## Key capabilities
 
-- **High-performance DNS and network controls:** local DNS proxy integrated with a multi-upstream DNS routing engine featuring dynamic RTT learning (Dynamic Learning DNS Balancer), NUMA-aware lock-striped cache, and Windows Filtering Platform (WFP) dynamic session enforcement preventing DNS/DoH bypasses.
-- **Comprehensive on-device management (Local Web Admin):** responsive, keyboard-accessible local Web Admin running on `127.0.0.1:38123` (with fallback ports), supporting two-factor authentication (2FA TOTP via Google/Microsoft Authenticator & emergency backup codes), application/domain rule management, real-time activity graphs, 5-level configurable screenshot blur, and safe report log deletion.
-- **Identity & secrets protection:** Argon2id Master PIN authentication combined with machine-scoped Windows DPAPI encryption; local SQLite database managed by industrial-grade **Refinery 0.10** migrations with automatic pre-migration snapshot guards (SQLite Online Backup API) prior to schema changes.
-- **Real-time app & usage tracking:** tracks active foreground application duration, periodically aggregates usage segments, and enqueues them into the telemetry outbox (`app_usage`).
-- **Privacy by design:** visual evidence frames are strictly event-triggered (blocked domain/app, time extensions), processed with in-memory Gaussian Blur before disk storage or transport, and self-delete after 48 hours. Keyword detection evaluates in an ephemeral RAM buffer without persisting raw keystroke logs to disk.
-- **Cross-session watchdog & Anti-tamper self-recovery:** The `famshield-session` user helper continuously monitors `FamShieldService`, detecting unexpected termination, displaying desktop alerts, and allowing parents to restart the service directly from the system tray menu with Master PIN or 2FA OTP verification. All service interruptions and unauthorized restart attempts are audited locally and synchronized to the Cloud Server.
-- **Dedicated hardware & OS telemetry:** Integrates industry-standard `sysinfo` to extract CPU specs, RAM usage, Windows OS release, and system uptime, displayed in the Web Admin Dashboard and reported in device Heartbeats to the Cloud Server.
-- **Cloud synchronization & real-time dual-channel control:** Online Managed mode supports Telemetry Protocol v1.1 with adaptive outbox batching, HTTP connection pooling with TCP keepalive, and instantaneous remote commands via **NATS WebSocket (`wss://`) on standard port 443** (100% compatible with Cloudflare Tunnel and enterprise firewalls; strictly outbound connection requiring zero inbound NAT port forwarding).
+- **Local administration:** Web Admin listens on loopback, normally at `127.0.0.1:38123`. If it selects a fallback port, the active port is recorded in `%ProgramData%\FamShield\admin_port.txt`.
+- **DNS rules:** The agent stores and applies local domain rules through its DNS proxy. Protection depends on the network components starting successfully.
+- **Setup and recovery:** The setup wizard creates a six-digit Master PIN, offers Balanced, Strict, and Basic profiles, asks for an operating mode, and issues a recovery key. Keep the recovery key so you can reset the PIN if needed.
+- **Cloud mode:** The interface offers `OnlineManaged`; enrollment and sync depend on a compatible server. Local mode does not require a server account.
+
+Technical documents include requirements and plans, so not every described capability is present in the current release. See the [changelog](CHANGELOG.md) for versioned changes and the [documentation index](docs/README.md) to find the relevant document.
 
 ## Architecture
 
@@ -62,7 +60,7 @@ The Rust workspace is split into crates by responsibility:
 
 ### Install with the setup program
 
-1. Download `FamShieldSetup-1.0.3.exe` from [GitHub Releases](https://github.com/nntu/famshield-agent/releases). If a release is not available yet, see [Build the installer](#build-the-installer) below.
+1. Download the latest setup program from [GitHub Releases](https://github.com/nntu/famshield-agent/releases). If a release is not available yet, see [Build the installer](#build-the-installer) below.
 2. Right-click the setup program, select **Run as administrator**, and approve the UAC prompt.
 3. Follow the setup wizard. It registers the Windows Service, configures DNS for the agent, and launches the initial setup experience.
 4. Create a Master PIN and complete the setup in Web Admin.
@@ -92,7 +90,7 @@ Install Rust, Node.js, and Inno Setup 6, then run this from PowerShell in the re
 .\build.ps1 package
 ```
 
-The installer is generated at `installer\Output\FamShieldSetup-1.0.3.exe`.
+The installer is generated in `installer\Output\`. The filename may vary by version.
 
 ## Development and testing
 
@@ -107,6 +105,7 @@ cargo test --workspace
 
 ## Documentation
 
+- [Web Admin user guide (Vietnamese)](HUONG-DAN-SU-DUNG-VA-TINH-NANG.md)
 - [Installation & Initial Setup Guide for Parents](docs/17-INSTALLATION-AND-INITIAL-SETUP-GUIDE.md)
 - [Inno Setup Packaging & Architecture Overview](installer/README.md)
 - [Architecture and specifications](docs/README.md)

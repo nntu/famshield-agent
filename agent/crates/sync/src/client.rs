@@ -79,6 +79,14 @@ impl PcInfoDto {
         let used_ram_mb = sys_info.used_memory_bytes / (1024 * 1024);
         let available_ram_mb = total_ram_mb.saturating_sub(used_ram_mb);
 
+        let ip_address = std::net::UdpSocket::bind("0.0.0.0:0")
+            .and_then(|s| {
+                s.connect("8.8.8.8:80")?;
+                s.local_addr()
+            })
+            .map(|a| a.ip().to_string())
+            .unwrap_or_else(|_| "127.0.0.1".to_string());
+
         Self {
             hostname,
             username,
@@ -90,7 +98,7 @@ impl PcInfoDto {
             available_ram_mb,
             disk_total_gb: 512,
             disk_free_gb: 256,
-            ip_address: "127.0.0.1".to_string(),
+            ip_address,
             uptime_formatted,
         }
     }

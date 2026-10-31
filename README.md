@@ -28,14 +28,12 @@ Cả hai chế độ đều sử dụng agent Windows. Chế độ quản lý t�
 
 ## Năng lực chính
 
-- **Kiểm soát DNS và mạng hiệu năng cao:** Proxy DNS cục bộ tích hợp bộ định tuyến DNS đa luồng (Multi-Upstream) với cơ chế tự học RTT (Dynamic Learning DNS Balancer), bộ nhớ đệm NUMA-aware lock-striped cache và Windows Filtering Platform (WFP) chế độ dynamic session ngăn chặn rò rỉ DNS/DoH.
-- **Quản lý toàn diện trên thiết bị (Local Web Admin):** Giao diện quản trị web cục bộ chạy trên `127.0.0.1:38123` (hoặc cổng dự phòng), hỗ trợ bảo mật 2 lớp 2FA TOTP (Google/Microsoft Authenticator & mã khẩn cấp), quản lý danh sách quy tắc ứng dụng/tên miền, biểu đồ thống kê thời gian thực, tùy chỉnh độ mờ ảnh chụp màn hình (5 cấp độ) và tính năng xóa an toàn nhật ký báo cáo.
-- **Bảo vệ danh tính & bí mật:** Xác thực Master PIN bằng thuật toán Argon2id kết hợp mã hóa bảo vệ Windows DPAPI (machine-scope); cơ sở dữ liệu SQLite cục bộ được quản lý bằng bộ công cụ di chuyển chuyên nghiệp **Refinery 0.10** cùng cơ chế tự động sao lưu trực tiếp (SQLite Online Backup API) trước khi nâng cấp schema.
-- **Quản lý ứng dụng và thời gian thực:** Giám sát thời gian sử dụng ứng dụng tiền cảnh (foreground active time), tổng hợp định kỳ và đẩy vào hàng đợi telemetry (`app_usage`).
-- **Riêng tư có chủ đích (Privacy-by-Design):** Ảnh xác minh vi phạm chỉ chụp theo sự kiện (chặn web/app, xin thêm giờ), xử lý làm mờ Gaussian Blur trực tiếp trong RAM trước khi lưu vào đĩa hoặc truyền đi, tự hủy sau 48 giờ. Bộ đệm phát hiện từ khóa xử lý an toàn trong RAM, không ghi log bàn phím thô.
-- **Giám sát chéo Session-Service & Tự phục hồi chống can thiệp (Anti-Tamper):** Thành phần khay hệ thống `famshield-session` giám sát liên tục `FamShieldService`, phát hiện dừng bất thường, hiển thị toast cảnh báo và cho phép phụ huynh khởi động lại dịch vụ ngay từ menu khay hệ thống (yêu cầu xác thực Master PIN hoặc 2FA OTP). Mọi hành vi tắt dịch vụ hoặc thử sai mật khẩu đều được ghi log kiểm toán cục bộ và tự động đồng bộ lên Cloud Server khi kết nối mạng.
-- **Thu thập thông số phần cứng chuyên dụng:** Tích hợp thư viện chuẩn công nghiệp `sysinfo` để trích xuất chi tiết vi xử lý (CPU), dung lượng RAM, phiên bản Windows OS, thời gian uptime hiển thị trực quan trên Web Admin Dashboard và báo cáo định kỳ về máy chủ trong gói Heartbeat.
-- **Đồng bộ đám mây & điều khiển thời gian thực hai kênh:** Chế độ `OnlineManaged` hỗ trợ giao thức Telemetry Protocol v1.1 gửi hàng loạt tối ưu thích ứng (Adaptive Batching), HTTP Connection Pool với TCP keepalive, và kênh nhận lệnh điều khiển từ xa tức thì qua **NATS WebSocket (`wss://`) trên cổng chuẩn 443** (tương thích 100% Cloudflare Tunnel và Firewall doanh nghiệp, kết nối hoàn toàn Outbound không cần mở cổng NAT router).
+- **Quản trị cục bộ:** Web Admin chỉ lắng nghe loopback, mặc định tại `127.0.0.1:38123` và ghi cổng thực tế vào `%ProgramData%\FamShield\admin_port.txt` nếu cần cổng dự phòng.
+- **Quy tắc DNS:** Agent lưu và áp dụng quy tắc tên miền cục bộ. DNS được chuyển qua proxy của agent; khả năng bảo vệ phụ thuộc vào các thành phần mạng khởi động thành công.
+- **Thiết lập và khôi phục:** Trình thiết lập tạo Master PIN sáu chữ số, cho chọn cấu hình Balanced, Strict hoặc Basic, chọn chế độ vận hành và cấp recovery key. Hãy lưu recovery key để đặt lại PIN khi cần.
+- **Chế độ đám mây:** Giao diện có lựa chọn `OnlineManaged`; việc ghép nối và đồng bộ phụ thuộc vào dịch vụ máy chủ tương thích. Chế độ cục bộ không yêu cầu tài khoản máy chủ.
+
+Các tài liệu kỹ thuật gồm cả yêu cầu và kế hoạch, vì vậy không phải mọi nội dung mô tả trong đó đều đã có trong bản phát hành. Xem [changelog](CHANGELOG.md) để biết thay đổi theo phiên bản và [chỉ mục tài liệu](docs/README.md) để tìm tài liệu phù hợp.
 
 ## Kiến trúc
 
@@ -62,7 +60,7 @@ Workspace Rust được chia thành các crate theo trách nhiệm:
 
 ### Cài đặt bằng bộ cài
 
-1. Tải `FamShieldSetup-1.0.3.exe` từ [GitHub Releases](https://github.com/nntu/famshield-agent/releases). Nếu chưa có bản phát hành, xem mục [Tự đóng gói bộ cài](#tự-đóng-gói-bộ-cài) bên dưới.
+1. Tải bộ cài mới nhất từ [GitHub Releases](https://github.com/nntu/famshield-agent/releases). Nếu chưa có bản phát hành, xem mục [Tự đóng gói bộ cài](#tự-đóng-gói-bộ-cài) bên dưới.
 2. Nhấp phải vào file cài đặt, chọn **Run as administrator**, rồi xác nhận yêu cầu UAC.
 3. Làm theo hướng dẫn trên màn hình. Trình cài đặt đăng ký Windows Service, cấu hình DNS cho agent và khởi chạy giao diện thiết lập ban đầu.
 4. Tạo Master PIN và hoàn tất cấu hình trong Web Admin.
@@ -92,7 +90,7 @@ Cài Rust, Node.js và Inno Setup 6, sau đó chạy trong PowerShell tại thư
 .\build.ps1 package
 ```
 
-Bộ cài được tạo tại `installer\Output\FamShieldSetup-1.0.3.exe`.
+Bộ cài được tạo trong `installer\Output\`. Tên file có thể thay đổi theo phiên bản.
 
 ## Phát triển và kiểm thử
 
@@ -107,7 +105,7 @@ cargo test --workspace
 
 ## Tài liệu
 
-- [Cẩm nang tính năng & Hướng dẫn sử dụng toàn diện](HUONG-DAN-SU-DUNG-VA-TINH-NANG.md)
+- [Hướng dẫn sử dụng Web Admin](HUONG-DAN-SU-DUNG-VA-TINH-NANG.md)
 - [Hướng dẫn cài đặt & cấu hình ban đầu dành cho phụ huynh](docs/17-INSTALLATION-AND-INITIAL-SETUP-GUIDE.md)
 - [Giới thiệu kiến trúc bộ cài đặt Inno Setup](installer/README.md)
 - [Tài liệu kiến trúc và đặc tả](docs/README.md)

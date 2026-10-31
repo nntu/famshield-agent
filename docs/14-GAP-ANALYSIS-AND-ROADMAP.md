@@ -1,10 +1,10 @@
 # FamShield Ecosystem Gap Analysis and Implementation Roadmap
 
-Tài liệu này ghi nhận kết quả rà soát, kiểm kê và đánh giá toàn diện hiện trạng kỹ thuật giữa hai repository:
+Tài liệu này lưu một đánh giá khoảng trống và lộ trình đề xuất giữa hai repository:
 1. **Windows Agent (Rust):** [`child_monitor`](https://github.com/nntu/famshield-agent)
 2. **Cloud Server & Web Console (Go/React):** [`famshield-server`](https://github.com/nntu/famshield-server)
 
-Đồng thời xác định các khoảng trống kỹ thuật (Gaps) còn thiếu và thiết lập lộ trình thực thi hoàn thiện sản phẩm.
+Đây là tài liệu tham khảo lập kế hoạch, không phải trạng thái phát hành hiện tại. Tên dịch vụ, cấu trúc lưu trữ, endpoint, ưu tiên và trạng thái trong các bảng bên dưới cần được đối chiếu lại với mã nguồn của cả hai repository trước khi dùng để quyết định công việc. Các giai đoạn là đề xuất, không phải cam kết hoặc bằng chứng tính năng đã hoàn tất.
 
 ---
 
