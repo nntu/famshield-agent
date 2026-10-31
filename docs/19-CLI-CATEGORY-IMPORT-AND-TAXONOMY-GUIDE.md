@@ -2,6 +2,8 @@
 
 Tài liệu này hướng dẫn chi tiết cách sử dụng bộ công cụ dòng lệnh (CLI Tools) của **FamShield Server** để nạp danh mục trang web, làm sạch danh sách đen (Blacklist Cleaner), và phân loại tên miền tự động (AI Classifier) xuống máy trạm Windows Agent.
 
+> Các CLI, endpoint quản trị, kết quả mẫu và luồng NATS trong tài liệu thuộc FamShield Server bên ngoài repository này. Hãy xác minh chúng với đúng phiên bản server và quyền truy cập trước khi chạy lệnh; các ví dụ không chứng minh tính năng đã được triển khai hoặc dữ liệu đã được đồng bộ vào Agent.
+
 ---
 
 ## 1. Tổng Quan Kiến Trúc & Cơ Chế Đồng Bộ

@@ -2,6 +2,8 @@
 
 Tài liệu này mô tả chi tiết quy trình quản lý, cấp phát và đồng bộ **Mã Tổ Chức (Tenant ID)** giữa **FamShield Cloud Server (Go Backend)**, **Web Console** và **FamShield Client Agent (Rust Windows Service)**.
 
+> Đây là tài liệu hợp đồng tích hợp và mô tả thiết kế. Repository hiện tại chỉ cung cấp mã nguồn Agent; các hành vi Go Server/Web Console và các phản hồi minh họa cần được xác minh trong repository server đang triển khai trước khi dùng làm hợp đồng vận hành.
+
 ---
 
 ## 1. Tổng Quan Kiến Trúc & Ranh Giới Cô Lập Multi-Tenant

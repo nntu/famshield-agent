@@ -1,8 +1,10 @@
 # Tài Liệu và Phương Án Triển Khai Hệ Thống FamShield (Deployment Guide)
 
-Tài liệu này cung cấp phương án kiến trúc, quy trình chuẩn bị và hướng dẫn từng bước để triển khai nền tảng **FamShield Parental Control & Endpoint Protection** trên cả hai môi trường:
+Tài liệu này tập hợp phương án kiến trúc và quy trình tham khảo để triển khai nền tảng **FamShield Parental Control & Endpoint Protection** trên hai môi trường:
 1. **Endpoint Windows Agent**: Máy trạm Windows của trẻ em / học sinh (Local Standalone hoặc Online Managed).
 2. **Control Plane & Cloud Infrastructure**: Máy chủ điều phối trung tâm, Event Streaming (NATS JetStream), cơ sở dữ liệu và Web Console.
+
+> Các ví dụ Control Plane, Docker Compose, Caddy, PostgreSQL và triển khai hàng loạt là thiết kế tham khảo. Repository này chứa Windows Agent và không cung cấp đầy đủ mã nguồn dịch vụ Cloud để chạy các ví dụ đó. Trước khi triển khai, cần xác nhận endpoint, cơ chế xác thực, artifact và cấu hình với phiên bản server đang dùng. Các bước đóng gói Agent phải theo `build.ps1` và cấu hình installer hiện tại.
 
 ---
 
@@ -103,20 +105,20 @@ NRPT DNS Route for namespace '.': 127.0.0.2
 Phương án chuẩn cho việc phân phối rộng rãi tới phụ huynh (B2C) hoặc cài đặt hàng loạt trên máy tính cá nhân.
 
 #### Biên dịch bộ cài đặt (CI/CD hoặc máy Build):
-1. Cài đặt [Inno Setup 6+](https://jrsoftware.org/isdl.php).
-2. Chạy lệnh đóng gói:
+1. Cài Rust, Node.js và [Inno Setup 6+](https://jrsoftware.org/isdl.php).
+2. Tại thư mục repository, chạy lệnh đóng gói đã cấu hình:
    ```powershell
-   & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer\FamShield.iss
+   .\build.ps1 package
    ```
-3. File setup được sinh ra tại: `installer\Output\FamShieldSetup-1.0.3.exe`.
+3. Bộ cài được tạo trong `installer\Output\`. Tên file được xác định theo cấu hình phiên bản hiện tại.
 
 #### Kịch bản cài đặt tương tác (GUI):
-- Phụ huynh chạy `FamShieldSetup-1.0.3.exe` -> Nhấp "Install" -> Trình cài đặt tự động nạp binary, thiết lập Service và NRPT trong vòng 3 giây mà không yêu cầu khởi động lại máy.
+- Phụ huynh chạy bộ cài được tạo ở bước trên bằng quyền Administrator và làm theo hướng dẫn trên màn hình. Cấu hình DNS và trạng thái dịch vụ cần được kiểm tra sau khi cài.
 
 #### Kịch bản cài đặt im lặng (Silent Install):
 Dành cho IT Helpdesk hoặc phân phối từ xa:
 ```cmd
-FamShieldSetup-1.0.3.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
+FamShieldSetup.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
 ```
 
 ---
@@ -126,12 +128,12 @@ FamShieldSetup-1.0.3.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
 Áp dụng cho trường học, thư viện, hoặc gia đình có Active Directory Domain / Microsoft Intune.
 
 #### Triển khai qua Active Directory Group Policy (GPO):
-1. **Chia sẻ gói cài đặt:** Đặt `FamShieldSetup-1.0.3.exe` vào thư mục chia sẻ mạng `\\domain.local\netlogon\FamShield\`.
+1. **Chia sẻ gói cài đặt:** Đặt bộ cài đã tạo vào thư mục chia sẻ mạng `\\domain.local\netlogon\FamShield\`.
 2. **Tạo GPO Startup Script (`install-famshield.bat`):**
    ```cmd
    @echo off
    if exist "C:\Program Files\FamShield\famshield-service.exe" goto END
-   \\domain.local\netlogon\FamShield\FamShieldSetup-1.0.3.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
+   \\domain.local\netlogon\FamShield\FamShieldSetup.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
    :END
    ```
 3. **Cấu hình Policy Enrollment (Tự động gán vào Cloud Tenant):**

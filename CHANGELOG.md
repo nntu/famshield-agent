@@ -9,7 +9,7 @@ Tất cả các thay đổi quan trọng của dự án **FamShield Windows Agen
 ## [Unreleased]
 
 ### Added
-- **Tổ chức lại bộ tài liệu**: Làm rõ tài liệu kỹ thuật nào là yêu cầu/kế hoạch, bổ sung chỉ mục theo tác vụ và rút gọn hướng dẫn cài đặt/sử dụng về các bước được xác nhận từ README và setup wizard.
+- **Tổ chức lại bộ tài liệu**: Làm rõ tài liệu kỹ thuật nào là yêu cầu/kế hoạch, bổ sung chỉ mục theo tác vụ và rút gọn hướng dẫn cài đặt/sử dụng về các bước được xác nhận từ README và setup wizard. Đánh dấu tài liệu tích hợp/deployment phụ thuộc Cloud Server là tài liệu tham khảo cần đối chiếu; thay lệnh đóng gói và tên bộ cài cố định bằng quy trình hiện tại.
 - **Cơ Chế Giám Sát Chéo 2 Chiều Giữa `famshield-session` và `famshield-service` & Khởi Động Lại Dịch Vụ Từ Khay Hệ Thống (`famshield-session`, `famshield-service`, `famshield-windows`, `famshield-local-admin`, `web`)**:
   - **Giám sát chéo Session -> Service (`ServiceWatcher`)**: Module chạy nền trong `famshield-session` liên tục kiểm tra sức khỏe của Windows Service (`FamShieldService`) qua Windows Service Control Manager và kết nối TCP. Phát hiện sự cố dừng dịch vụ đột ngột trong 6 giây, tự động hiển thị Desktop Toast cảnh báo an ninh cho phụ huynh và cập nhật trạng thái khay hệ thống.
   - **Tự động phục hồi khi Service kết nối lại**: Tự động phát hiện khi dịch vụ hoạt động trở lại, khôi phục trạng thái bảo vệ và thông báo xác nhận an toàn tới người dùng.
