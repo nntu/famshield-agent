@@ -468,6 +468,40 @@ impl TelemetrySyncWorker {
                     let _ = self.storage.set_meta("cached_cloud_policy", &policy_str);
                 }
 
+                // Synchronize custom keywords from cloud policy into local storage
+                for kw in &pol.custom_keywords {
+                    let _ = self.storage.upsert_custom_keyword(&famshield_storage::CustomKeywordRecord {
+                        id: if kw.id.is_empty() { format!("kw_cloud_{}", kw.pattern) } else { kw.id.clone() },
+                        pattern: kw.pattern.clone(),
+                        category: kw.category.clone(),
+                        severity: kw.severity.clone(),
+                        enabled: kw.enabled,
+                        created_at: chrono::Utc::now(),
+                    });
+                }
+
+                // Update keyboard monitoring meta settings
+                let _ = self.storage.set_meta(
+                    "keyboard_monitoring_enabled",
+                    if pol.keyboard_monitoring_enabled { "true" } else { "false" },
+                );
+                let _ = self.storage.set_meta(
+                    "keyword_block_self_harm",
+                    if pol.keyword_block_self_harm { "true" } else { "false" },
+                );
+                let _ = self.storage.set_meta(
+                    "keyword_block_adult",
+                    if pol.keyword_block_adult { "true" } else { "false" },
+                );
+                let _ = self.storage.set_meta(
+                    "keyword_block_bullying",
+                    if pol.keyword_block_bullying { "true" } else { "false" },
+                );
+                let _ = self.storage.set_meta(
+                    "keyword_block_profanity",
+                    if pol.keyword_block_profanity { "true" } else { "false" },
+                );
+
                 // Persist new policy version in storage
                 let _ = self
                     .storage

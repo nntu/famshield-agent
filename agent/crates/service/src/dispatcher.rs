@@ -310,18 +310,36 @@ impl IpcDispatcher {
                 let record = famshield_storage::KeywordViolationRecord {
                     id: format!("kw_v_{}_{}", Utc::now().timestamp_micros(), session_id),
                     timestamp_utc: Utc::now(),
-                    app_name,
-                    keyword_matched,
-                    category,
-                    severity,
-                    snippet_masked,
+                    app_name: app_name.clone(),
+                    keyword_matched: keyword_matched.clone(),
+                    category: category.clone(),
+                    severity: severity.clone(),
+                    snippet_masked: snippet_masked.clone(),
                 };
                 match self.storage.record_keyword_violation(&record) {
-                    Ok(()) => IpcMessage::Response {
-                        request_id: "kw_violation".into(),
-                        success: true,
-                        message: "Keyword violation recorded".into(),
-                    },
+                    Ok(()) => {
+                        let outbox_payload = serde_json::json!({
+                            "app_name": app_name,
+                            "keyword_matched": keyword_matched,
+                            "category": category,
+                            "severity": severity,
+                            "snippet_masked": snippet_masked,
+                        });
+                        let event_id = format!("evt-kw-{}", record.id);
+                        if let Err(e) = self.storage.enqueue_outbox(
+                            &event_id,
+                            "keyword.violation",
+                            record.timestamp_utc,
+                            &outbox_payload.to_string(),
+                        ) {
+                            debug!("Failed to enqueue keyword violation to telemetry outbox: {}", e);
+                        }
+                        IpcMessage::Response {
+                            request_id: "kw_violation".into(),
+                            success: true,
+                            message: "Keyword violation recorded".into(),
+                        }
+                    }
                     Err(e) => {
                         error!("Failed to record keyword violation: {}", e);
                         IpcMessage::Response {

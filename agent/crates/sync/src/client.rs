@@ -144,6 +144,32 @@ pub struct BatchEventsResponse {
     pub duplicate: Vec<String>,
 }
 
+/// Custom keyword rule synchronized from cloud server
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct CustomKeywordDto {
+    #[serde(default)]
+    pub id: String,
+    pub pattern: String,
+    #[serde(default = "default_keyword_category")]
+    pub category: String,
+    #[serde(default = "default_keyword_severity")]
+    pub severity: String,
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+}
+
+fn default_keyword_category() -> String {
+    "custom".to_string()
+}
+
+fn default_keyword_severity() -> String {
+    "medium".to_string()
+}
+
+fn default_true() -> bool {
+    true
+}
+
 /// Web filter policy definition fetched from server
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct WebFilterPolicyDto {
@@ -170,6 +196,18 @@ pub struct WebFilterPolicyDto {
     pub monitor_only_mode: bool,
     #[serde(default = "default_dns_block_action")]
     pub dns_block_action: String,
+    #[serde(default = "default_true")]
+    pub keyboard_monitoring_enabled: bool,
+    #[serde(default = "default_true")]
+    pub keyword_block_self_harm: bool,
+    #[serde(default = "default_true")]
+    pub keyword_block_adult: bool,
+    #[serde(default = "default_true")]
+    pub keyword_block_bullying: bool,
+    #[serde(default = "default_true")]
+    pub keyword_block_profanity: bool,
+    #[serde(default)]
+    pub custom_keywords: Vec<CustomKeywordDto>,
     #[serde(default)]
     pub custom_blocked_domains: Vec<String>,
     #[serde(default)]

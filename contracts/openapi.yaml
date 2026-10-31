@@ -459,6 +459,22 @@ components:
         silent_mode: { type: boolean, description: "Disable all toast popups on child endpoint" }
         monitor_only_mode: { type: boolean, description: "Log observed web domains without blocking" }
         dns_block_action: { type: string, enum: [nxdomain, zero_ip, refused], default: nxdomain, description: "DNS response: nxdomain mimics site not existing" }
+        keyboard_monitoring_enabled: { type: boolean, description: "Enable or disable keystroke keyword scanning" }
+        keyword_block_self_harm: { type: boolean, description: "Block and alert on self-harm / suicidal keywords" }
+        keyword_block_adult: { type: boolean, description: "Block and alert on adult and NSFW keywords" }
+        keyword_block_bullying: { type: boolean, description: "Block and alert on cyberbullying and harassment keywords" }
+        keyword_block_profanity: { type: boolean, description: "Block and alert on profanity and swear keywords" }
+        custom_keywords:
+          type: array
+          items:
+            type: object
+            required: [pattern, category, severity]
+            properties:
+              id: { type: string }
+              pattern: { type: string }
+              category: { type: string, enum: [self_harm, adult, bullying, profanity, custom] }
+              severity: { type: string, enum: [low, medium, high, critical] }
+              enabled: { type: boolean }
         custom_blocked_domains:
           type: array
           items: { type: string }
