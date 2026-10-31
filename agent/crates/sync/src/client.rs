@@ -214,6 +214,8 @@ pub struct WebFilterPolicyDto {
     pub custom_allowed_domains: Vec<String>,
     #[serde(default)]
     pub category_custom_domains: std::collections::HashMap<String, Vec<String>>,
+    #[serde(default)]
+    pub effective_blocked_domains: Vec<String>,
 }
 
 fn default_dns_block_action() -> String {

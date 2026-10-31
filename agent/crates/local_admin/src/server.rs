@@ -719,7 +719,15 @@ fn sync_dns_blocklist(state: &ServerState) {
                     .and_then(|v| v.as_object())
                 {
                     for (cat, arr) in cat_map {
-                        let is_blocked = match cat.as_str() {
+                        let norm_cat = match cat.to_lowercase().trim() {
+                            "adult" | "18+" | "18" | "porn" | "xxx" | "nsfw" => "adult",
+                            "gambling" | "bet" | "casino" => "gambling",
+                            "violence" | "gore" => "violence",
+                            "social" => "social",
+                            "gaming" | "game" => "gaming",
+                            other => other,
+                        };
+                        let is_blocked = match norm_cat {
                             "adult" => block_adult,
                             "gambling" => block_gambling,
                             "violence" => block_violence,

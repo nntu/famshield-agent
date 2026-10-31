@@ -368,9 +368,30 @@ impl NatsDispatcher {
                 Ok(())
             }
 
-            "update_policy" => {
-                info!("Policy update command received: {:?}", cmd.payload);
-                // Policy update payload can be parsed and saved to storage
+            "sync_policy" | "update_policy" => {
+                info!("Policy sync/update command received: {:?}", cmd.payload);
+                // 1. Hot-swap DNS blocklist if effective_blocked_domains was pushed
+                if let Some(arr) = cmd
+                    .payload
+                    .get("effective_blocked_domains")
+                    .and_then(|v| v.as_array())
+                {
+                    let domains: Vec<String> = arr
+                        .iter()
+                        .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                        .collect();
+                    if !domains.is_empty() {
+                        self.blocklist.replace_blocklist(&domains);
+                        if let Ok(json_str) = serde_json::to_string(&domains) {
+                            let _ = self.storage.set_meta("cached_blocklist", &json_str);
+                        }
+                        info!(
+                            "DNS blocklist immediately hot-swapped from policy sync with {} domains.",
+                            domains.len()
+                        );
+                    }
+                }
+                // 2. Policy update payload can be parsed and saved to storage
                 if let Some(policy_obj) = cmd.payload.get("policy") {
                     let policy_str = policy_obj.to_string();
                     if let Ok(policy) = serde_json::from_str::<famshield_core::Policy>(&policy_str)

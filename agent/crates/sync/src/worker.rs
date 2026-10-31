@@ -358,8 +358,52 @@ impl TelemetrySyncWorker {
                     pol.block_gaming
                 );
 
-                // Merge category seeds into active domain list
-                let mut block_domains: Vec<String> = pol.custom_blocked_domains.clone();
+                // Compile active domain list: prefer server-compiled dynamic database list
+                let mut block_domains: Vec<String> = if !pol.effective_blocked_domains.is_empty() {
+                    pol.effective_blocked_domains.clone()
+                } else {
+                    let mut list = pol.custom_blocked_domains.clone();
+
+                    if pol.block_adult {
+                        list.extend(ADULT_DOMAINS.iter().map(|d| d.to_string()));
+                    }
+                    if pol.block_gambling {
+                        list.extend(GAMBLING_DOMAINS.iter().map(|d| d.to_string()));
+                    }
+                    if pol.block_violence {
+                        list.extend(VIOLENCE_DOMAINS.iter().map(|d| d.to_string()));
+                    }
+                    if pol.block_social {
+                        list.extend(SOCIAL_DOMAINS.iter().map(|d| d.to_string()));
+                    }
+                    if pol.block_gaming {
+                        list.extend(GAMING_DOMAINS.iter().map(|d| d.to_string()));
+                    }
+
+                    // Merge custom category domains if category is blocked
+                    for (cat, custom_seeds) in &pol.category_custom_domains {
+                        let norm_cat = match cat.to_lowercase().trim() {
+                            "adult" | "18+" | "18" | "porn" | "xxx" | "nsfw" => "adult",
+                            "gambling" | "bet" | "casino" => "gambling",
+                            "violence" | "gore" => "violence",
+                            "social" => "social",
+                            "gaming" | "game" => "gaming",
+                            other => other,
+                        };
+                        let is_blocked = match norm_cat {
+                            "adult" => pol.block_adult,
+                            "gambling" => pol.block_gambling,
+                            "violence" => pol.block_violence,
+                            "social" => pol.block_social,
+                            "gaming" => pol.block_gaming,
+                            _ => false,
+                        };
+                        if is_blocked {
+                            list.extend(custom_seeds.iter().cloned());
+                        }
+                    }
+                    list
+                };
 
                 // Merge local custom rules from endpoint storage to preserve parent rules
                 if let Ok(local_rules) = self.storage.list_local_rules() {
@@ -367,37 +411,6 @@ impl TelemetrySyncWorker {
                         if r.rule_type == "domain" && r.enabled {
                             block_domains.push(r.rule_id);
                         }
-                    }
-                }
-
-                if pol.block_adult {
-                    block_domains.extend(ADULT_DOMAINS.iter().map(|d| d.to_string()));
-                }
-                if pol.block_gambling {
-                    block_domains.extend(GAMBLING_DOMAINS.iter().map(|d| d.to_string()));
-                }
-                if pol.block_violence {
-                    block_domains.extend(VIOLENCE_DOMAINS.iter().map(|d| d.to_string()));
-                }
-                if pol.block_social {
-                    block_domains.extend(SOCIAL_DOMAINS.iter().map(|d| d.to_string()));
-                }
-                if pol.block_gaming {
-                    block_domains.extend(GAMING_DOMAINS.iter().map(|d| d.to_string()));
-                }
-
-                // Merge custom category domains if category is blocked
-                for (cat, custom_seeds) in &pol.category_custom_domains {
-                    let is_blocked = match cat.as_str() {
-                        "adult" => pol.block_adult,
-                        "gambling" => pol.block_gambling,
-                        "violence" => pol.block_violence,
-                        "social" => pol.block_social,
-                        "gaming" => pol.block_gaming,
-                        _ => false,
-                    };
-                    if is_blocked {
-                        block_domains.extend(custom_seeds.iter().cloned());
                     }
                 }
 
