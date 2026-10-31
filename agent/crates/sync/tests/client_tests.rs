@@ -148,6 +148,7 @@ async fn test_web_filter_policy_update_dto_serialization() {
         dns_block_action: "nxdomain".to_string(),
         custom_blocked_domains: vec!["tiktok.com".to_string(), "roblox.com".to_string()],
         custom_allowed_domains: vec!["wikipedia.org".to_string()],
+        category_custom_domains: std::collections::HashMap::new(),
     };
 
     let serialized = serde_json::to_string(&pol).expect("Serialize policy DTO");

@@ -1582,7 +1582,11 @@ async fn test_update_urls_standalone_and_server_auto_modes() {
     );
 }
 
-async fn setup_test_server() -> (famshield_local_admin::LocalAdminServer, famshield_storage::StorageEngine, String) {
+async fn setup_test_server() -> (
+    famshield_local_admin::LocalAdminServer,
+    famshield_storage::StorageEngine,
+    String,
+) {
     use famshield_local_admin::{LocalAdminServer, LocalAdminService};
     use famshield_storage::StorageEngine;
     use std::sync::Arc;
@@ -1706,9 +1710,8 @@ async fn test_restart_service_endpoint() {
     assert_eq!(json["wrong_pin"], true);
 
     let outbox = storage.peek_outbox(10).unwrap();
-    assert!(outbox
-        .iter()
-        .any(|e| e.event_type == "security_alert" && e.payload.contains("unauthorized_service_restart_attempt")));
+    assert!(outbox.iter().any(|e| e.event_type == "security_alert"
+        && e.payload.contains("unauthorized_service_restart_attempt")));
 
     // 3. POST with correct Master PIN ("123456" in setup_test_server) -> 200 OK and queues security_alert
     let res = server
@@ -1731,7 +1734,8 @@ async fn test_restart_service_endpoint() {
     let outbox = storage.peek_outbox(10).unwrap();
     assert!(outbox
         .iter()
-        .any(|e| e.event_type == "security_alert" && e.payload.contains("service_restarted_by_parent")));
+        .any(|e| e.event_type == "security_alert"
+            && e.payload.contains("service_restarted_by_parent")));
 
     // 4. POST with authenticated session token -> 200 OK without PIN
     let res = server

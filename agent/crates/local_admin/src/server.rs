@@ -500,10 +500,7 @@ impl LocalAdminServer {
                 post(handle_start_session_helper),
             )
             .route("/api/system/uninstall", post(handle_system_uninstall))
-            .route(
-                "/api/system/service/restart",
-                post(handle_restart_service),
-            )
+            .route("/api/system/service/restart", post(handle_restart_service))
             .route("/api/system/update/check", get(handle_check_update))
             .route(
                 "/api/system/update/url",

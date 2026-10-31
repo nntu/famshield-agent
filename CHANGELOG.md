@@ -8,6 +8,8 @@ Tất cả các thay đổi quan trọng của dự án **FamShield Windows Agen
 
 ## [Unreleased]
 
+## [1.0.4] - 2026-10-31
+
 ### Added
 - **Tổ chức lại bộ tài liệu**: Làm rõ tài liệu kỹ thuật nào là yêu cầu/kế hoạch, bổ sung chỉ mục theo tác vụ và viết lại hướng dẫn sử dụng theo các công việc trong Web Admin. Hướng dẫn chỉ mô tả thao tác được xác nhận từ giao diện hiện tại. Đánh dấu tài liệu tích hợp/deployment phụ thuộc Cloud Server là tài liệu tham khảo cần đối chiếu; thay lệnh đóng gói và tên bộ cài cố định bằng quy trình hiện tại.
 - **Cơ Chế Giám Sát Chéo 2 Chiều Giữa `famshield-session` và `famshield-service` & Khởi Động Lại Dịch Vụ Từ Khay Hệ Thống (`famshield-session`, `famshield-service`, `famshield-windows`, `famshield-local-admin`, `web`)**:

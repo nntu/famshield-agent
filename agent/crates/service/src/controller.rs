@@ -335,17 +335,23 @@ impl ServiceController {
         if interrupted_file.exists() {
             if let Ok(content) = std::fs::read_to_string(&interrupted_file) {
                 if let Ok(val) = serde_json::from_str::<serde_json::Value>(&content) {
-                    let detected_at_str = val.get("detected_at").and_then(|v| v.as_str()).unwrap_or("");
+                    let detected_at_str = val
+                        .get("detected_at")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("");
                     let reason = val
                         .get("reason")
                         .and_then(|v| v.as_str())
                         .unwrap_or("FamShieldService terminated or stopped unexpectedly");
                     let session_id = val.get("session_id").and_then(|v| v.as_u64()).unwrap_or(0);
-                    let downtime = if let Ok(dt) = chrono::DateTime::parse_from_rfc3339(detected_at_str) {
-                        (chrono::Utc::now() - dt.with_timezone(&chrono::Utc)).num_seconds().max(1)
-                    } else {
-                        0
-                    };
+                    let downtime =
+                        if let Ok(dt) = chrono::DateTime::parse_from_rfc3339(detected_at_str) {
+                            (chrono::Utc::now() - dt.with_timezone(&chrono::Utc))
+                                .num_seconds()
+                                .max(1)
+                        } else {
+                            0
+                        };
 
                     tracing::warn!(
                         "ANTI-TAMPER ALERT: Service recovered after unexpected interruption (Downtime: {}s, Session: {}). Reason: {}",
@@ -356,7 +362,9 @@ impl ServiceController {
                         "Dịch vụ bảo vệ FamShield bị gián đoạn hoặc tắt bất thường! Thời gian dừng: {} giây. Lý do: {}",
                         downtime, reason
                     );
-                    let _ = self.storage.record_error_log("anti_tamper", "CRITICAL", &log_msg, None);
+                    let _ =
+                        self.storage
+                            .record_error_log("anti_tamper", "CRITICAL", &log_msg, None);
 
                     let event_id = format!("tamper-down-{}", chrono::Utc::now().timestamp_micros());
                     let alert_payload = serde_json::json!({

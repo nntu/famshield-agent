@@ -133,7 +133,8 @@ impl ServiceWatcher {
                 if let Ok(val) = serde_json::from_str::<serde_json::Value>(&content) {
                     if let Some(detected_at_str) = val["detected_at"].as_str() {
                         if let Ok(dt) = chrono::DateTime::parse_from_rfc3339(detected_at_str) {
-                            let elapsed = (chrono::Utc::now() - dt.with_timezone(&chrono::Utc)).num_seconds();
+                            let elapsed =
+                                (chrono::Utc::now() - dt.with_timezone(&chrono::Utc)).num_seconds();
                             let _ = std::fs::remove_file(file);
                             if elapsed < 60 {
                                 return format!("{} giây", elapsed.max(1));

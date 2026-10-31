@@ -217,7 +217,7 @@ export const App: React.FC = () => {
     return <SetupWizard lang={lang} onComplete={handleSetupComplete} />;
   }
 
-  const appVersion = status?.app_version || updateInfo?.current_version || '1.0.3';
+  const appVersion = status?.app_version || updateInfo?.current_version || '1.0.4';
 
   return (
     <div className="w-full min-h-[100dvh] flex flex-col bg-slate-50 text-slate-800 antialiased">

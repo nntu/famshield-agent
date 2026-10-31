@@ -73,7 +73,9 @@ impl PcInfoDto {
             format!("{} phút", mins)
         };
 
-        let os_version = format!("{} {}", sys_info.os_name, sys_info.os_version).trim().to_string();
+        let os_version = format!("{} {}", sys_info.os_name, sys_info.os_version)
+            .trim()
+            .to_string();
 
         let total_ram_mb = sys_info.total_memory_bytes / (1024 * 1024);
         let used_ram_mb = sys_info.used_memory_bytes / (1024 * 1024);

@@ -271,13 +271,24 @@ impl NatsConnectionWorker {
         match self.dispatcher.format_rollup_summary(domain_rollups, apps) {
             Ok(json_payload) => {
                 let subject = format!("devices.{}.events.rollup", self.device_id);
-                if let Err(e) = client.publish(subject.clone(), json_payload.clone().into()).await {
-                    warn!("Failed to publish rollup to NATS subject {}: {}", subject, e);
+                if let Err(e) = client
+                    .publish(subject.clone(), json_payload.clone().into())
+                    .await
+                {
+                    warn!(
+                        "Failed to publish rollup to NATS subject {}: {}",
+                        subject, e
+                    );
                 } else {
-                    info!("Pushed web & app rollup summary to NATS ({} bytes)", json_payload.len());
+                    info!(
+                        "Pushed web & app rollup summary to NATS ({} bytes)",
+                        json_payload.len()
+                    );
                 }
                 // Also publish to JetStream stream subject for backend event ingestion
-                let _ = client.publish("famshield.events.web_rollup", json_payload.into()).await;
+                let _ = client
+                    .publish("famshield.events.web_rollup", json_payload.into())
+                    .await;
             }
             Err(e) => {
                 warn!("Failed to format rollup summary: {}", e);

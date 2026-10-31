@@ -11,8 +11,7 @@ pub mod wfp;
 pub use error::WindowsError;
 pub use etw::EtwTraceSession;
 pub use identity::{
-    get_computer_name, get_disambiguated_device_name, get_machine_guid, get_system_info,
-    SystemInfo,
+    get_computer_name, get_disambiguated_device_name, get_machine_guid, get_system_info, SystemInfo,
 };
 pub use installer::{InstallationRequest, InstallerInterceptor};
 pub use nrpt::NrptManager;

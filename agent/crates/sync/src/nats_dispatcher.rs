@@ -320,9 +320,8 @@ impl NatsDispatcher {
                     "Khởi động lại FamShield Service từ xa theo lệnh của Phụ huynh từ Web Console",
                     None,
                 );
-                restart_service("FamShieldService").map_err(|e| {
-                    SyncError::Command(format!("Failed to restart service: {}", e))
-                })?;
+                restart_service("FamShieldService")
+                    .map_err(|e| SyncError::Command(format!("Failed to restart service: {}", e)))?;
                 Ok(())
             }
 
