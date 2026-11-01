@@ -134,19 +134,3 @@ impl StorageEngine {
     }
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct ResetReportStats {
-    pub dns_cleared: usize,
-    pub apps_cleared: usize,
-    pub evidence_cleared: usize,
-    pub keywords_cleared: usize,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ParentTotpConfigRecord {
-    pub enabled: bool,
-    pub encrypted_secret: String,
-    pub created_at: DateTime<Utc>,
-    pub last_verified_at: Option<DateTime<Utc>>,
-}
-}

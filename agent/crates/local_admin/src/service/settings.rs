@@ -506,5 +506,3 @@ impl LocalAdminService {
     }
 }
 
-/// Asynchronously probe server reachability and measure round-trip latency
-}
