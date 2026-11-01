@@ -168,14 +168,37 @@ impl TelemetrySyncWorker {
 
                     match client.send_batch_events(&envelope).await {
                         Ok(resp) => {
-                            if let Err(e) = self.pipeline.acknowledge_batch(&envelope) {
+                            let mut acknowledged_ids = resp.accepted;
+                            acknowledged_ids.extend(resp.duplicate);
+                            if let Err(e) = self
+                                .pipeline
+                                .acknowledge_events(&envelope, &acknowledged_ids)
+                            {
                                 warn!("Failed to acknowledge sent telemetry batch: {}", e);
                                 break; // Halt to avoid resending the same batch in an infinite loop
                             } else {
+                                let acknowledged: std::collections::HashSet<&str> =
+                                    acknowledged_ids.iter().map(String::as_str).collect();
+                                let synced_error_ids: Vec<String> = envelope
+                                    .events
+                                    .iter()
+                                    .filter(|event| {
+                                        event.event_type == "error_log"
+                                            && acknowledged.contains(event.event_id.as_str())
+                                    })
+                                    .filter_map(|event| {
+                                        event.event_id.strip_prefix("err-").map(str::to_owned)
+                                    })
+                                    .collect();
+                                if !synced_error_ids.is_empty() {
+                                    if let Err(e) = self.storage.mark_errors_synced(&synced_error_ids) {
+                                        warn!("Could not mark acknowledged error logs as synced: {}", e);
+                                    }
+                                }
                                 info!(
                                     "Successfully synchronized telemetry batch {} ({} events accepted)",
                                     batch_id,
-                                    resp.accepted.len()
+                                    acknowledged_ids.len()
                                 );
                                 batches_sent += 1;
                             }

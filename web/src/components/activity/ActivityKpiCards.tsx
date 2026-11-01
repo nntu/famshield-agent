@@ -5,7 +5,7 @@ import type { ActivitySummaryResponse, Language } from '../../types';
 
 interface ActivityKpiCardsProps {
   data: ActivitySummaryResponse | null;
-  activeSubTab: 'unified' | 'apps' | 'web' | 'keywords';
+  activeSubTab: 'unified' | 'apps' | 'report' | 'web' | 'keywords';
   onSelectKeywordsTab: () => void;
   lang: Language;
 }

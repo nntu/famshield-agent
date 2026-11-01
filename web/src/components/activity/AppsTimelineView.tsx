@@ -9,6 +9,8 @@ import { AppUsageRankingChart } from '../charts/AppUsageRankingChart';
 interface AppsTimelineViewProps {
   appViewMode: 'grouped' | 'timeline';
   setAppViewMode: (mode: 'grouped' | 'timeline') => void;
+  appFilterMode?: 'user_only' | 'all' | 'system_only';
+  setAppFilterMode?: (mode: 'user_only' | 'all' | 'system_only') => void;
   filteredGroupedApps: AppUsageSummary[];
   filteredApps: AppActivityItem[];
   appColumns: ColumnDef<AppUsageSummary>[];
@@ -19,6 +21,8 @@ interface AppsTimelineViewProps {
 export const AppsTimelineView: React.FC<AppsTimelineViewProps> = ({
   appViewMode,
   setAppViewMode,
+  appFilterMode = 'user_only',
+  setAppFilterMode,
   filteredGroupedApps,
   filteredApps,
   appColumns,
@@ -30,67 +34,111 @@ export const AppsTimelineView: React.FC<AppsTimelineViewProps> = ({
 
   return (
     <div className="flex flex-col gap-4">
-      {/* View Mode Switcher Header */}
+      {/* View Mode & System Filter Header */}
       <div className="flex justify-between items-center flex-wrap gap-2 pb-1">
-        <div className="inline-flex bg-slate-100 p-0.5 rounded-lg border border-slate-200">
-          <button
-            type="button"
-            onClick={() => setAppViewMode('grouped')}
-            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold cursor-pointer transition-all ${
-              appViewMode === 'grouped'
-                ? 'bg-white text-slate-900 shadow-2xs'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <BarChart3
-              size={14}
-              className={appViewMode === 'grouped' ? 'text-sky-600' : 'text-slate-500'}
-            />
-            <span>{t.view_mode_grouped_apps}</span>
-            <span
-              className={`px-1.5 py-0.2 rounded-full text-2xs font-bold ${
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Mode Switcher */}
+          <div className="inline-flex bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+            <button
+              type="button"
+              onClick={() => setAppViewMode('grouped')}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold cursor-pointer transition-all ${
                 appViewMode === 'grouped'
-                  ? 'bg-sky-100 text-sky-800'
-                  : 'bg-slate-200 text-slate-700'
+                  ? 'bg-white text-slate-900 shadow-2xs'
+                  : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              {filteredGroupedApps.length}
-            </span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setAppViewMode('timeline')}
-            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold cursor-pointer transition-all ${
-              appViewMode === 'timeline'
-                ? 'bg-white text-slate-900 shadow-2xs'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <Clock
-              size={14}
-              className={appViewMode === 'timeline' ? 'text-sky-600' : 'text-slate-500'}
-            />
-            <span>{t.view_mode_raw_apps}</span>
-            <span
-              className={`px-1.5 py-0.2 rounded-full text-2xs font-bold ${
+              <BarChart3
+                size={14}
+                className={appViewMode === 'grouped' ? 'text-sky-600' : 'text-slate-500'}
+              />
+              <span>{t.view_mode_grouped_apps}</span>
+              <span
+                className={`px-1.5 py-0.2 rounded-full text-2xs font-bold ${
+                  appViewMode === 'grouped'
+                    ? 'bg-sky-100 text-sky-800'
+                    : 'bg-slate-200 text-slate-700'
+                }`}
+              >
+                {filteredGroupedApps.length}
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setAppViewMode('timeline')}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold cursor-pointer transition-all ${
                 appViewMode === 'timeline'
-                  ? 'bg-sky-100 text-sky-800'
-                  : 'bg-slate-200 text-slate-700'
+                  ? 'bg-white text-slate-900 shadow-2xs'
+                  : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              {filteredApps.length}
-            </span>
-          </button>
+              <Clock
+                size={14}
+                className={appViewMode === 'timeline' ? 'text-sky-600' : 'text-slate-500'}
+              />
+              <span>{t.view_mode_raw_apps}</span>
+              <span
+                className={`px-1.5 py-0.2 rounded-full text-2xs font-bold ${
+                  appViewMode === 'timeline'
+                    ? 'bg-sky-100 text-sky-800'
+                    : 'bg-slate-200 text-slate-700'
+                }`}
+              >
+                {filteredApps.length}
+              </span>
+            </button>
+          </div>
+
+          {/* System vs User Apps Filter Switcher */}
+          {setAppFilterMode && (
+            <div className="inline-flex bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+              <button
+                type="button"
+                onClick={() => setAppFilterMode('user_only')}
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-semibold cursor-pointer transition-all ${
+                  appFilterMode === 'user_only'
+                    ? 'bg-sky-600 text-white shadow-2xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+                title={isVi ? 'Ưu tiên hiển thị ứng dụng người dùng' : 'Prioritize user apps'}
+              >
+                <Smartphone size={13} />
+                <span>{isVi ? 'Ứng dụng người dùng' : 'User Apps'}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setAppFilterMode('all')}
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-semibold cursor-pointer transition-all ${
+                  appFilterMode === 'all'
+                    ? 'bg-white text-slate-900 shadow-2xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <span>{isVi ? 'Tất cả' : 'All'}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setAppFilterMode('system_only')}
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-semibold cursor-pointer transition-all ${
+                  appFilterMode === 'system_only'
+                    ? 'bg-white text-slate-900 shadow-2xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <span>{isVi ? 'Hệ thống' : 'System'}</span>
+              </button>
+            </div>
+          )}
         </div>
 
         <div className="text-2xs text-slate-500 font-medium">
-          {appViewMode === 'grouped'
+          {appFilterMode === 'user_only'
             ? isVi
-              ? 'Tổng hợp theo tên ứng dụng & thời lượng'
-              : 'Grouped by application & total duration'
+              ? '★ Đang ưu tiên ứng dụng người dùng'
+              : '★ User applications prioritized'
             : isVi
-              ? 'Nhật ký các phân đoạn thời gian hoạt động'
-              : 'Raw continuous usage intervals'}
+              ? 'Bao gồm cả tiến trình nền hệ điều hành'
+              : 'Including operating system services'}
         </div>
       </div>
 

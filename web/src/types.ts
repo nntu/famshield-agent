@@ -274,6 +274,8 @@ export interface AppActivityItem {
   app_name: string;
   app_title: string;
   category: string;
+  category_id?: string;
+  is_system?: boolean;
   start_time: string;
   end_time: string;
   duration_minutes: number;
@@ -285,6 +287,8 @@ export interface AppUsageSummary {
   app_name: string;
   app_title: string;
   category: string;
+  category_id?: string;
+  is_system?: boolean;
   total_duration_minutes: number;
   total_duration_formatted: string;
   percentage: number;
@@ -293,6 +297,58 @@ export interface AppUsageSummary {
   last_seen_at: string;
   is_active_now: boolean;
   status: 'Active' | 'QuotaWarning' | 'Normal';
+}
+
+export interface AppCategoryMetadata {
+  id: string;
+  name_vi: string;
+  name_en: string;
+  icon: string;
+  is_system: boolean;
+  description: string;
+  app_count: number;
+  total_duration_minutes: number;
+  percentage: number;
+}
+
+export interface HourlyUsagePoint {
+  hour: number;
+  label: string;
+  user_minutes: number;
+  system_minutes: number;
+}
+
+export interface AppCategoryUsageBreakdown {
+  category_id: string;
+  category_name: string;
+  total_minutes: number;
+  percentage: number;
+  app_count: number;
+  icon: string;
+  is_system: boolean;
+}
+
+export interface TimeAggregatedReport {
+  period: string;
+  start_date: string;
+  end_date: string;
+  total_active_minutes: number;
+  total_system_minutes: number;
+  total_screen_time_formatted: string;
+  user_apps_count: number;
+  system_apps_count: number;
+  category_breakdown: AppCategoryUsageBreakdown[];
+  hourly_distribution: HourlyUsagePoint[];
+  top_user_apps: AppUsageSummary[];
+  all_apps: AppUsageSummary[];
+}
+
+export interface SyncAppsResponse {
+  success: boolean;
+  synced_at: string;
+  apps_synced: number;
+  total_apps: number;
+  message: string;
 }
 
 export interface WebActivityItem {

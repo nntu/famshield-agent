@@ -59,6 +59,7 @@ totp-rs = { version = "6.0", features = ["gen_secret", "qr"] }
 # Windows & System Ecosystem
 windows = "0.58"
 windows-service = "0.8"
+ferrisetw = "1.2.0"
 tray-icon = "0.26"
 muda = "0.21"
 semver = "1.0"

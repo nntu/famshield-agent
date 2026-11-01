@@ -29,6 +29,7 @@ Both modes use the Windows agent. Online Managed mode depends on the server serv
 ## Key capabilities
 
 - **Local administration:** Web Admin listens on loopback, normally at `127.0.0.1:38123`. If it selects a fallback port, the active port is recorded in `%ProgramData%\FamShield\admin_port.txt`.
+- **Application Monitoring & Categorization:** Automatically classifies 8 standard categories (Gaming, Browsers, Social, Education/Work, Dev, Media, Utilities, System), prioritizes user-facing applications, filters operating system noise, provides time-aggregated reports (24h hourly trends, 7d, 30d), and supports cloud synchronization.
 - **DNS rules:** The agent stores and applies local domain rules through its DNS proxy. Protection depends on the network components starting successfully.
 - **Setup and recovery:** The setup wizard creates a six-digit Master PIN, offers Balanced, Strict, and Basic profiles, asks for an operating mode, and issues a recovery key. Keep the recovery key so you can reset the PIN if needed.
 - **Cloud mode:** The interface offers `OnlineManaged`; enrollment and sync depend on a compatible server. Local mode does not require a server account.

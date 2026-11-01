@@ -31,3 +31,4 @@ windows = { workspace = true, features = [
     "Win32_NetworkManagement_WindowsFilteringPlatform",
 ] }
 windows-service = { workspace = true }
+ferrisetw = { workspace = true }

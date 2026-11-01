@@ -9,7 +9,9 @@ pub mod session;
 pub mod wfp;
 
 pub use error::WindowsError;
-pub use etw::EtwTraceSession;
+pub use etw::{
+    start_etw_process_listener, take_dropped_etw_events, EtwProcessMonitorGuard, EtwTraceSession,
+};
 pub use identity::{
     get_computer_name, get_disambiguated_device_name, get_machine_guid, get_system_info, SystemInfo,
 };

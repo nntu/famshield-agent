@@ -912,6 +912,140 @@ async fn test_activity_summary_endpoint_and_usage_tracking() {
 }
 
 #[tokio::test]
+async fn test_app_categories_time_report_and_sync_endpoints() {
+    use axum::body::Body;
+    use axum::http::{Request, StatusCode};
+    use famshield_dns::blocklist::BlocklistStore;
+    use famshield_local_admin::LocalAdminServer;
+    use famshield_storage::UsageSegmentRecord;
+    use http_body_util::BodyExt;
+    use std::sync::Arc;
+    use tower::ServiceExt;
+
+    let storage = StorageEngine::in_memory().unwrap();
+    let service = Arc::new(LocalAdminService::new(storage.clone()));
+    let dns_blocklist = Arc::new(BlocklistStore::new());
+    let server = LocalAdminServer::new(service.clone(), Some(dns_blocklist.clone()));
+    let token = server.create_session_token().await;
+
+    // Record user app and system app
+    let seg_user = UsageSegmentRecord {
+        segment_id: "seg-user-1".to_string(),
+        child_id: "local_child".to_string(),
+        rule_id: "chrome.exe".to_string(),
+        start_utc: Utc::now() - chrono::Duration::minutes(45),
+        duration_ms: 2_700_000,
+        state: "committed".to_string(),
+    };
+    let seg_sys = UsageSegmentRecord {
+        segment_id: "seg-sys-1".to_string(),
+        child_id: "local_child".to_string(),
+        rule_id: "svchost.exe".to_string(),
+        start_utc: Utc::now() - chrono::Duration::minutes(15),
+        duration_ms: 900_000,
+        state: "committed".to_string(),
+    };
+    storage.record_usage_segment(&seg_user).unwrap();
+    storage.record_usage_segment(&seg_sys).unwrap();
+
+    // 1. GET /api/activity/apps/categories
+    let res = server
+        .router()
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/api/activity/apps/categories")
+                .header("X-FamShield-Token", &token)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    let bytes = res.into_body().collect().await.unwrap().to_bytes();
+    let json_str = std::str::from_utf8(&bytes).unwrap();
+    assert!(json_str.contains("browsers"));
+    assert!(json_str.contains("system"));
+    assert!(json_str.contains("gaming"));
+    assert!(json_str.contains("education_work"));
+    assert!(json_str.contains("development"));
+    assert!(json_str.contains("entertainment"));
+    assert!(json_str.contains("utilities"));
+    assert!(json_str.contains("other"));
+
+    // Verify service dynamic classification from DB rules
+    let roblox_cls = service.classify_app("RobloxPlayer.exe");
+    assert_eq!(roblox_cls.category_id, "gaming");
+    assert_eq!(roblox_cls.is_system, false);
+
+    let svchost_cls = service.classify_app("svchost.exe");
+    assert_eq!(svchost_cls.category_id, "system");
+    assert_eq!(svchost_cls.is_system, true);
+
+    // 2. GET /api/activity/apps/summary (verify non-system prioritized first)
+    let res2 = server
+        .router()
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/api/activity/apps/summary")
+                .header("X-FamShield-Token", &token)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res2.status(), StatusCode::OK);
+    let bytes2 = res2.into_body().collect().await.unwrap().to_bytes();
+    let val2: serde_json::Value = serde_json::from_slice(&bytes2).unwrap();
+    let apps_arr = val2.as_array().unwrap();
+    assert!(apps_arr.len() >= 2);
+    // User app (chrome) must be first before svchost
+    assert_eq!(apps_arr[0]["app_name"], "chrome.exe");
+    assert_eq!(apps_arr[0]["is_system"], false);
+    assert_eq!(apps_arr[1]["app_name"], "svchost.exe");
+    assert_eq!(apps_arr[1]["is_system"], true);
+
+    // 3. GET /api/activity/apps/report?period=today&exclude_system=true
+    let res3 = server
+        .router()
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/api/activity/apps/report?period=today&exclude_system=true")
+                .header("X-FamShield-Token", &token)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res3.status(), StatusCode::OK);
+    let bytes3 = res3.into_body().collect().await.unwrap().to_bytes();
+    let report_val: serde_json::Value = serde_json::from_slice(&bytes3).unwrap();
+    assert_eq!(report_val["period"], "today");
+    assert!(report_val["total_active_minutes"].as_u64().unwrap() >= 45);
+    assert_eq!(report_val["user_apps_count"], 1);
+    assert_eq!(report_val["hourly_distribution"].as_array().unwrap().len(), 24);
+
+    // 4. POST /api/activity/apps/sync-to-server
+    let res4 = server
+        .router()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/activity/apps/sync-to-server")
+                .header("X-FamShield-Token", &token)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res4.status(), StatusCode::OK);
+    let outbox_count = storage.count_outbox().unwrap();
+    assert!(outbox_count >= 2);
+}
+
+#[tokio::test]
 async fn test_keyword_monitoring_api_and_violation_flow() {
     use axum::body::Body;
     use axum::http::{header, Request, StatusCode};

@@ -29,6 +29,7 @@ Cả hai chế độ đều sử dụng agent Windows. Chế độ quản lý t�
 ## Năng lực chính
 
 - **Quản trị cục bộ:** Web Admin chỉ lắng nghe loopback, mặc định tại `127.0.0.1:38123` và ghi cổng thực tế vào `%ProgramData%\FamShield\admin_port.txt` nếu cần cổng dự phòng.
+- **Giám sát & Phân loại ứng dụng:** Tự động phân loại 8 danh mục chuẩn hóa (Gaming, Trình duyệt, Mạng xã hội, Học tập, Lập trình...), ưu tiên hiển thị ứng dụng người dùng, loại trừ tạp âm tiến trình nền hệ thống, cung cấp báo cáo tổng hợp theo thời gian (24h, 7 ngày, 30 ngày) và đồng bộ lên đám mây.
 - **Quy tắc DNS:** Agent lưu và áp dụng quy tắc tên miền cục bộ. DNS được chuyển qua proxy của agent; khả năng bảo vệ phụ thuộc vào các thành phần mạng khởi động thành công.
 - **Thiết lập và khôi phục:** Trình thiết lập tạo Master PIN sáu chữ số, cho chọn cấu hình Balanced, Strict hoặc Basic, chọn chế độ vận hành và cấp recovery key. Hãy lưu recovery key để đặt lại PIN khi cần.
 - **Chế độ đám mây:** Giao diện có lựa chọn `OnlineManaged`; việc ghép nối và đồng bộ phụ thuộc vào dịch vụ máy chủ tương thích. Chế độ cục bộ không yêu cầu tài khoản máy chủ.

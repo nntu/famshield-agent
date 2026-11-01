@@ -205,3 +205,16 @@ async fn test_check_and_enforce_app_quota() {
         "game.exe", &storage, &telemetry
     ));
 }
+
+#[tokio::test]
+async fn test_etw_realtime_process_listener_stream() {
+    let (etw_tx, mut etw_rx) = tokio::sync::mpsc::channel(8);
+    let guard = famshield_windows::start_etw_process_listener(etw_tx);
+    assert!(guard.is_ok());
+
+    let ev = etw_rx.recv().await;
+    assert!(ev.is_some());
+    let event = ev.unwrap();
+    assert_eq!(event.process_name, "chrome.exe");
+    assert_eq!(event.event_type, "process_started");
+}

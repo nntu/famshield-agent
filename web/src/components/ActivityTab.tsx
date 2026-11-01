@@ -21,6 +21,7 @@ import {
   ShieldAlert,
   Smartphone,
   Tv,
+  CloudUpload,
 } from 'lucide-react';
 import type { ColumnDef } from '@tanstack/react-table';
 import type React from 'react';
@@ -29,16 +30,20 @@ import { api } from '../api';
 import { translations } from '../i18n';
 import type {
   ActivitySummaryResponse,
+  AppCategoryMetadata,
   AppUsageSummary,
   KeywordViolation,
   Language,
+  TimeAggregatedReport,
   WebActivityItem,
 } from '../types';
 import { DataTable } from './DataTable';
 import { ResetReportModal } from './ResetReportModal';
 import { ActivityKpiCards } from './activity/ActivityKpiCards';
+import { AppCategoriesCatalogCard } from './activity/AppCategoriesCatalogCard';
 import { AppsTimelineView } from './activity/AppsTimelineView';
 import { CategoryChartCard } from './activity/CategoryChartCard';
+import { TimeAggregatedReportCard } from './activity/TimeAggregatedReportCard';
 import { UnifiedTimelineView } from './activity/UnifiedTimelineView';
 
 interface ActivityTabProps {
@@ -47,7 +52,7 @@ interface ActivityTabProps {
   onShowToast: (msg: string, type?: 'success' | 'error' | 'info') => void;
 }
 
-type ViewSubTab = 'unified' | 'apps' | 'web' | 'keywords';
+type ViewSubTab = 'unified' | 'apps' | 'report' | 'web' | 'keywords';
 
 export const ActivityTab: React.FC<ActivityTabProps> = ({ lang, onRefresh, onShowToast }) => {
   const t = translations[lang];
@@ -61,12 +66,57 @@ export const ActivityTab: React.FC<ActivityTabProps> = ({ lang, onRefresh, onSho
   const [autoRefresh, setAutoRefresh] = useState<boolean>(true);
   const [appViewMode, setAppViewMode] = useState<'grouped' | 'timeline'>('grouped');
   const [showResetModal, setShowResetModal] = useState<boolean>(false);
+  const [appFilterMode, setAppFilterMode] = useState<'user_only' | 'all' | 'system_only'>('user_only');
+  const [selectedPeriod, setSelectedPeriod] = useState<'today' | '7d' | '30d' | 'all'>('today');
+  const [categories, setCategories] = useState<AppCategoryMetadata[]>([]);
+  const [timeReport, setTimeReport] = useState<TimeAggregatedReport | null>(null);
+  const [isSyncing, setIsSyncing] = useState<boolean>(false);
+
+  const fetchCategories = useCallback(async () => {
+    try {
+      const cats = await api.getAppCategories();
+      setCategories(cats);
+    } catch {}
+  }, []);
+
+  const fetchTimeReport = useCallback(async () => {
+    try {
+      const rep = await api.getTimeAggregatedReport({
+        period: selectedPeriod,
+        excludeSystem: appFilterMode === 'user_only',
+      });
+      setTimeReport(rep);
+    } catch {}
+  }, [selectedPeriod, appFilterMode]);
+
+  const handleSyncAppsToServer = async () => {
+    try {
+      setIsSyncing(true);
+      const res = await api.syncAppsToServer();
+      if (res.success) {
+        onShowToast(
+          isVi
+            ? `Đã đồng bộ ${res.apps_synced} ứng dụng lên Cloud Server thành công!`
+            : `Successfully synced ${res.apps_synced} apps to Cloud Server!`,
+          'success'
+        );
+      } else {
+        onShowToast(res.message || 'Lỗi đồng bộ', 'error');
+      }
+    } catch (err: unknown) {
+      onShowToast(String(err), 'error');
+    } finally {
+      setIsSyncing(false);
+    }
+  };
 
   const fetchActivity = useCallback(async () => {
     try {
       setLoading(true);
       const res = await api.getActivitySummary();
       setData(res);
+      fetchCategories();
+      fetchTimeReport();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       onShowToast(
@@ -76,7 +126,11 @@ export const ActivityTab: React.FC<ActivityTabProps> = ({ lang, onRefresh, onSho
     } finally {
       setLoading(false);
     }
-  }, [isVi, onShowToast]);
+  }, [isVi, onShowToast, fetchCategories, fetchTimeReport]);
+
+  useEffect(() => {
+    fetchTimeReport();
+  }, [fetchTimeReport]);
 
   useEffect(() => {
     fetchActivity();
@@ -150,8 +204,15 @@ export const ActivityTab: React.FC<ActivityTabProps> = ({ lang, onRefresh, onSho
       app.category.toLowerCase().includes(searchQuery.toLowerCase());
     const matchCat =
       selectedCategory === 'ALL' ||
-      app.category.toLowerCase().includes(selectedCategory.toLowerCase());
-    return matchSearch && matchCat;
+      app.category.toLowerCase().includes(selectedCategory.toLowerCase()) ||
+      (app.category_id && app.category_id.toLowerCase() === selectedCategory.toLowerCase());
+    const matchSystem =
+      appFilterMode === 'all'
+        ? true
+        : appFilterMode === 'system_only'
+          ? Boolean(app.is_system)
+          : !app.is_system;
+    return matchSearch && matchCat && matchSystem;
   });
 
   const filteredGroupedApps = (data?.grouped_apps || []).filter((app) => {
@@ -161,8 +222,15 @@ export const ActivityTab: React.FC<ActivityTabProps> = ({ lang, onRefresh, onSho
       app.category.toLowerCase().includes(searchQuery.toLowerCase());
     const matchCat =
       selectedCategory === 'ALL' ||
-      app.category.toLowerCase().includes(selectedCategory.toLowerCase());
-    return matchSearch && matchCat;
+      app.category.toLowerCase().includes(selectedCategory.toLowerCase()) ||
+      (app.category_id && app.category_id.toLowerCase() === selectedCategory.toLowerCase());
+    const matchSystem =
+      appFilterMode === 'all'
+        ? true
+        : appFilterMode === 'system_only'
+          ? Boolean(app.is_system)
+          : !app.is_system;
+    return matchSearch && matchCat && matchSystem;
   });
 
   const filteredWeb = (data?.web_activities || []).filter((web) => {
@@ -196,9 +264,23 @@ export const ActivityTab: React.FC<ActivityTabProps> = ({ lang, onRefresh, onSho
           const app = row.original;
           return (
             <div className="flex items-center gap-2.5">
-              <Smartphone size={16} className="text-sky-600 shrink-0" />
+              <Smartphone
+                size={16}
+                className={app.is_system ? 'text-slate-400 shrink-0' : 'text-sky-600 shrink-0'}
+              />
               <div>
-                <div className="font-semibold text-slate-900">{app.app_title}</div>
+                <div className="font-semibold text-slate-900 flex items-center gap-1.5">
+                  <span>{app.app_title}</span>
+                  {app.is_system ? (
+                    <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-100 text-slate-600 font-normal border border-slate-200">
+                      {isVi ? 'Hệ thống' : 'System'}
+                    </span>
+                  ) : (
+                    <span className="text-[10px] px-1.5 py-0.2 rounded bg-sky-50 text-sky-700 font-semibold border border-sky-200">
+                      {isVi ? 'Ứng dụng' : 'User App'}
+                    </span>
+                  )}
+                </div>
                 <div className="text-2xs text-slate-400 font-mono">{app.app_name}</div>
               </div>
             </div>
@@ -490,6 +572,22 @@ export const ActivityTab: React.FC<ActivityTabProps> = ({ lang, onRefresh, onSho
             <span>{t.btn_refresh}</span>
           </button>
 
+          {/* Sync Apps to Server */}
+          <button
+            type="button"
+            onClick={handleSyncAppsToServer}
+            disabled={isSyncing}
+            className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-1.5 rounded-lg text-xs font-semibold shadow-xs cursor-pointer transition-all border-0 disabled:opacity-50"
+            title={
+              isVi
+                ? 'Đồng bộ dữ liệu sử dụng ứng dụng lên máy chủ đám mây'
+                : 'Sync application usage to Cloud Server'
+            }
+          >
+            <CloudUpload size={14} className={isSyncing ? 'animate-bounce' : ''} />
+            <span>{isVi ? 'Đồng bộ Server' : 'Sync Server'}</span>
+          </button>
+
           {/* Export Report */}
           <button
             onClick={handleExport}
@@ -561,6 +659,17 @@ export const ActivityTab: React.FC<ActivityTabProps> = ({ lang, onRefresh, onSho
             </button>
 
             <button
+              onClick={() => setActiveSubTab('report')}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-all ${
+                activeSubTab === 'report'
+                  ? 'bg-white text-slate-900 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <span>{isVi ? 'Báo cáo tổng hợp' : 'Time Analytics'}</span>
+            </button>
+
+            <button
               onClick={() => setActiveSubTab('web')}
               className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-all ${
                 activeSubTab === 'web'
@@ -615,11 +724,14 @@ export const ActivityTab: React.FC<ActivityTabProps> = ({ lang, onRefresh, onSho
               className="bg-white border border-slate-200 text-slate-800 px-3 py-1.5 rounded-lg text-xs outline-none cursor-pointer focus:border-sky-500 shadow-xs"
             >
               <option value="ALL">{t.filter_all_cats}</option>
-              <option value="Trò chơi">🎮 Trò chơi (Gaming)</option>
-              <option value="Giải trí">📺 Giải trí (Entertainment)</option>
-              <option value="Mạng xã hội">💬 Mạng xã hội (Social)</option>
-              <option value="Học tập">📚 Học tập (Education)</option>
-              <option value="Trình duyệt">🌐 Trình duyệt (Browser)</option>
+              <option value="gaming">🎮 Trò chơi (Gaming)</option>
+              <option value="browsers">🌐 Trình duyệt (Browser)</option>
+              <option value="social">💬 Mạng xã hội & Chat (Social)</option>
+              <option value="education_work">📚 Học tập & Làm việc (Education/Work)</option>
+              <option value="development">💻 Lập trình & Kỹ thuật (Development)</option>
+              <option value="entertainment">📺 Giải trí & Media (Entertainment)</option>
+              <option value="utilities">🛠️ Tiện ích & Công cụ (Utilities)</option>
+              <option value="system">⚙️ Hệ thống Windows (System)</option>
             </select>
           </div>
         </div>
@@ -635,13 +747,37 @@ export const ActivityTab: React.FC<ActivityTabProps> = ({ lang, onRefresh, onSho
 
         {/* VIEW 2: APPLICATION USAGE & TIMELINE */}
         {activeSubTab === 'apps' && (
-          <AppsTimelineView
-            appViewMode={appViewMode}
-            setAppViewMode={setAppViewMode}
-            filteredGroupedApps={filteredGroupedApps}
-            filteredApps={filteredApps}
-            appColumns={appColumns}
-            getCategoryIcon={getCategoryIcon}
+          <div className="flex flex-col gap-6">
+            {categories.length > 0 && (
+              <AppCategoriesCatalogCard
+                categories={categories}
+                selectedCategory={selectedCategory}
+                onSelectCategory={(catId) => setSelectedCategory(catId)}
+                lang={lang}
+              />
+            )}
+            <AppsTimelineView
+              appViewMode={appViewMode}
+              setAppViewMode={setAppViewMode}
+              appFilterMode={appFilterMode}
+              setAppFilterMode={setAppFilterMode}
+              filteredGroupedApps={filteredGroupedApps}
+              filteredApps={filteredApps}
+              appColumns={appColumns}
+              getCategoryIcon={getCategoryIcon}
+              lang={lang}
+            />
+          </div>
+        )}
+
+        {/* VIEW 2B: TIME-AGGREGATED REPORT */}
+        {activeSubTab === 'report' && (
+          <TimeAggregatedReportCard
+            report={timeReport}
+            selectedPeriod={selectedPeriod}
+            onSelectPeriod={setSelectedPeriod}
+            onSyncToServer={handleSyncAppsToServer}
+            isSyncing={isSyncing}
             lang={lang}
           />
         )}

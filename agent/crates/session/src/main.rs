@@ -87,6 +87,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     });
 
+    // 3b. Start real-time Active Window Event Hook (SetWinEventHook for EVENT_SYSTEM_FOREGROUND)
+    let _active_window_guard = famshield_session::win_event_hook::start_active_window_hook();
+    let km_for_hook = keyboard_monitor.clone();
+    famshield_session::win_event_hook::on_active_window_changed(move |ev| {
+        if !ev.process_name.is_empty() && ev.process_name != "unknown" {
+            km_for_hook.set_active_app(&ev.process_name);
+        }
+    });
+    info!("Real-time SetWinEventHook active window listener registered.");
+
     // 4. Periodic foreground, idle tracking & IPC heartbeat loop (every 1 second)
     let km_for_tracker = keyboard_monitor.clone();
     tokio::spawn(async move {

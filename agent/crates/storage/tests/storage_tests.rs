@@ -570,3 +570,72 @@ fn test_reset_reports() {
     assert_eq!(storage.get_app_usage_grouped(None, None).unwrap().len(), 0);
     assert_eq!(storage.list_keyword_violations(10).unwrap().len(), 0);
 }
+
+#[test]
+fn test_app_categories_and_rules_seeded_and_classified() {
+    let storage = StorageEngine::in_memory().unwrap();
+
+    // 1. Verify seeded categories exist
+    let categories = storage.list_app_categories().unwrap();
+    assert!(categories.len() >= 8);
+    let gaming_cat = categories.iter().find(|c| c.id == "gaming").unwrap();
+    assert_eq!(gaming_cat.name_en, "Gaming");
+    assert_eq!(gaming_cat.is_system, false);
+    let system_cat = categories.iter().find(|c| c.id == "system").unwrap();
+    assert_eq!(system_cat.is_system, true);
+
+    // 2. Verify seeded classification rules exist
+    let rules = storage.list_app_category_rules().unwrap();
+    assert!(rules.len() >= 20);
+
+    // 3. Test dynamic classification by rules
+    let roblox_rule = storage.classify_app_by_rules("RobloxPlayerBeta.exe").unwrap();
+    assert!(roblox_rule.is_some());
+    let roblox = roblox_rule.unwrap();
+    assert_eq!(roblox.category_id, "gaming");
+    assert_eq!(roblox.is_system, false);
+
+    let svchost_rule = storage.classify_app_by_rules("svchost.exe").unwrap();
+    assert!(svchost_rule.is_some());
+    let svchost = svchost_rule.unwrap();
+    assert_eq!(svchost.category_id, "system");
+    assert_eq!(svchost.is_system, true);
+
+    let chrome_rule = storage.classify_app_by_rules("chrome.exe").unwrap();
+    assert!(chrome_rule.is_some());
+    assert_eq!(chrome_rule.unwrap().category_id, "browsers");
+
+    let discord_rule = storage.classify_app_by_rules("Discord.exe").unwrap();
+    assert!(discord_rule.is_some());
+    assert_eq!(discord_rule.unwrap().category_id, "social");
+
+    // 4. Test upsert custom category and rule
+    let custom_cat = famshield_storage::AppCategoryEntity {
+        id: "ai_tools".to_string(),
+        name_vi: "Công cụ AI".to_string(),
+        name_en: "AI Tools".to_string(),
+        icon: "Bot".to_string(),
+        is_system: false,
+        description_vi: Some("Trợ lý trí tuệ nhân tạo".to_string()),
+        description_en: Some("Artificial Intelligence assistants".to_string()),
+        sort_order: 15,
+    };
+    storage.upsert_app_category(&custom_cat).unwrap();
+
+    let custom_rule = famshield_storage::AppCategoryRuleEntity {
+        rule_id: "rule-ai-chatgpt".to_string(),
+        category_id: "ai_tools".to_string(),
+        pattern: "chatgpt".to_string(),
+        match_type: "contains".to_string(),
+        app_title: "ChatGPT Desktop".to_string(),
+        is_system: false,
+        priority: 95,
+    };
+    storage.upsert_app_category_rule(&custom_rule).unwrap();
+
+    let ai_match = storage.classify_app_by_rules("ChatGPT.exe").unwrap();
+    assert!(ai_match.is_some());
+    let ai = ai_match.unwrap();
+    assert_eq!(ai.category_id, "ai_tools");
+    assert_eq!(ai.app_title, "ChatGPT Desktop");
+}

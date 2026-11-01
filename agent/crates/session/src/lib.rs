@@ -8,6 +8,7 @@ pub mod toast;
 pub mod tracker;
 pub mod tray;
 pub mod uninstaller;
+pub mod win_event_hook;
 
 pub use capture::{BlurMode, SmartVisualVerifier};
 pub use error::SessionError;

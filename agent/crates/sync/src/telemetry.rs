@@ -367,10 +367,41 @@ impl TelemetryPipeline {
     /// Confirm successful receipt by server; purge the sent events from outbox.
     pub fn acknowledge_batch(&self, envelope: &TelemetryEnvelope) -> Result<(), SyncError> {
         let event_ids: Vec<String> = envelope.events.iter().map(|e| e.event_id.clone()).collect();
-        self.storage.dequeue_outbox(&event_ids)?;
+        self.acknowledge_events(envelope, &event_ids)
+    }
+
+    /// Acknowledge only event IDs confirmed by the server and schedule the rest for retry.
+    pub fn acknowledge_events(
+        &self,
+        envelope: &TelemetryEnvelope,
+        accepted_event_ids: &[String],
+    ) -> Result<(), SyncError> {
+        let batch_ids: std::collections::HashSet<&str> =
+            envelope.events.iter().map(|event| event.event_id.as_str()).collect();
+        let accepted: Vec<String> = accepted_event_ids
+            .iter()
+            .filter(|id| batch_ids.contains(id.as_str()))
+            .cloned()
+            .collect();
+        let accepted_set: std::collections::HashSet<&str> =
+            accepted.iter().map(String::as_str).collect();
+        let retry: Vec<String> = envelope
+            .events
+            .iter()
+            .filter(|event| !accepted_set.contains(event.event_id.as_str()))
+            .map(|event| event.event_id.clone())
+            .collect();
+
+        self.storage.dequeue_outbox(&accepted)?;
+        if !retry.is_empty() {
+            self.storage
+                .fail_outbox_events(&retry, Utc::now() + Duration::seconds(30))?;
+        }
         info!(
-            "Acknowledged telemetry batch {} ({} events)",
-            envelope.batch_id, envelope.event_count
+            "Acknowledged telemetry batch {} ({} accepted, {} scheduled for retry)",
+            envelope.batch_id,
+            accepted.len(),
+            retry.len()
         );
         Ok(())
     }

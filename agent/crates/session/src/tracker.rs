@@ -89,7 +89,14 @@ impl ForegroundTracker {
     }
 
     /// Gets the process name of the current active foreground window on Windows.
+    /// Prefers a fresh event cached from `SetWinEventHook`, falling back to Win32 polling.
     pub fn get_foreground_process_name() -> Option<String> {
+        if let Some(cached) = crate::win_event_hook::get_cached_active_window() {
+            if !cached.process_name.is_empty() && cached.process_name != "unknown" {
+                return Some(cached.process_name);
+            }
+        }
+
         #[cfg(windows)]
         {
             unsafe {

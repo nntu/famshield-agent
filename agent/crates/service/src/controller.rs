@@ -641,12 +641,29 @@ impl ServiceController {
             }
         });
 
-        // 8. Periodic Process Monitoring Task (every 5 seconds)
+        // 8. Real-time ETW process monitoring with bounded buffering and snapshot reconciliation.
+        let (etw_tx, mut etw_rx) =
+            tokio::sync::mpsc::channel::<famshield_windows::ProcessLifecycleEvent>(1024);
+        let mut _etw_guard = match famshield_windows::start_etw_process_listener(etw_tx) {
+            Ok(g) => {
+                info!("Kernel ETW real-time process monitoring active.");
+                Some(g)
+            }
+            Err(e) => {
+                warn!("ETW real-time listener uninitialized ({}), continuing with snapshot polling.", e);
+                None
+            }
+        };
+
         let proc_monitor = self.process_monitor.clone();
-        let nats = self.nats_dispatcher.clone();
         let storage = self.storage.clone();
-        let admin_server_proc = self.local_admin_server.clone();
         let telemetry_pipeline = self.telemetry_pipeline.clone();
+        if let Err(e) = proc_monitor.seed_current_snapshot() {
+            warn!(
+                "Could not seed process snapshot; first polling cycle may emit current processes: {}",
+                e
+            );
+        }
         let mut proc_interval = tokio::time::interval(std::time::Duration::from_secs(5));
         let mut err_interval = tokio::time::interval(std::time::Duration::from_secs(15));
 
@@ -657,28 +674,25 @@ impl ServiceController {
             _ = async {
                 loop {
                     tokio::select! {
+                        Some(ev) = etw_rx.recv() => {
+                            queue_process_lifecycle_event(
+                                ev,
+                                &proc_monitor,
+                                &storage,
+                                &telemetry_pipeline,
+                            );
+                        }
                         _ = proc_interval.tick() => {
                             if let Ok(events) = proc_monitor.detect_changes() {
                                 if !events.is_empty() {
-                                    info!("Detected {} process lifecycle changes", events.len());
-                                    for ev in &events {
-                                        if ev.event_type == "process_started" {
-                                            admin_server_proc.set_active_app(&ev.process_name).await;
-                                            check_and_enforce_app_quota(
-                                                &ev.process_name,
-                                                &storage,
-                                                &telemetry_pipeline,
-                                            );
-                                        }
-                                        let _ = telemetry_pipeline.queue_event(&TelemetryEvent::new(
-                                            format!("proc-{}", chrono::Utc::now().timestamp_micros()),
-                                            "process_event",
-                                            chrono::Utc::now(),
-                                            serde_json::to_value(ev).unwrap_or_default(),
-                                        ));
-                                    }
-                                    if let Ok(batch_json) = nats.format_process_events_batch(&events) {
-                                        info!("Queued process telemetry batch for NATS JetStream: {} bytes", batch_json.len());
+                                    info!("Detected {} process lifecycle changes via snapshot reconciliation", events.len());
+                                    for ev in events {
+                                        queue_process_lifecycle_event(
+                                            ev,
+                                            &proc_monitor,
+                                            &storage,
+                                            &telemetry_pipeline,
+                                        );
                                     }
                                 }
                             }
@@ -702,23 +716,31 @@ impl ServiceController {
                             }
                         }
                         _ = err_interval.tick() => {
+                            let dropped = famshield_windows::take_dropped_etw_events();
+                            if dropped > 0 {
+                                warn!("Dropped {} ETW process events because the bounded queue was full", dropped);
+                            }
                             // Check for unsynced error logs and prepare telemetry batch
                             if let Ok(unsynced_errors) = storage.list_unsynced_errors(50) {
                                 if !unsynced_errors.is_empty() {
                                     info!("Found {} unsynced error logs in database", unsynced_errors.len());
                                     for err_rec in &unsynced_errors {
-                                        let _ = telemetry_pipeline.queue_event(&TelemetryEvent::new(
+                                        let event = TelemetryEvent::new(
                                             format!("err-{}", err_rec.error_id),
                                             "error_log",
                                             chrono::Utc::now(),
                                             serde_json::to_value(err_rec).unwrap_or_default(),
-                                        ));
+                                        );
+                                        if let Err(e) = telemetry_pipeline.queue_event(&event) {
+                                            warn!(
+                                                "Could not persist error log {} to telemetry outbox: {}",
+                                                err_rec.error_id,
+                                                e
+                                            );
+                                        }
                                     }
-                                    if let Ok(err_batch) = nats.format_error_logs_batch(&unsynced_errors) {
-                                        info!("Queued error logs telemetry batch for NATS JetStream: {} bytes", err_batch.len());
-                                    }
-                                    let error_ids: Vec<String> = unsynced_errors.into_iter().map(|e| e.error_id).collect();
-                                    let _ = storage.mark_errors_synced(&error_ids);
+                                    // Keep errors unsynced here; the NATS action or CloudSync ACK
+                                    // path is responsible for changing their delivery state.
                                 }
                             }
                         }
@@ -732,6 +754,52 @@ impl ServiceController {
                 let _ = std::fs::write(app_data.join("service_clean_shutdown.flag"), chrono::Utc::now().to_rfc3339());
             }
         }
+    }
+}
+
+fn queue_process_lifecycle_event(
+    event: famshield_windows::ProcessLifecycleEvent,
+    process_monitor: &ProcessMonitor,
+    storage: &StorageEngine,
+    telemetry_pipeline: &Arc<TelemetryPipeline>,
+) {
+    match process_monitor.is_recent_duplicate(&event) {
+        Ok(true) => return,
+        Ok(false) => {}
+        Err(e) => warn!("Could not check process event deduplication state: {}", e),
+    }
+    if event.event_type == "process_started" {
+        check_and_enforce_app_quota(&event.process_name, storage, telemetry_pipeline);
+    }
+
+    let occurred_at = chrono::DateTime::parse_from_rfc3339(&event.occurred_at)
+        .map(|dt| dt.with_timezone(&chrono::Utc))
+        .unwrap_or_else(|_| chrono::Utc::now());
+    let payload = match serde_json::to_value(&event) {
+        Ok(payload) => payload,
+        Err(e) => {
+            warn!("Could not serialize process event {}: {}", event.event_id, e);
+            return;
+        }
+    };
+    let telemetry = TelemetryEvent::new(&event.event_id, "process_event", occurred_at, payload);
+    if let Err(e) = telemetry_pipeline.queue_event(&telemetry) {
+        warn!(
+            "Could not persist process event {} to telemetry outbox: {}",
+            event.event_id,
+            e
+        );
+        if let Err(rollback_error) = process_monitor.rollback_lifecycle_event(&event) {
+            warn!(
+                "Could not restore snapshot after failed event {} persistence: {}",
+                event.event_id,
+                rollback_error
+            );
+        }
+        return;
+    }
+    if let Err(e) = process_monitor.observe_lifecycle_event(&event) {
+        warn!("Could not reconcile process event {} with snapshot: {}", event.event_id, e);
     }
 }
 

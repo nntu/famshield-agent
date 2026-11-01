@@ -65,3 +65,26 @@ fn test_friendly_toast_and_pin_dialog_exports() {
     FriendlyToast::set_silent_mode(false);
     assert!(!FriendlyToast::is_silent_mode());
 }
+
+#[test]
+fn test_win_event_hook_initialization_and_cache() {
+    use famshield_session::win_event_hook::{
+        get_cached_active_window, on_active_window_changed, start_active_window_hook,
+    };
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::Arc;
+
+    let fired = Arc::new(AtomicBool::new(false));
+    let fired_clone = fired.clone();
+    on_active_window_changed(move |_ev| {
+        fired_clone.store(true, Ordering::SeqCst);
+    });
+
+    let guard = start_active_window_hook();
+    let cached = get_cached_active_window();
+    assert!(cached.is_some());
+    let info = cached.unwrap();
+    assert!(!info.process_name.is_empty());
+
+    guard.stop();
+}

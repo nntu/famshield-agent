@@ -5,7 +5,7 @@ use tracing::{error, info, warn};
 
 refinery::embed_migrations!("migrations");
 
-pub const CURRENT_SCHEMA_VERSION: usize = 7;
+pub const CURRENT_SCHEMA_VERSION: usize = 8;
 
 /// Create a zero-copy, lock-free SQLite online backup snapshot before running migrations.
 pub fn create_pre_migration_snapshot(
@@ -108,7 +108,19 @@ mod tests {
         assert!(tables.contains(&"keyword_violations".to_string()));
         assert!(tables.contains(&"parent_2fa_config".to_string()));
         assert!(tables.contains(&"domain_query_aggregates".to_string()));
+        assert!(tables.contains(&"app_categories".to_string()));
+        assert!(tables.contains(&"app_category_rules".to_string()));
         assert!(tables.contains(&"refinery_schema_history".to_string()));
+
+        // Verify seeded app categories and rules exist
+        let cat_count: i64 = conn
+            .query_row("SELECT count(*) FROM app_categories", [], |r| r.get(0))
+            .unwrap();
+        assert!(cat_count >= 8);
+        let rule_count: i64 = conn
+            .query_row("SELECT count(*) FROM app_category_rules", [], |r| r.get(0))
+            .unwrap();
+        assert!(rule_count >= 20);
 
         // Verify performance indexes exist
         let indexes: Vec<String> = conn
@@ -124,6 +136,8 @@ mod tests {
         assert!(indexes.contains(&"idx_visual_evidence_time".to_string()));
         assert!(indexes.contains(&"idx_query_logs_domain_time".to_string()));
         assert!(indexes.contains(&"idx_outbox_schedule".to_string()));
+        assert!(indexes.contains(&"idx_app_category_rules_cat".to_string()));
+        assert!(indexes.contains(&"idx_app_category_rules_priority".to_string()));
     }
 
     #[test]

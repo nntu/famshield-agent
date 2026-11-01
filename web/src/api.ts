@@ -1,5 +1,6 @@
 import type {
   ActivitySummaryResponse,
+  AppCategoryMetadata,
   AppUsageSummary,
   BackupPayload,
   CaptureBlurConfig,
@@ -27,9 +28,11 @@ import type {
   SetDnsConfigResponse,
   SetupStatusResponse,
   StatusResponse,
+  SyncAppsResponse,
   SystemInfo,
   SyncResponse,
   TestConnectionResponse,
+  TimeAggregatedReport,
   TotpSetupResponse,
   TotpStatusResponse,
   SystemSettings,
@@ -471,12 +474,47 @@ export const api = {
     return apiRequest<ActivitySummaryResponse>('/api/activity/summary');
   },
 
-  async getAppUsageSummary(startTime?: string, endTime?: string): Promise<AppUsageSummary[]> {
+  async getAppUsageSummary(
+    startTime?: string,
+    endTime?: string,
+    excludeSystem?: boolean
+  ): Promise<AppUsageSummary[]> {
+    const params = new URLSearchParams();
+    if (startTime) params.append('start_time', startTime);
+    if (endTime) params.append('end_time', endTime);
+    if (excludeSystem !== undefined) params.append('exclude_system', String(excludeSystem));
+    const query = params.toString() ? `?${params.toString()}` : '';
+    return apiRequest<AppUsageSummary[]>(`/api/activity/apps/summary${query}`);
+  },
+
+  async getAppCategories(startTime?: string, endTime?: string): Promise<AppCategoryMetadata[]> {
     const params = new URLSearchParams();
     if (startTime) params.append('start_time', startTime);
     if (endTime) params.append('end_time', endTime);
     const query = params.toString() ? `?${params.toString()}` : '';
-    return apiRequest<AppUsageSummary[]>(`/api/activity/apps/summary${query}`);
+    return apiRequest<AppCategoryMetadata[]>(`/api/activity/apps/categories${query}`);
+  },
+
+  async getTimeAggregatedReport(options?: {
+    period?: string;
+    startTime?: string;
+    endTime?: string;
+    excludeSystem?: boolean;
+  }): Promise<TimeAggregatedReport> {
+    const params = new URLSearchParams();
+    if (options?.period) params.append('period', options.period);
+    if (options?.startTime) params.append('start_time', options.startTime);
+    if (options?.endTime) params.append('end_time', options.endTime);
+    if (options?.excludeSystem !== undefined)
+      params.append('exclude_system', String(options.excludeSystem));
+    const query = params.toString() ? `?${params.toString()}` : '';
+    return apiRequest<TimeAggregatedReport>(`/api/activity/apps/report${query}`);
+  },
+
+  async syncAppsToServer(): Promise<SyncAppsResponse> {
+    return apiRequest<SyncAppsResponse>('/api/activity/apps/sync-to-server', {
+      method: 'POST',
+    });
   },
 
   async getKeywordConfig(): Promise<KeywordConfigResponse> {
