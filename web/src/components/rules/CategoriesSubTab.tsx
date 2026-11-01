@@ -1,5 +1,16 @@
 import type React from 'react';
-import { Search, Globe, XCircle, CheckCircle2, Plus, Layers } from 'lucide-react';
+import {
+  Search,
+  Globe,
+  XCircle,
+  CheckCircle2,
+  Plus,
+  Layers,
+  FileText,
+  ChevronRight,
+  ShieldAlert,
+  ShieldCheck,
+} from 'lucide-react';
 import type { CloudPolicyData, ResolvePolicyResult } from '../../types';
 import { STANDARD_CATEGORIES } from './rulesTypes';
 
@@ -16,6 +27,8 @@ interface CategoriesSubTabProps {
   handleInspectDomain: () => Promise<void>;
   handleAddAllowedDomain: (domain: string) => Promise<void>;
   handleAddBlockedDomain: (domain: string) => Promise<void>;
+  onOpenCategoryDetail: (catId: string) => void;
+  onToggleCategoryBlock: (catId: string, blocked: boolean) => Promise<void>;
 }
 
 export const CategoriesSubTab: React.FC<CategoriesSubTabProps> = ({
@@ -31,6 +44,8 @@ export const CategoriesSubTab: React.FC<CategoriesSubTabProps> = ({
   handleInspectDomain,
   handleAddAllowedDomain,
   handleAddBlockedDomain,
+  onOpenCategoryDetail,
+  onToggleCategoryBlock,
 }) => {
   return (
     <div className="space-y-6">
@@ -232,50 +247,120 @@ export const CategoriesSubTab: React.FC<CategoriesSubTabProps> = ({
                 ? !!cloudPolicy?.block_gaming
                 : false;
 
+            const customCount =
+              cloudPolicy?.category_custom_domains?.[cat.id]?.length || 0;
+            const totalDomains = cat.seeds.length + customCount;
+            const fileCount =
+              cloudPolicy?.category_source_files?.filter(
+                (f) => f.category_id === cat.id
+              ).length || 0;
+
+            const visibleSeeds = cat.seeds.slice(0, 3);
+            const remainingCount = totalDomains - visibleSeeds.length;
+
             return (
               <div
                 key={cat.id}
                 className={`rounded-2xl p-5 border transition flex flex-col justify-between shadow-xs ${
                   isBlocked
-                    ? 'bg-rose-50/50 border-rose-300 ring-2 ring-rose-100'
+                    ? 'bg-rose-50/40 border-rose-300 ring-2 ring-rose-100/80'
                     : 'bg-white border-slate-200/90 hover:border-slate-300'
                 }`}
               >
                 <div>
-                  <div className="flex items-center justify-between mb-3">
+                  {/* Card Header: Icon, Name, and Block Toggle */}
+                  <div className="flex items-start justify-between gap-2 mb-3">
                     <div className="flex items-center gap-2.5">
-                      <span className="text-2xl">{cat.icon}</span>
-                      <span className="font-bold text-xs text-slate-900">
-                        {isVi ? cat.name : cat.nameEn}
+                      <span className="text-2xl p-1.5 rounded-xl bg-slate-50 border border-slate-200/80 shadow-2xs">
+                        {cat.icon}
                       </span>
+                      <div>
+                        <span className="font-bold text-xs text-slate-900 block">
+                          {isVi ? cat.name : cat.nameEn}
+                        </span>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className="text-[11px] font-mono text-slate-500 font-semibold">
+                            {totalDomains.toLocaleString()} {isVi ? 'tên miền' : 'domains'}
+                          </span>
+                          {fileCount > 0 && (
+                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[10px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                              <FileText className="w-2.5 h-2.5" />
+                              <span>{fileCount} {isVi ? 'tệp' : 'files'}</span>
+                            </span>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                    <span
-                      className={`text-2xs font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
-                        isBlocked ? 'bg-rose-600 text-white' : 'bg-slate-200 text-slate-600'
+
+                    {/* Quick Toggle Button */}
+                    <button
+                      type="button"
+                      onClick={() => onToggleCategoryBlock(cat.id, !isBlocked)}
+                      className={`text-2xs font-bold px-2.5 py-1 rounded-full uppercase tracking-wider transition cursor-pointer flex items-center gap-1 ${
+                        isBlocked
+                          ? 'bg-rose-600 hover:bg-rose-700 text-white shadow-xs'
+                          : 'bg-slate-200 hover:bg-slate-300 text-slate-700'
                       }`}
+                      title={isVi ? 'Bật/Tắt chặn danh mục này' : 'Toggle block for this category'}
                     >
-                      {isBlocked ? (isVi ? 'Đang Chặn' : 'Blocked') : (isVi ? 'Cho Phép' : 'Allowed')}
-                    </span>
+                      {isBlocked ? (
+                        <>
+                          <ShieldAlert className="w-3 h-3" />
+                          <span>{isVi ? 'Đang Chặn' : 'Blocked'}</span>
+                        </>
+                      ) : (
+                        <>
+                          <ShieldCheck className="w-3 h-3" />
+                          <span>{isVi ? 'Cho Phép' : 'Allowed'}</span>
+                        </>
+                      )}
+                    </button>
                   </div>
-                  <p className="text-xs text-slate-500 mb-3 leading-relaxed">
+
+                  <p className="text-xs text-slate-500 mb-4 leading-relaxed line-clamp-2">
                     {isVi ? cat.desc : cat.descEn}
                   </p>
                 </div>
 
-                <div>
-                  <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                    {isVi ? 'Mẫu tên miền đại diện:' : 'Sample domain seeds:'}
+                <div className="space-y-3 pt-2 border-t border-slate-100">
+                  {/* Representative Sample Pills (Clean summary, max 3 items to avoid DOM overload) */}
+                  <div>
+                    <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+                      {isVi ? 'Mẫu tên miền tiêu biểu:' : 'Sample domains:'}
+                    </div>
+                    <div className="flex flex-wrap items-center gap-1">
+                      {visibleSeeds.map((s) => (
+                        <span
+                          key={s}
+                          className="text-[10px] font-mono bg-white/90 border border-slate-200 px-1.5 py-0.5 rounded text-slate-600 shadow-2xs"
+                        >
+                          {s}
+                        </span>
+                      ))}
+                      {remainingCount > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => onOpenCategoryDetail(cat.id)}
+                          className="text-[10px] font-medium text-sky-600 hover:text-sky-800 bg-sky-50 hover:bg-sky-100 border border-sky-200/80 px-1.5 py-0.5 rounded transition cursor-pointer"
+                        >
+                          +{remainingCount.toLocaleString()} {isVi ? 'khác...' : 'more...'}
+                        </button>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex flex-wrap gap-1">
-                    {cat.seeds.map((s) => (
-                      <span
-                        key={s}
-                        className="text-[10px] font-mono bg-white/90 border border-slate-200 px-1.5 py-0.5 rounded text-slate-600 shadow-2xs"
-                      >
-                        {s}
-                      </span>
-                    ))}
-                  </div>
+
+                  {/* Primary Action: View Details & Manage Files */}
+                  <button
+                    type="button"
+                    onClick={() => onOpenCategoryDetail(cat.id)}
+                    className="w-full inline-flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold bg-sky-50/70 hover:bg-sky-100 text-sky-700 border border-sky-200 transition cursor-pointer group shadow-2xs"
+                  >
+                    <span className="flex items-center gap-1.5">
+                      <FileText className="w-3.5 h-3.5 text-sky-600" />
+                      <span>{isVi ? 'Chi Tiết & Quản Lý Tệp' : 'Details & File Management'}</span>
+                    </span>
+                    <ChevronRight className="w-3.5 h-3.5 text-sky-500 group-hover:translate-x-0.5 transition-transform" />
+                  </button>
                 </div>
               </div>
             );

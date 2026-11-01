@@ -335,7 +335,72 @@ pub(crate) async fn handle_get_cloud_policy(
         "youtube_restricted": false,
         "paused_until": paused_until,
         "custom_blocked_domains": [],
-        "custom_allowed_domains": []
+        "custom_allowed_domains": [],
+        "category_custom_domains": {},
+        "category_source_files": []
+    })))
+}
+
+pub(crate) async fn handle_update_cloud_policy(
+    State(state): State<ServerState>,
+    headers: HeaderMap,
+    Query(query): Query<QueryParams>,
+    Json(payload): Json<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    if !check_auth(&state, &headers, query.token.as_deref()).await {
+        return Err((
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({ "error": "Unauthorized" })),
+        ));
+    }
+
+    let mut current_policy = if let Ok(Some(cached)) = state.service.storage().get_meta("cached_cloud_policy") {
+        serde_json::from_str::<serde_json::Value>(&cached).unwrap_or_else(|_| serde_json::json!({}))
+    } else {
+        serde_json::json!({
+            "version": 1,
+            "block_adult": false,
+            "block_gambling": false,
+            "block_violence": false,
+            "block_social": false,
+            "block_gaming": false,
+            "safesearch_enabled": false,
+            "youtube_restricted": false,
+            "custom_blocked_domains": [],
+            "custom_allowed_domains": [],
+            "category_custom_domains": {},
+            "category_source_files": []
+        })
+    };
+
+    if let (Some(curr_obj), Some(patch_obj)) = (current_policy.as_object_mut(), payload.as_object()) {
+        for (k, v) in patch_obj {
+            curr_obj.insert(k.clone(), v.clone());
+        }
+        curr_obj.insert(
+            "updated_at".to_string(),
+            serde_json::json!(chrono::Utc::now().to_rfc3339()),
+        );
+    }
+
+    let serialized = current_policy.to_string();
+    if let Err(e) = state.service.storage().set_meta("cached_cloud_policy", &serialized) {
+        warn!("Failed to persist updated cloud policy: {}", e);
+        return Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({ "error": format!("Lỗi lưu chính sách lọc: {}", e) })),
+        ));
+    }
+
+    // Refresh active DNS sinkhole blocklist with newly added/updated category domains
+    sync_dns_blocklist(&state);
+
+    info!("Cloud and category filter policy successfully updated via local admin");
+
+    Ok(Json(serde_json::json!({
+        "success": true,
+        "policy": current_policy,
+        "message": "Đã lưu và áp dụng chính sách lọc theo danh mục thành công"
     })))
 }
 

@@ -13,6 +13,12 @@ Tất cả các thay đổi quan trọng của dự án **FamShield Windows Agen
 ## [Unreleased]
 
 ### Added
+- **Quản Lý Danh Mục Web Chuyên Sâu & Khắc Phục Triệt Để Treo Giao Diện (Anti-Freeze Paginated Catalog & Source File Management)**:
+  - Loại bỏ hoàn toàn việc render hàng nghìn thẻ tag `<span>` trực tiếp trong card danh mục gây tràn bộ nhớ DOM và đơ/treo trình duyệt web (freeze UI).
+  - Triển khai màn hình chi tiết chuyên dụng **`CategoryDetailModal`**: Bảng dữ liệu tên miền phân trang hiệu năng cao (10 / 25 / 50 / 100 dòng mỗi trang), hỗ trợ tìm kiếm tức thì theo từ khóa, đảm bảo giao diện luôn mượt mà 60 FPS ngay cả khi danh mục chứa hơn 50.000 tên miền.
+  - Tích hợp công cụ **Nạp Tệp Danh Sách Chặn (Source File Import)**: Tự động phân tích các tệp văn bản `.txt`, `.list`, `.csv`, `.hosts`; hỗ trợ cú pháp hosts (`0.0.0.0 domain`) và Adblock (`||domain^`), tự động loại trừ dòng comment `#`, chuẩn hóa domain và loại trừ trùng lặp; lưu trữ siêu dữ liệu tệp nguồn (`CategorySourceFile`).
+  - Tích hợp công cụ **Xuất Tệp Văn Bản (.txt)**: Cho phép sao lưu và trích xuất danh sách tên miền của từng danh mục về máy tính.
+  - Bổ sung endpoint `POST /api/policy/cloud` tại Local Admin Server: Lưu trữ chính sách lọc danh mục vào SQLite metadata và kích hoạt `sync_dns_blocklist` nạp nóng vào bộ lọc DNS Sinkhole của máy trạm mà không làm gián đoạn mạng.
 - **Giám Sát Vòng Đời Tiến Trình Qua Kernel ETW (`ferrisetw`)**: Tích hợp provider `Microsoft-Windows-Kernel-Process` với hàng đợi bounded; event ETW được đối chiếu với snapshot polling để tránh phát telemetry trùng. Snapshot polling vẫn là fallback và cơ chế rà quota định kỳ.
 - **Theo Dõi Cửa Sổ Tương Tác Qua `SetWinEventHook`**: Cache foreground event-driven được dùng khi còn mới; cache hết hạn sau 10 giây để tracker đọc lại foreground bằng Win32. Vòng polling một giây vẫn phục vụ đo idle và fallback.
 - **Lưu Trữ & Khởi Tạo Danh Mục / Quy Tắc Phân Loại Trong SQLite (Database Seeding Migration V8)**: Loại bỏ hoàn toàn việc hardcode danh mục và quy tắc phân loại trong mã nguồn; thiết lập migration `V8__app_categories.sql` tạo 2 bảng `app_categories` và `app_category_rules`, tự động seed 8+ danh mục tiêu chuẩn và hơn 40 quy tắc phân loại tiến trình (ưu tiên xử lý từ cao xuống thấp). Nâng cấp `StorageEngine` và `LocalAdminService` truy vấn động và phân loại tiến trình linh hoạt từ cơ sở dữ liệu SQLite cục bộ.

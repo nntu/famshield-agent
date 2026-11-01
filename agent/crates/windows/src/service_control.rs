@@ -4,7 +4,9 @@
 //! Windows Service via the Service Control Manager (SCM).
 
 use crate::error::WindowsError;
-use tracing::{info, warn};
+use tracing::info;
+#[cfg(windows)]
+use tracing::warn;
 
 #[cfg(windows)]
 use windows::{

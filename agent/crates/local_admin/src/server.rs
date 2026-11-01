@@ -150,7 +150,10 @@ impl LocalAdminServer {
                 "/api/rules/pull-from-cloud",
                 post(handle_pull_rules_from_cloud),
             )
-            .route("/api/policy/cloud", get(handle_get_cloud_policy))
+            .route(
+                "/api/policy/cloud",
+                get(handle_get_cloud_policy).post(handle_update_cloud_policy),
+            )
             .route("/api/filter/pause", post(handle_filter_pause))
             .route("/api/filter/unpause", post(handle_filter_unpause))
             .route("/api/filter/inspect", post(handle_filter_inspect))
@@ -387,6 +390,57 @@ pub(crate) async fn check_auth(
     false
 }
 
+const DEFAULT_ADULT_SEEDS: &[&str] = &[
+    "pornhub.com",
+    "xvideos.com",
+    "xnxx.com",
+    "redtube.com",
+    "onlyfans.com",
+    "chaturbate.com",
+    "stripchat.com",
+    "livejasmin.com",
+    "spankbang.com",
+];
+
+const DEFAULT_GAMBLING_SEEDS: &[&str] = &[
+    "bet365.com",
+    "1xbet.com",
+    "w88.com",
+    "fun88.com",
+    "m88.com",
+    "fb88.com",
+    "dafabet.com",
+    "pokerstars.com",
+    "stake.com",
+];
+
+const DEFAULT_VIOLENCE_SEEDS: &[&str] = &[
+    "bestgore.com",
+    "crazyshit.com",
+    "liveleak.com",
+    "kaotic.com",
+    "theync.com",
+];
+
+const DEFAULT_SOCIAL_SEEDS: &[&str] = &[
+    "tiktok.com",
+    "facebook.com",
+    "instagram.com",
+    "twitter.com",
+    "x.com",
+    "reddit.com",
+    "snapchat.com",
+];
+
+const DEFAULT_GAMING_SEEDS: &[&str] = &[
+    "roblox.com",
+    "steampowered.com",
+    "steamcommunity.com",
+    "riotgames.com",
+    "epicgames.com",
+    "garena.vn",
+];
+
 pub(crate) fn sync_dns_blocklist(state: &ServerState) {
     if let Some(blocklist) = &state.dns_blocklist {
         blocklist.set_monitor_mode(state.service.is_monitor_mode());
@@ -447,6 +501,33 @@ pub(crate) fn sync_dns_blocklist(state: &ServerState) {
                     .get("block_gaming")
                     .and_then(|v| v.as_bool())
                     .unwrap_or(false);
+
+                // Include standard system seeds when category is blocked
+                if block_adult {
+                    for d in DEFAULT_ADULT_SEEDS {
+                        general_domains.push(d.to_string());
+                    }
+                }
+                if block_gambling {
+                    for d in DEFAULT_GAMBLING_SEEDS {
+                        general_domains.push(d.to_string());
+                    }
+                }
+                if block_violence {
+                    for d in DEFAULT_VIOLENCE_SEEDS {
+                        general_domains.push(d.to_string());
+                    }
+                }
+                if block_social {
+                    for d in DEFAULT_SOCIAL_SEEDS {
+                        general_domains.push(d.to_string());
+                    }
+                }
+                if block_gaming {
+                    for d in DEFAULT_GAMING_SEEDS {
+                        general_domains.push(d.to_string());
+                    }
+                }
 
                 // Category custom domains
                 if let Some(cat_map) = cloud_policy

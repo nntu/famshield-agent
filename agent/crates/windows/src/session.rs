@@ -1,4 +1,5 @@
 use crate::error::WindowsError;
+#[cfg(windows)]
 use crate::process_monitor::ProcessMonitor;
 use std::path::PathBuf;
 use tracing::{info, warn};

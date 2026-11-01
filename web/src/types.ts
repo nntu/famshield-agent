@@ -54,6 +54,15 @@ export interface LocalRuleRecord {
   source?: 'local' | 'cloud';
 }
 
+export interface CategorySourceFile {
+  id: string;
+  category_id: string;
+  file_name: string;
+  uploaded_at: string;
+  domain_count: number;
+  size_bytes?: number;
+}
+
 export interface CloudPolicyData {
   version: number;
   block_adult: boolean;
@@ -68,6 +77,7 @@ export interface CloudPolicyData {
   custom_blocked_domains?: string[];
   custom_allowed_domains?: string[];
   category_custom_domains?: Record<string, string[]>;
+  category_source_files?: CategorySourceFile[];
   custom_categories?: any[];
   updated_at?: string;
 }

@@ -24,6 +24,7 @@ import type {
 } from './rules/rulesTypes';
 import { STANDARD_CATEGORIES } from './rules/rulesTypes';
 import { CategoriesSubTab } from './rules/CategoriesSubTab';
+import { CategoryDetailModal } from './rules/CategoryDetailModal';
 import { CloudPolicyBanner } from './rules/CloudPolicyBanner';
 import { ExcelImportModal } from './rules/ExcelImportModal';
 import { KeywordsSubTab } from './rules/KeywordsSubTab';
@@ -96,6 +97,9 @@ export const RulesTab: React.FC<RulesTabProps> = ({ rules, lang, onRefresh, onSh
   const [previewRules, setPreviewRules] = useState<ParsedImportRule[]>([]);
   const [importFileName, setImportFileName] = useState('');
   const [isImporting, setIsImporting] = useState(false);
+
+  // Category Detail Modal State
+  const [selectedCategoryModal, setSelectedCategoryModal] = useState<string | null>(null);
 
   // Timer for auto-resume countdown
   useEffect(() => {
@@ -607,6 +611,76 @@ export const RulesTab: React.FC<RulesTabProps> = ({ rules, lang, onRefresh, onSh
     }
   };
 
+  // Toggle standard category blocking
+  const handleToggleCategoryBlock = async (catId: string, blocked: boolean) => {
+    try {
+      const patch: Partial<CloudPolicyData> = {};
+      if (catId === 'adult') patch.block_adult = blocked;
+      else if (catId === 'gambling') patch.block_gambling = blocked;
+      else if (catId === 'violence') patch.block_violence = blocked;
+      else if (catId === 'social') patch.block_social = blocked;
+      else if (catId === 'gaming') patch.block_gaming = blocked;
+
+      const res = await api.updateCloudPolicy(patch);
+      if (res?.policy) {
+        setCloudPolicy(res.policy);
+      } else if (cloudPolicy) {
+        setCloudPolicy({ ...cloudPolicy, ...patch });
+      }
+
+      const catObj = STANDARD_CATEGORIES.find((c) => c.id === catId);
+      const catName = catObj ? (isVi ? catObj.name : catObj.nameEn) : catId;
+      onShowToast(
+        blocked
+          ? (isVi ? `Đã bật chặn danh mục: "${catName}"` : `Activated blocking for "${catName}"`)
+          : (isVi ? `Đã cho phép truy cập danh mục: "${catName}"` : `Allowed access for "${catName}"`),
+        blocked ? 'info' : 'success'
+      );
+    } catch {
+      onShowToast(isVi ? 'Không thể cập nhật trạng thái danh mục' : 'Failed to update category state', 'error');
+    }
+  };
+
+  // Update category custom domains & source files
+  const handleUpdateCategoryDomains = async (
+    catId: string,
+    customDomains: string[],
+    newFile?: import('../types').CategorySourceFile,
+    removedFileId?: string
+  ) => {
+    try {
+      const existingCustom = cloudPolicy?.category_custom_domains || {};
+      const updatedCustom = { ...existingCustom, [catId]: customDomains };
+
+      let updatedFiles = cloudPolicy?.category_source_files ? [...cloudPolicy.category_source_files] : [];
+      if (newFile) {
+        updatedFiles.push(newFile);
+      }
+      if (removedFileId) {
+        updatedFiles = updatedFiles.filter((f) => f.id !== removedFileId);
+      }
+
+      const patch: Partial<CloudPolicyData> = {
+        category_custom_domains: updatedCustom,
+        category_source_files: updatedFiles,
+      };
+
+      const res = await api.updateCloudPolicy(patch);
+      if (res?.policy) {
+        setCloudPolicy(res.policy);
+      } else if (cloudPolicy) {
+        setCloudPolicy({
+          ...cloudPolicy,
+          category_custom_domains: updatedCustom,
+          category_source_files: updatedFiles,
+        });
+      }
+    } catch (e) {
+      onShowToast(isVi ? 'Lỗi khi lưu danh sách tên miền của danh mục' : 'Failed to save category domains', 'error');
+      throw e;
+    }
+  };
+
   // Excel Template Download
   const handleDownloadTemplate = async () => {
     try {
@@ -824,6 +898,8 @@ export const RulesTab: React.FC<RulesTabProps> = ({ rules, lang, onRefresh, onSh
           handleInspectDomain={handleInspectDomain}
           handleAddAllowedDomain={handleAddAllowedDomain}
           handleAddBlockedDomain={handleAddBlockedDomain}
+          onOpenCategoryDetail={(catId) => setSelectedCategoryModal(catId)}
+          onToggleCategoryBlock={handleToggleCategoryBlock}
         />
       )}
 
@@ -906,6 +982,38 @@ export const RulesTab: React.FC<RulesTabProps> = ({ rules, lang, onRefresh, onSh
         onConfirmImport={handleConfirmImport}
         isVi={isVi}
       />
+
+      {/* CATEGORY DRILLDOWN & HIGH-PERFORMANCE FILE/DOMAIN MANAGEMENT MODAL */}
+      {selectedCategoryModal && (() => {
+        const catObj = STANDARD_CATEGORIES.find((c) => c.id === selectedCategoryModal);
+        if (!catObj) return null;
+        const isBlocked =
+          catObj.id === 'adult' ? !!cloudPolicy?.block_adult :
+          catObj.id === 'gambling' ? !!cloudPolicy?.block_gambling :
+          catObj.id === 'violence' ? !!cloudPolicy?.block_violence :
+          catObj.id === 'social' ? !!cloudPolicy?.block_social :
+          catObj.id === 'gaming' ? !!cloudPolicy?.block_gaming : false;
+
+        return (
+          <CategoryDetailModal
+            isOpen={true}
+            onClose={() => setSelectedCategoryModal(null)}
+            categoryId={catObj.id}
+            categoryName={catObj.name}
+            categoryNameEn={catObj.nameEn}
+            categoryIcon={catObj.icon}
+            categoryDesc={catObj.desc}
+            categoryDescEn={catObj.descEn}
+            systemSeeds={catObj.seeds}
+            isBlocked={isBlocked}
+            onToggleBlock={handleToggleCategoryBlock}
+            cloudPolicy={cloudPolicy}
+            onUpdateCategoryDomains={handleUpdateCategoryDomains}
+            isVi={isVi}
+            onShowToast={onShowToast}
+          />
+        );
+      })()}
     </div>
   );
 };

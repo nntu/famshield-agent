@@ -222,6 +222,19 @@ export const api = {
     }
   },
 
+  async updateCloudPolicy(
+    patch: Partial<CloudPolicyData>
+  ): Promise<{ success: boolean; policy: CloudPolicyData; message?: string }> {
+    return apiRequest<{ success: boolean; policy: CloudPolicyData; message?: string }>(
+      '/api/policy/cloud',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(patch),
+      }
+    );
+  },
+
   async pauseFilter(seconds: number): Promise<{ success: boolean; paused_until: number }> {
     return apiRequest<{ success: boolean; paused_until: number }>('/api/filter/pause', {
       method: 'POST',

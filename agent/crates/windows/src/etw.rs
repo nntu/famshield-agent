@@ -1,6 +1,8 @@
 use crate::error::WindowsError;
 use std::sync::atomic::{AtomicU64, Ordering};
-use tracing::{info, warn};
+#[cfg(windows)]
+use tracing::warn;
+use tracing::info;
 
 static DROPPED_ETW_EVENTS: AtomicU64 = AtomicU64::new(0);
 
@@ -30,6 +32,7 @@ use windows::Win32::System::Diagnostics::Etw::{
 };
 
 /// Provider GUID for `Microsoft-Windows-Kernel-Process`: {22fb2cd6-0e7b-422b-a0c7-2fad1fd0e716}
+#[cfg(windows)]
 pub const KERNEL_PROCESS_PROVIDER_GUID: windows::core::GUID =
     windows::core::GUID::from_u128(0x22fb2cd6_0e7b_422b_a0c7_2fad1fd0e716);
 

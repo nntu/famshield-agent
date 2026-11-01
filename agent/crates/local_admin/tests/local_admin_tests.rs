@@ -1893,3 +1893,104 @@ async fn test_restart_service_endpoint() {
     let json: Value = serde_json::from_slice(&bytes).unwrap();
     assert_eq!(json["success"], true);
 }
+
+#[tokio::test]
+async fn test_cloud_policy_and_category_domains_api() {
+    use axum::body::Body;
+    use axum::http::{Request, StatusCode};
+    use famshield_dns::blocklist::BlocklistStore;
+    use famshield_local_admin::LocalAdminServer;
+    use http_body_util::BodyExt;
+    use serde_json::Value;
+    use std::sync::Arc;
+    use tower::ServiceExt;
+
+    let storage = StorageEngine::in_memory().unwrap();
+    let service = Arc::new(LocalAdminService::new(storage.clone()));
+    let dns_blocklist = Arc::new(BlocklistStore::new());
+    let server = LocalAdminServer::new(service.clone(), Some(dns_blocklist.clone()));
+    let token = server.create_session_token().await;
+
+    // 1. Initial GET /api/policy/cloud
+    let res = server
+        .router()
+        .oneshot(
+            Request::builder()
+                .uri("/api/policy/cloud")
+                .header("X-FamShield-Token", &token)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    let bytes = res.into_body().collect().await.unwrap().to_bytes();
+    let json: Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(json["version"], 1);
+    assert_eq!(json["block_adult"], false);
+
+    // 2. POST /api/policy/cloud to enable block_adult and add category custom domains and file metadata
+    let payload = serde_json::json!({
+        "block_adult": true,
+        "category_custom_domains": {
+            "adult": ["custom-xxx-site.com", "nsfw-hub.net"]
+        },
+        "category_source_files": [
+            {
+                "id": "file_123",
+                "category_id": "adult",
+                "file_name": "adult-blocklist.txt",
+                "uploaded_at": "2026-11-01T12:00:00Z",
+                "domain_count": 2,
+                "size_bytes": 1024
+            }
+        ]
+    });
+
+    let res = server
+        .router()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/policy/cloud")
+                .header("X-FamShield-Token", &token)
+                .header("Content-Type", "application/json")
+                .body(Body::from(payload.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    let bytes = res.into_body().collect().await.unwrap().to_bytes();
+    let json: Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(json["success"], true);
+    assert_eq!(json["policy"]["block_adult"], true);
+
+    // Verify DNS blocklist was automatically updated in memory
+    assert!(dns_blocklist.is_blocked("custom-xxx-site.com"));
+    assert!(dns_blocklist.is_blocked("nsfw-hub.net"));
+    // System seeds should also be blocked because block_adult is true
+    assert!(dns_blocklist.is_blocked("pornhub.com"));
+
+    // 3. Verify GET /api/policy/cloud returns persisted state
+    let res = server
+        .router()
+        .oneshot(
+            Request::builder()
+                .uri("/api/policy/cloud")
+                .header("X-FamShield-Token", &token)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    let bytes = res.into_body().collect().await.unwrap().to_bytes();
+    let json: Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(json["block_adult"], true);
+    assert_eq!(
+        json["category_custom_domains"]["adult"][0],
+        "custom-xxx-site.com"
+    );
+    assert_eq!(json["category_source_files"][0]["file_name"], "adult-blocklist.txt");
+}
