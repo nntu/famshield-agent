@@ -34,6 +34,12 @@ Tất cả các thay đổi quan trọng của dự án **FamShield Windows Agen
 - **Tối Ưu Báo Cáo Hoạt Động**: Tách điều kiện lọc thời gian để tận dụng index, gom usage theo giờ ngay trong SQLite, tái sử dụng app summary khi tạo category breakdown và chuẩn hóa timestamp RFC3339.
 - **Tinh Gọn Quy Trình Đóng Gói Installer & Build Script**: Loại bỏ việc copy đệ quy thư mục `web/dist` vào `Program Files` và `ProgramData` trong `build.ps1` và `installer/FamShield.iss`, biến installer thành gói triển khai tối giản và an toàn tuyệt đối trước can thiệp trái phép.
 
+### Fixed
+- **Tự Động Nạp Môi Trường Visual Studio C++ & Ngăn Ngừa Xung Đột Linker**: Thêm cơ chế `Ensure-MsvcEnvironment` trong `build.ps1` và `test.ps1`, tự động phát hiện bộ công cụ MSVC (Visual Studio Build Tools / Professional / Community) và cấu hình biến môi trường `INCLUDE`, `LIB`, `PATH`. Đưa binary MSVC `link.exe` lên đầu `PATH` để loại trừ hoàn toàn xung đột với GNU `link.exe` từ MSYS2.
+- **Sửa Lỗi Mã Nguồn & Cảnh Báo Trực Thuộc `famshield-local-admin`**: Khắc phục lỗi thiếu trait `sha2::Digest` trong module `keywords.rs`, sửa phạm vi hiển thị `pub(crate)` cho struct `InspectDomainPayload`, loại bỏ toàn bộ cảnh báo `unused imports` và điều chỉnh `pub(crate) use` cho submodules.
+- **Cải Thiện Kiểm Thử Foreground Hook & ETW Listener**: Khởi tạo ngay cache cho `win_event_hook` qua `GetForegroundWindow()` khi bắt đầu theo dõi cửa sổ; bổ sung cơ chế fallback luồng sự kiện an toàn cho `start_etw_process_listener` khi chạy trong môi trường test không có đặc quyền quản trị viên.
+- **Đáp Ứng Cổng Chất Lượng Mã Nguồn Tuyệt Đối (0 Errors, 0 Warnings Clippy)**: Đơn giản hóa các biểu thức `assert!` so sánh boolean trong test suites, rút gọn định nghĩa type complexity cho process monitor và win event hook.
+
 ---
 
 ## [1.0.5] - 2026-10-31

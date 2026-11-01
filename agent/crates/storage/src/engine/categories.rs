@@ -85,7 +85,10 @@ impl StorageEngine {
         Ok(())
     }
 
-    pub fn upsert_app_category_rule(&self, rule: &AppCategoryRuleEntity) -> Result<(), StorageError> {
+    pub fn upsert_app_category_rule(
+        &self,
+        rule: &AppCategoryRuleEntity,
+    ) -> Result<(), StorageError> {
         let conn = self.conn.lock().unwrap();
         conn.execute(
             "INSERT INTO app_category_rules (rule_id, category_id, pattern, match_type, app_title, is_system, priority)
@@ -133,4 +136,3 @@ impl StorageEngine {
         Ok(None)
     }
 }
-

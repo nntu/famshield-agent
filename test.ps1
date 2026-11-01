@@ -50,6 +50,12 @@ param (
     [Parameter(ParameterSetName = "All")]
     [switch]$All,
 
+    [Parameter(ParameterSetName = "Clippy")]
+    [switch]$Clippy,
+
+    [Parameter(ParameterSetName = "Check")]
+    [switch]$Check,
+
     [Parameter()]
     [ValidateSet("auto", "nextest", "cargo")]
     [string]$Engine = "auto"
@@ -57,6 +63,69 @@ param (
 
 $ErrorActionPreference = "Stop"
 $ProjectRoot = $PSScriptRoot
+
+function Ensure-MsvcEnvironment {
+    if ($env:LIB -and (Get-Command link.exe -ErrorAction SilentlyContinue | Where-Object { $_.Source -like "*MSVC*" })) {
+        return
+    }
+
+    $candidates = @(
+        "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvars64.bat",
+        "C:\Program Files\Microsoft Visual Studio\2022\Professional\VC\Auxiliary\Build\vcvars64.bat",
+        "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat",
+        "C:\Program Files\Microsoft Visual Studio\18\Professional\VC\Auxiliary\Build\vcvars64.bat"
+    )
+
+    $vcvars = $null
+    foreach ($cand in $candidates) {
+        if (Test-Path $cand) {
+            $vcvars = $cand
+            break
+        }
+    }
+
+    if (-not $vcvars) {
+        $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+        if (-not (Test-Path $vswhere)) {
+            $vswhere = "${env:ProgramFiles}\Microsoft Visual Studio\Installer\vswhere.exe"
+        }
+        if (Test-Path $vswhere) {
+            $installPath = (& $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath 2>$null)
+            if ($installPath) {
+                $installPath = $installPath.Trim()
+                $checkBat = Join-Path $installPath "VC\Auxiliary\Build\vcvars64.bat"
+                if (Test-Path $checkBat) {
+                    $vcvars = $checkBat
+                }
+            }
+        }
+    }
+
+    if ($vcvars -and (Test-Path $vcvars)) {
+        Write-Host "==> Initializing MSVC Environment from $vcvars..." -ForegroundColor DarkCyan
+        $tempFile = [System.IO.Path]::GetTempFileName() + ".cmd"
+        Set-Content -Path $tempFile -Value "@echo off`ncall `"$vcvars`" >nul`nset"
+        $envLines = & cmd.exe /c $tempFile
+        Remove-Item -Path $tempFile -Force -ErrorAction SilentlyContinue
+
+        foreach ($line in $envLines) {
+            if ($line -match '^([^=]+)=(.*)$') {
+                $k = $matches[1]
+                $v = $matches[2]
+                [System.Environment]::SetEnvironmentVariable($k, $v, [System.EnvironmentVariableTarget]::Process)
+            }
+        }
+    }
+
+    if ($env:VCToolsInstallDir) {
+        $msvcHostBin = Join-Path $env:VCToolsInstallDir "bin\HostX64\x64"
+        if (Test-Path $msvcHostBin) {
+            $env:PATH = "$msvcHostBin;$env:PATH"
+        }
+    }
+}
+
+Ensure-MsvcEnvironment
 
 # Bản đồ tên rút gọn sang tên đầy đủ của Crate
 $CrateMap = @{
@@ -151,6 +220,18 @@ Write-Host "  Engine: $engineLabel" -ForegroundColor Yellow
 Write-Host "=================================================================" -ForegroundColor Cyan
 
 $startTime = [System.Diagnostics.Stopwatch]::StartNew()
+
+if ($Check.IsPresent) {
+    Write-Host "==> Che do: CARGO CHECK (Workspace + All targets)" -ForegroundColor Magenta
+    & cargo check --workspace --all-targets
+    exit $LASTEXITCODE
+}
+
+if ($Clippy.IsPresent) {
+    Write-Host "==> Che do: CARGO CLIPPY (-D warnings)" -ForegroundColor Magenta
+    & cargo clippy --workspace --all-targets -- -D warnings
+    exit $LASTEXITCODE
+}
 
 # 2. Xác định phạm vi kiểm thử (Scope)
 $cratesToTest = @()

@@ -33,7 +33,6 @@ impl StorageEngine {
         Ok(())
     }
 
-
     // Parent 2FA TOTP & Backup Codes
     pub fn get_parent_totp_config(&self) -> Result<Option<ParentTotpConfigRecord>, StorageError> {
         let conn = self.conn.lock().unwrap();
@@ -171,5 +170,4 @@ impl StorageEngine {
 
         Ok(stats)
     }
-
 }

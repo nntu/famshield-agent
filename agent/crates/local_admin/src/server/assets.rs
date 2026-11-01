@@ -1,10 +1,10 @@
+use crate::ui::LOCAL_DASHBOARD_HTML;
 use axum::{
     extract::Path,
     http::{header, StatusCode},
     response::{Html, IntoResponse, Response},
 };
 use rust_embed::RustEmbed;
-use crate::ui::LOCAL_DASHBOARD_HTML;
 
 #[derive(RustEmbed)]
 #[folder = "../../../web/dist/"]
@@ -60,4 +60,3 @@ pub(crate) async fn handle_fallback(uri: axum::http::Uri) -> impl IntoResponse {
     // Fallback to index.html for SPA client-side routing
     handle_index().await.into_response()
 }
-

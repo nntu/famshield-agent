@@ -2,28 +2,25 @@ pub mod assets;
 pub mod handlers;
 pub mod types;
 
-pub use assets::*;
-pub use handlers::*;
+pub(crate) use assets::*;
+pub(crate) use handlers::*;
 pub use types::*;
 
 use axum::{
-    extract::{Path, Query, State},
-    http::{header, HeaderMap, StatusCode},
-    response::{Html, IntoResponse, Response},
+    http::{header, HeaderMap},
     routing::{delete, get, post},
-    Json, Router,
+    Router,
 };
 use chrono::{DateTime, Duration, Utc};
 use rand::RngCore;
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::{broadcast, Mutex};
 use tracing::{info, warn};
 
+use crate::service::LocalAdminService;
 use famshield_dns::blocklist::BlocklistStore;
 use famshield_storage::UsageSegmentRecord;
-use crate::service::LocalAdminService;
 
 pub type TempAuthTokensMap = Arc<Mutex<HashMap<String, (DateTime<Utc>, String)>>>;
 
@@ -40,6 +37,10 @@ pub struct ServerState {
     pub pending_totp_setup: PendingTotpSetupState,
     pub active_app: Arc<Mutex<String>>,
     pub is_terminating: Option<Arc<std::sync::atomic::AtomicBool>>,
+}
+
+pub struct LocalAdminServer {
+    state: ServerState,
 }
 
 impl LocalAdminServer {
@@ -129,9 +130,15 @@ impl LocalAdminServer {
             .route("/api/status", get(handle_status))
             .route("/api/activity/summary", get(handle_get_activity_summary))
             .route("/api/activity/apps/summary", get(handle_get_apps_summary))
-            .route("/api/activity/apps/categories", get(handle_get_app_categories))
+            .route(
+                "/api/activity/apps/categories",
+                get(handle_get_app_categories),
+            )
             .route("/api/activity/apps/report", get(handle_get_time_report))
-            .route("/api/activity/apps/sync-to-server", post(handle_sync_apps_to_server))
+            .route(
+                "/api/activity/apps/sync-to-server",
+                post(handle_sync_apps_to_server),
+            )
             .route("/api/activity/reset", post(handle_reset_reports))
             .route(
                 "/api/rules",
@@ -360,7 +367,11 @@ pub(crate) fn extract_token(headers: &HeaderMap, query_token: Option<&str>) -> O
     None
 }
 
-pub(crate) async fn check_auth(state: &ServerState, headers: &HeaderMap, query_token: Option<&str>) -> bool {
+pub(crate) async fn check_auth(
+    state: &ServerState,
+    headers: &HeaderMap,
+    query_token: Option<&str>,
+) -> bool {
     if let Some(token) = extract_token(headers, query_token) {
         let mut sessions = state.sessions.lock().await;
 

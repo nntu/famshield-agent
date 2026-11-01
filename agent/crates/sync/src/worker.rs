@@ -191,8 +191,13 @@ impl TelemetrySyncWorker {
                                     })
                                     .collect();
                                 if !synced_error_ids.is_empty() {
-                                    if let Err(e) = self.storage.mark_errors_synced(&synced_error_ids) {
-                                        warn!("Could not mark acknowledged error logs as synced: {}", e);
+                                    if let Err(e) =
+                                        self.storage.mark_errors_synced(&synced_error_ids)
+                                    {
+                                        warn!(
+                                            "Could not mark acknowledged error logs as synced: {}",
+                                            e
+                                        );
                                     }
                                 }
                                 info!(

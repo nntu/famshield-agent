@@ -1,16 +1,17 @@
 use axum::{
     extract::{Query, State},
     http::{HeaderMap, StatusCode},
-    response::IntoResponse,
     Json,
 };
-use serde::{Deserialize, Serialize};
-use tracing::{info, warn};
+use serde::Deserialize;
+use tracing::warn;
 
+use crate::server::check_auth;
 use crate::server::types::*;
 use crate::server::ServerState;
-use crate::server::{check_auth, extract_token};
-use crate::service::{ActivitySummaryResponse, AppCategoryMetadata, AppUsageSummary, TimeAggregatedReport};
+use crate::service::{
+    ActivitySummaryResponse, AppCategoryMetadata, AppUsageSummary, TimeAggregatedReport,
+};
 
 pub(crate) async fn handle_get_activity_summary(
     State(state): State<ServerState>,
@@ -77,10 +78,9 @@ pub(crate) async fn handle_get_app_categories(
         return Err(StatusCode::UNAUTHORIZED);
     }
 
-    let cats = state.service.get_app_categories(
-        query.start_time.as_deref(),
-        query.end_time.as_deref(),
-    );
+    let cats = state
+        .service
+        .get_app_categories(query.start_time.as_deref(), query.end_time.as_deref());
     Ok(Json(cats))
 }
 
@@ -137,7 +137,11 @@ pub(crate) async fn handle_sync_apps_to_server(
 }
 
 #[derive(Deserialize)]
-
+pub struct ResetReportsPayload {
+    pub master_pin: String,
+    pub otp_code: Option<String>,
+    pub scope: Option<Vec<String>>,
+}
 
 pub(crate) async fn handle_reset_reports(
     State(state): State<ServerState>,
@@ -300,12 +304,3 @@ pub(crate) async fn handle_reset_reports(
         )),
     }
 }
-
-#[derive(serde::Deserialize)]
-
-pub struct UninstallPayload {
-    pub master_pin: String,
-
-    pub otp_code: Option<String>,
-}
-

@@ -976,11 +976,11 @@ async fn test_app_categories_time_report_and_sync_endpoints() {
     // Verify service dynamic classification from DB rules
     let roblox_cls = service.classify_app("RobloxPlayer.exe");
     assert_eq!(roblox_cls.category_id, "gaming");
-    assert_eq!(roblox_cls.is_system, false);
+    assert!(!roblox_cls.is_system);
 
     let svchost_cls = service.classify_app("svchost.exe");
     assert_eq!(svchost_cls.category_id, "system");
-    assert_eq!(svchost_cls.is_system, true);
+    assert!(svchost_cls.is_system);
 
     // 2. GET /api/activity/apps/summary (verify non-system prioritized first)
     let res2 = server
@@ -1025,7 +1025,10 @@ async fn test_app_categories_time_report_and_sync_endpoints() {
     assert_eq!(report_val["period"], "today");
     assert!(report_val["total_active_minutes"].as_u64().unwrap() >= 45);
     assert_eq!(report_val["user_apps_count"], 1);
-    assert_eq!(report_val["hourly_distribution"].as_array().unwrap().len(), 24);
+    assert_eq!(
+        report_val["hourly_distribution"].as_array().unwrap().len(),
+        24
+    );
 
     // 4. POST /api/activity/apps/sync-to-server
     let res4 = server

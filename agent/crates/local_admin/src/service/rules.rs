@@ -1,7 +1,7 @@
 use super::LocalAdminService;
-use crate::service::types::{CreateRuleRequest, LocalAdminError, RulePayload};
-use famshield_storage::LocalRuleRecord;
+use crate::service::types::{CreateRuleRequest, LocalAdminError};
 use chrono::Utc;
+use famshield_storage::LocalRuleRecord;
 
 impl LocalAdminService {
     /// Save a local rule in SQLite after verifying structure.
@@ -55,5 +55,4 @@ impl LocalAdminService {
         let res = self.storage.delete_local_rule(rule_id)?;
         Ok(res)
     }
-
 }

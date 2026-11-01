@@ -106,6 +106,4 @@ impl LocalAdminService {
             ),
         })
     }
-
-    /// Retrieve consolidated activity monitoring summary including total screen time, apps used with timestamps, and web domains visited.
 }

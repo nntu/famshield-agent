@@ -580,26 +580,28 @@ fn test_app_categories_and_rules_seeded_and_classified() {
     assert!(categories.len() >= 8);
     let gaming_cat = categories.iter().find(|c| c.id == "gaming").unwrap();
     assert_eq!(gaming_cat.name_en, "Gaming");
-    assert_eq!(gaming_cat.is_system, false);
+    assert!(!gaming_cat.is_system);
     let system_cat = categories.iter().find(|c| c.id == "system").unwrap();
-    assert_eq!(system_cat.is_system, true);
+    assert!(system_cat.is_system);
 
     // 2. Verify seeded classification rules exist
     let rules = storage.list_app_category_rules().unwrap();
     assert!(rules.len() >= 20);
 
     // 3. Test dynamic classification by rules
-    let roblox_rule = storage.classify_app_by_rules("RobloxPlayerBeta.exe").unwrap();
+    let roblox_rule = storage
+        .classify_app_by_rules("RobloxPlayerBeta.exe")
+        .unwrap();
     assert!(roblox_rule.is_some());
     let roblox = roblox_rule.unwrap();
     assert_eq!(roblox.category_id, "gaming");
-    assert_eq!(roblox.is_system, false);
+    assert!(!roblox.is_system);
 
     let svchost_rule = storage.classify_app_by_rules("svchost.exe").unwrap();
     assert!(svchost_rule.is_some());
     let svchost = svchost_rule.unwrap();
     assert_eq!(svchost.category_id, "system");
-    assert_eq!(svchost.is_system, true);
+    assert!(svchost.is_system);
 
     let chrome_rule = storage.classify_app_by_rules("chrome.exe").unwrap();
     assert!(chrome_rule.is_some());

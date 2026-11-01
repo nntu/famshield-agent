@@ -365,4 +365,3 @@ pub fn classify_app(app_name: &str) -> (&'static str, &'static str) {
     let c = classify_app_extended_static(app_name);
     (c.title, c.category_name)
 }
-

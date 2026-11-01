@@ -650,7 +650,10 @@ impl ServiceController {
                 Some(g)
             }
             Err(e) => {
-                warn!("ETW real-time listener uninitialized ({}), continuing with snapshot polling.", e);
+                warn!(
+                    "ETW real-time listener uninitialized ({}), continuing with snapshot polling.",
+                    e
+                );
                 None
             }
         };
@@ -778,7 +781,10 @@ fn queue_process_lifecycle_event(
     let payload = match serde_json::to_value(&event) {
         Ok(payload) => payload,
         Err(e) => {
-            warn!("Could not serialize process event {}: {}", event.event_id, e);
+            warn!(
+                "Could not serialize process event {}: {}",
+                event.event_id, e
+            );
             return;
         }
     };
@@ -786,20 +792,21 @@ fn queue_process_lifecycle_event(
     if let Err(e) = telemetry_pipeline.queue_event(&telemetry) {
         warn!(
             "Could not persist process event {} to telemetry outbox: {}",
-            event.event_id,
-            e
+            event.event_id, e
         );
         if let Err(rollback_error) = process_monitor.rollback_lifecycle_event(&event) {
             warn!(
                 "Could not restore snapshot after failed event {} persistence: {}",
-                event.event_id,
-                rollback_error
+                event.event_id, rollback_error
             );
         }
         return;
     }
     if let Err(e) = process_monitor.observe_lifecycle_event(&event) {
-        warn!("Could not reconcile process event {} with snapshot: {}", event.event_id, e);
+        warn!(
+            "Could not reconcile process event {} with snapshot: {}",
+            event.event_id, e
+        );
     }
 }
 

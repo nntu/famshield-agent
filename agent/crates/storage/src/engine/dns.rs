@@ -1,5 +1,7 @@
 use super::StorageEngine;
-use crate::engine::records::{DomainQuerySummary, DomainRollupItem, HourlyFrequency, QueryLogFilter, QueryLogRecord};
+use crate::engine::records::{
+    DomainQuerySummary, DomainRollupItem, HourlyFrequency, QueryLogFilter, QueryLogRecord,
+};
 use crate::error::StorageError;
 use chrono::{DateTime, Utc};
 use rusqlite::params;
@@ -28,7 +30,6 @@ impl StorageEngine {
         tx.commit()?;
         Ok(())
     }
-
 
     pub fn list_recent_query_logs(
         &self,
@@ -412,5 +413,4 @@ impl StorageEngine {
         }
         Ok(logs)
     }
-
 }

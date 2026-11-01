@@ -1,11 +1,11 @@
+use crate::auth::AuthError;
 use chrono::{DateTime, Utc};
 use famshield_storage::{LocalRuleRecord, StorageError};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use std::collections::HashMap;
 use thiserror::Error;
-use crate::auth::AuthError;
 
+#[derive(Error, Debug)]
 pub enum LocalAdminError {
     #[error("Authentication failed: {0}")]
     Auth(#[from] AuthError),
@@ -22,7 +22,6 @@ pub enum LocalAdminError {
     #[error("Backup error: {0}")]
     Backup(String),
 }
-
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct CreateRuleRequest {
@@ -375,4 +374,3 @@ pub struct ActivitySummaryResponse {
     pub keyword_violations: Vec<KeywordViolationDto>,
     pub unified_timeline: Vec<UnifiedTimelineItem>,
 }
-

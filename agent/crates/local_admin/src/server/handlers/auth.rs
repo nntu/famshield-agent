@@ -1,12 +1,11 @@
 use axum::{
-    extract::State,
-    http::{HeaderMap, StatusCode},
+    extract::{Query, State},
+    http::{header, HeaderMap, StatusCode},
     response::IntoResponse,
     Json,
 };
 use chrono::{Duration, Utc};
-use std::sync::Arc;
-use tracing::{info, warn};
+use tracing::warn;
 
 use crate::server::types::*;
 use crate::server::ServerState;
@@ -709,7 +708,6 @@ pub(crate) async fn handle_verify(
     })
 }
 
-
 pub(crate) async fn handle_change_pin(
     State(state): State<ServerState>,
 
@@ -765,4 +763,3 @@ pub(crate) async fn handle_change_pin(
         ))
     }
 }
-

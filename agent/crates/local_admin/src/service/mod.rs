@@ -8,7 +8,6 @@ pub mod rules;
 pub mod settings;
 pub mod types;
 
-pub use backup::*;
 pub use classifier::*;
 pub use network::*;
 pub use types::*;
@@ -98,10 +97,7 @@ impl LocalAdminService {
         self.authenticate_storage(pin)
     }
 
-
     pub fn storage(&self) -> &StorageEngine {
         &self.storage
     }
-
-    /// Retrieve centralized server connection configuration and live telemetry
 }

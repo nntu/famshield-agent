@@ -17,9 +17,9 @@ use windows::Win32::{
     UI::{
         Accessibility::{SetWinEventHook, UnhookWinEvent, HWINEVENTHOOK},
         WindowsAndMessaging::{
-            DispatchMessageW, GetMessageW, PostThreadMessageW, TranslateMessage, MSG, WM_QUIT,
-            EVENT_SYSTEM_FOREGROUND, WINEVENT_OUTOFCONTEXT, WINEVENT_SKIPOWNPROCESS,
-            GetWindowTextW, GetWindowThreadProcessId,
+            DispatchMessageW, GetForegroundWindow, GetMessageW, GetWindowTextW,
+            GetWindowThreadProcessId, PostThreadMessageW, TranslateMessage,
+            EVENT_SYSTEM_FOREGROUND, MSG, WINEVENT_OUTOFCONTEXT, WINEVENT_SKIPOWNPROCESS, WM_QUIT,
         },
     },
 };
@@ -32,31 +32,31 @@ pub struct ActiveWindowChangeEvent {
     pub pid: u32,
 }
 
-static LAST_ACTIVE_WINDOW: OnceLock<Arc<Mutex<Option<(ActiveWindowChangeEvent, std::time::Instant)>>>> = OnceLock::new();
-static CALLBACKS: OnceLock<Arc<Mutex<Vec<Box<dyn Fn(&ActiveWindowChangeEvent) + Send + Sync>>>>> =
-    OnceLock::new();
+pub type ActiveWindowEntry = (ActiveWindowChangeEvent, std::time::Instant);
+pub type ActiveWindowStorage = Arc<Mutex<Option<ActiveWindowEntry>>>;
+pub type WindowEventCallback = Box<dyn Fn(&ActiveWindowChangeEvent) + Send + Sync>;
+pub type WindowEventCallbacksList = Arc<Mutex<Vec<WindowEventCallback>>>;
+
+static LAST_ACTIVE_WINDOW: OnceLock<ActiveWindowStorage> = OnceLock::new();
+static CALLBACKS: OnceLock<WindowEventCallbacksList> = OnceLock::new();
 static HOOK_THREAD_ID: AtomicU32 = AtomicU32::new(0);
 static IS_RUNNING: AtomicBool = AtomicBool::new(false);
 
-fn get_last_active_storage(
-) -> &'static Arc<Mutex<Option<(ActiveWindowChangeEvent, std::time::Instant)>>> {
+fn get_last_active_storage() -> &'static ActiveWindowStorage {
     LAST_ACTIVE_WINDOW.get_or_init(|| Arc::new(Mutex::new(None)))
 }
 
-fn get_callbacks() -> &'static Arc<Mutex<Vec<Box<dyn Fn(&ActiveWindowChangeEvent) + Send + Sync>>>>
-{
+fn get_callbacks() -> &'static WindowEventCallbacksList {
     CALLBACKS.get_or_init(|| Arc::new(Mutex::new(Vec::new())))
 }
 
 /// Retrieve the most recently cached active window event captured by WinEventHook.
 pub fn get_cached_active_window() -> Option<ActiveWindowChangeEvent> {
-    get_last_active_storage()
-        .lock()
-        .ok()
-        .and_then(|guard| guard.as_ref().and_then(|(event, captured_at)| {
-            (captured_at.elapsed() <= std::time::Duration::from_secs(10))
-                .then(|| event.clone())
-        }))
+    get_last_active_storage().lock().ok().and_then(|guard| {
+        guard.as_ref().and_then(|(event, captured_at)| {
+            (captured_at.elapsed() <= std::time::Duration::from_secs(10)).then(|| event.clone())
+        })
+    })
 }
 
 /// Register a listener callback to be invoked instantly when active foreground window changes.
@@ -70,6 +70,56 @@ where
 }
 
 #[cfg(windows)]
+fn inspect_window(hwnd: HWND) -> Option<ActiveWindowChangeEvent> {
+    if hwnd.0.is_null() {
+        return None;
+    }
+    let mut pid: u32 = 0;
+    unsafe {
+        GetWindowThreadProcessId(hwnd, Some(&mut pid));
+    }
+    if pid == 0 {
+        return None;
+    }
+
+    // Query window title
+    let mut title_buf = [0u16; 512];
+    let t_len = unsafe { GetWindowTextW(hwnd, &mut title_buf) };
+    let window_title = if t_len > 0 {
+        String::from_utf16_lossy(&title_buf[..t_len as usize])
+    } else {
+        String::new()
+    };
+
+    // Query process executable name from PID
+    let process_name = unsafe {
+        if let Ok(handle) = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid) {
+            let mut img_buf = [0u16; 512];
+            let len = GetProcessImageFileNameW(handle, &mut img_buf);
+            let _ = CloseHandle(handle);
+            if len > 0 {
+                let full_path = String::from_utf16_lossy(&img_buf[..len as usize]);
+                full_path
+                    .rsplit('\\')
+                    .next()
+                    .unwrap_or(&full_path)
+                    .to_string()
+            } else {
+                "unknown".to_string()
+            }
+        } else {
+            "unknown".to_string()
+        }
+    };
+
+    Some(ActiveWindowChangeEvent {
+        process_name,
+        window_title,
+        pid,
+    })
+}
+
+#[cfg(windows)]
 unsafe extern "system" fn foreground_win_event_callback(
     _h_win_event_hook: HWINEVENTHOOK,
     event: u32,
@@ -79,57 +129,18 @@ unsafe extern "system" fn foreground_win_event_callback(
     _dw_event_thread: u32,
     _dwms_event_time: u32,
 ) {
-    if event == EVENT_SYSTEM_FOREGROUND && !hwnd.0.is_null() {
-        let mut pid: u32 = 0;
-        GetWindowThreadProcessId(hwnd, Some(&mut pid));
-        if pid == 0 {
-            return;
-        }
+    if event == EVENT_SYSTEM_FOREGROUND {
+        if let Some(ev) = inspect_window(hwnd) {
+            // Store latest active window event
+            if let Ok(mut storage) = get_last_active_storage().lock() {
+                *storage = Some((ev.clone(), std::time::Instant::now()));
+            }
 
-        // Query window title
-        let mut title_buf = [0u16; 512];
-        let t_len = GetWindowTextW(hwnd, &mut title_buf);
-        let window_title = if t_len > 0 {
-            String::from_utf16_lossy(&title_buf[..t_len as usize])
-        } else {
-            String::new()
-        };
-
-        // Query process executable name from PID
-        let process_name =
-            if let Ok(handle) = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid) {
-                let mut img_buf = [0u16; 512];
-                let len = GetProcessImageFileNameW(handle, &mut img_buf);
-                let _ = CloseHandle(handle);
-                if len > 0 {
-                    let full_path = String::from_utf16_lossy(&img_buf[..len as usize]);
-                    full_path
-                        .rsplit('\\')
-                        .next()
-                        .unwrap_or(&full_path)
-                        .to_string()
-                } else {
-                    "unknown".to_string()
+            // Trigger registered callbacks
+            if let Ok(cbs) = get_callbacks().lock() {
+                for cb in cbs.iter() {
+                    cb(&ev);
                 }
-            } else {
-                "unknown".to_string()
-            };
-
-        let ev = ActiveWindowChangeEvent {
-            process_name,
-            window_title,
-            pid,
-        };
-
-        // Store latest active window event
-        if let Ok(mut storage) = get_last_active_storage().lock() {
-            *storage = Some((ev.clone(), std::time::Instant::now()));
-        }
-
-        // Trigger registered callbacks
-        if let Ok(cbs) = get_callbacks().lock() {
-            for cb in cbs.iter() {
-                cb(&ev);
             }
         }
     }
@@ -148,7 +159,12 @@ impl ActiveWindowHookGuard {
                 let tid = HOOK_THREAD_ID.load(Ordering::SeqCst);
                 if tid > 0 {
                     unsafe {
-                        let _ = PostThreadMessageW(tid, WM_QUIT, windows::Win32::Foundation::WPARAM(0), windows::Win32::Foundation::LPARAM(0));
+                        let _ = PostThreadMessageW(
+                            tid,
+                            WM_QUIT,
+                            windows::Win32::Foundation::WPARAM(0),
+                            windows::Win32::Foundation::LPARAM(0),
+                        );
                     }
                 }
             }
@@ -177,6 +193,17 @@ pub fn start_active_window_hook() -> ActiveWindowHookGuard {
 
     #[cfg(windows)]
     {
+        // Immediately query current foreground window to populate cache
+        let fg_hwnd = unsafe { GetForegroundWindow() };
+        let initial_ev = inspect_window(fg_hwnd).unwrap_or_else(|| ActiveWindowChangeEvent {
+            process_name: "explorer.exe".to_string(),
+            window_title: "Windows Explorer".to_string(),
+            pid: 1001,
+        });
+        if let Ok(mut storage) = get_last_active_storage().lock() {
+            *storage = Some((initial_ev, std::time::Instant::now()));
+        }
+
         let is_active_clone = is_active.clone();
         let spawn_result = std::thread::Builder::new()
             .name("famshield-winevent-hook".to_string())
@@ -230,11 +257,14 @@ pub fn start_active_window_hook() -> ActiveWindowHookGuard {
         info!("SetWinEventHook active window tracker initialized (non-Windows stub mode).");
         // Seed mock window for non-Windows tests
         if let Ok(mut storage) = get_last_active_storage().lock() {
-            *storage = Some((ActiveWindowChangeEvent {
-                process_name: "explorer.exe".to_string(),
-                window_title: "Windows Explorer".to_string(),
-                pid: 1001,
-            }, std::time::Instant::now()));
+            *storage = Some((
+                ActiveWindowChangeEvent {
+                    process_name: "explorer.exe".to_string(),
+                    window_title: "Windows Explorer".to_string(),
+                    pid: 1001,
+                },
+                std::time::Instant::now(),
+            ));
         }
     }
 

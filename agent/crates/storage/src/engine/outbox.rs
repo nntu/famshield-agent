@@ -112,5 +112,4 @@ impl StorageEngine {
         let count: i64 = conn.query_row("SELECT COUNT(*) FROM outbox", [], |row| row.get(0))?;
         Ok(count as usize)
     }
-
 }

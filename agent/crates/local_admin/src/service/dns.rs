@@ -1,13 +1,12 @@
 use super::LocalAdminService;
 use crate::service::types::LocalAdminError;
 use chrono::{DateTime, Utc};
-use famshield_storage::{DomainQuerySummary, DomainRollupItem, HourlyFrequency, QueryLogFilter, QueryLogRecord, VisualEvidenceRecord};
+use famshield_storage::{
+    DomainQuerySummary, HourlyFrequency, QueryLogFilter, QueryLogRecord, VisualEvidenceRecord,
+};
 
 impl LocalAdminService {
-    pub fn list_query_logs(
-        &self,
-        limit: usize,
-    ) -> Result<Vec<famshield_storage::QueryLogRecord>, LocalAdminError> {
+    pub fn list_query_logs(&self, limit: usize) -> Result<Vec<QueryLogRecord>, LocalAdminError> {
         let logs = self.storage.list_recent_query_logs(limit)?;
         Ok(logs)
     }
@@ -16,7 +15,7 @@ impl LocalAdminService {
     pub fn get_domain_query_summaries(
         &self,
         limit: usize,
-    ) -> Result<Vec<famshield_storage::DomainQuerySummary>, LocalAdminError> {
+    ) -> Result<Vec<DomainQuerySummary>, LocalAdminError> {
         let summaries = self.storage.get_domain_query_summaries(limit)?;
         Ok(summaries)
     }
@@ -24,10 +23,10 @@ impl LocalAdminService {
     /// Query aggregated DNS summaries grouped by domain with optional time range filter.
     pub fn get_domain_query_summaries_filtered(
         &self,
-        start_time: Option<chrono::DateTime<chrono::Utc>>,
-        end_time: Option<chrono::DateTime<chrono::Utc>>,
+        start_time: Option<DateTime<Utc>>,
+        end_time: Option<DateTime<Utc>>,
         limit: usize,
-    ) -> Result<Vec<famshield_storage::DomainQuerySummary>, LocalAdminError> {
+    ) -> Result<Vec<DomainQuerySummary>, LocalAdminError> {
         let summaries = self
             .storage
             .get_domain_query_summaries_filtered(start_time, end_time, limit)?;
@@ -38,9 +37,9 @@ impl LocalAdminService {
     pub fn get_hourly_frequency(
         &self,
         domain: Option<&str>,
-        start_time: Option<chrono::DateTime<chrono::Utc>>,
-        end_time: Option<chrono::DateTime<chrono::Utc>>,
-    ) -> Result<Vec<famshield_storage::HourlyFrequency>, LocalAdminError> {
+        start_time: Option<DateTime<Utc>>,
+        end_time: Option<DateTime<Utc>>,
+    ) -> Result<Vec<HourlyFrequency>, LocalAdminError> {
         let hourly = self
             .storage
             .get_hourly_frequency(domain, start_time, end_time)?;
@@ -50,8 +49,8 @@ impl LocalAdminService {
     /// Query DNS logs with multi-criteria filtering (domain, action, time range, limit).
     pub fn list_query_logs_with_filter(
         &self,
-        filter: &famshield_storage::QueryLogFilter,
-    ) -> Result<Vec<famshield_storage::QueryLogRecord>, LocalAdminError> {
+        filter: &QueryLogFilter,
+    ) -> Result<Vec<QueryLogRecord>, LocalAdminError> {
         let logs = self.storage.list_query_logs_filtered(filter)?;
         Ok(logs)
     }
@@ -61,7 +60,7 @@ impl LocalAdminService {
         &self,
         domain: Option<&str>,
         limit: usize,
-    ) -> Result<Vec<famshield_storage::QueryLogRecord>, LocalAdminError> {
+    ) -> Result<Vec<QueryLogRecord>, LocalAdminError> {
         if let Some(d) = domain {
             let trimmed = d.trim();
             if !trimmed.is_empty() {
@@ -76,7 +75,7 @@ impl LocalAdminService {
     pub fn list_visual_evidence(
         &self,
         limit: usize,
-    ) -> Result<Vec<famshield_storage::VisualEvidenceRecord>, LocalAdminError> {
+    ) -> Result<Vec<VisualEvidenceRecord>, LocalAdminError> {
         let list = self.storage.list_visual_evidence(limit)?;
         Ok(list)
     }
@@ -89,6 +88,4 @@ impl LocalAdminService {
         let record = self.storage.get_visual_evidence_by_id(evidence_id)?;
         Ok(record.map(|r| r.image_payload))
     }
-
-    /// Access reference to underlying storage engine.
 }

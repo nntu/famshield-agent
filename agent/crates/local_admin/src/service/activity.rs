@@ -1,11 +1,11 @@
 use super::{normalize_time_bound, LocalAdminService};
-use crate::service::classifier::{classify_app_extended, classify_domain, AppClassification};
+use crate::service::classifier::classify_domain;
 use crate::service::types::{
-    ActivitySummaryResponse, AppActivityItem, AppCategory, AppItem, AppUsageSummary,
-    CategoryAppSummary, CategorySummary, CategoryTimelineItem, KeywordViolationDto,
-    LocalAdminError, TimeAggregatedReport, UnifiedTimelineItem, WebActivityItem,
+    ActivitySummaryResponse, AppActivityItem, AppCategoryMetadata, AppCategoryUsageBreakdown,
+    AppUsageSummary, HourlyUsagePoint, KeywordViolationDto, LocalAdminError, TimeAggregatedReport,
+    UnifiedTimelineItem, WebActivityItem,
 };
-use chrono::{DateTime, Utc};
+use chrono::Utc;
 use std::collections::HashMap;
 
 impl LocalAdminService {
@@ -320,7 +320,9 @@ impl LocalAdminService {
         let total_screen_mins: u32 = apps.iter().map(|a| a.total_duration_minutes).sum();
 
         let db_categories = self.storage.list_app_categories().unwrap_or_default();
-        let catalog: Vec<(String, String, String, String, bool, String)> = if !db_categories.is_empty() {
+        let catalog: Vec<(String, String, String, String, bool, String)> = if !db_categories
+            .is_empty()
+        {
             db_categories
                 .into_iter()
                 .map(|c| {
@@ -406,8 +408,10 @@ impl LocalAdminService {
         };
 
         let mut category_stats: HashMap<&str, (usize, u32)> = HashMap::new();
-        for app in &apps {
-            let entry = category_stats.entry(app.category_id.as_str()).or_insert((0, 0));
+        for app in apps {
+            let entry = category_stats
+                .entry(app.category_id.as_str())
+                .or_insert((0, 0));
             entry.0 += 1;
             entry.1 += app.total_duration_minutes;
         }
@@ -591,7 +595,13 @@ impl LocalAdminService {
             let clean_app = app
                 .app_name
                 .chars()
-                .map(|c| if c.is_alphanumeric() || c == '.' { c } else { '_' })
+                .map(|c| {
+                    if c.is_alphanumeric() || c == '.' {
+                        c
+                    } else {
+                        '_'
+                    }
+                })
                 .collect::<String>();
             let event_id = format!(
                 "app-sync-{}-{}",

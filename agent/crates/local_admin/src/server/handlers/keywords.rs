@@ -1,18 +1,20 @@
 use axum::{
-    extract::{Path, State},
+    extract::{Path, Query, State},
     http::{HeaderMap, StatusCode},
-    response::IntoResponse,
     Json,
 };
-use serde::{Deserialize, Serialize};
-use tracing::{info, warn};
+use chrono::Utc;
+use serde::Deserialize;
 
+use crate::server::check_auth;
 use crate::server::types::*;
 use crate::server::ServerState;
-use crate::server::{check_auth, extract_token};
-use crate::service::{AddKeywordRequest, KeywordConfigResponse, KeywordRuleDto, ToggleKeywordRequest};
+use crate::service::{
+    AddKeywordRequest, KeywordConfigResponse, KeywordRuleDto, ToggleKeywordRequest,
+};
 use famshield_storage::KeywordViolationRecord;
 
+#[derive(Deserialize)]
 pub struct ToggleMonitoringRequest {
     pub enabled: bool,
 }
@@ -191,4 +193,3 @@ pub(crate) async fn handle_record_keyword_violation(
         .map(|_| StatusCode::CREATED)
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
 }
-

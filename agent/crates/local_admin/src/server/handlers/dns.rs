@@ -1,15 +1,16 @@
 use axum::{
     extract::{Query, State},
     http::{HeaderMap, StatusCode},
-    response::IntoResponse,
     Json,
 };
-use serde::{Deserialize, Serialize};
+use chrono::{DateTime, Duration, Utc};
+use serde::Deserialize;
 use tracing::{info, warn};
 
+use super::rules::PauseFilterPayload;
+use crate::server::check_auth;
 use crate::server::types::*;
 use crate::server::ServerState;
-use crate::server::{check_auth, extract_token};
 use famshield_storage::{DomainQuerySummary, QueryLogRecord};
 
 pub(crate) async fn handle_filter_pause(
@@ -80,7 +81,7 @@ pub(crate) async fn handle_filter_unpause(
 }
 
 #[derive(Deserialize)]
-struct InspectDomainPayload {
+pub(crate) struct InspectDomainPayload {
     domain: String,
 }
 
@@ -145,7 +146,6 @@ pub(crate) async fn handle_filter_inspect(
         "reason": reason
     })))
 }
-
 
 pub(crate) async fn handle_list_logs(
     State(state): State<ServerState>,
@@ -271,7 +271,6 @@ pub(crate) async fn handle_get_dns_hourly(
     }
 }
 
-
 pub(crate) async fn handle_get_dns_config(
     State(state): State<ServerState>,
 
@@ -389,7 +388,6 @@ pub(crate) async fn handle_set_dns_config(
 pub struct CaptureBlurPayload {
     pub blur_mode: String,
 }
-
 
 pub(crate) async fn handle_flush_dns_cache(
     State(state): State<ServerState>,
@@ -589,7 +587,7 @@ pub(crate) async fn handle_prune_dns_retention_now(
 
 // -----------------------------------------------------------------------------
 
-fn get_latest_service_log_path() -> Option<(std::path::PathBuf, String)> {
+pub(crate) fn get_latest_service_log_path() -> Option<(std::path::PathBuf, String)> {
     let data_dir = std::env::var("ProgramData")
         .map(std::path::PathBuf::from)
         .unwrap_or_else(|_| std::path::PathBuf::from("."))
@@ -621,7 +619,7 @@ fn get_latest_service_log_path() -> Option<(std::path::PathBuf, String)> {
     None
 }
 
-fn resolve_nats_url_from_storage(storage: &famshield_storage::StorageEngine) -> String {
+pub(crate) fn resolve_nats_url_from_storage(storage: &famshield_storage::StorageEngine) -> String {
     if let Ok(Some(nats_url)) = storage.get_meta("nats_url") {
         let trimmed = nats_url.trim();
         if !trimmed.is_empty() {
@@ -646,4 +644,3 @@ pub struct SystemLogsQuery {
 
     pub token: Option<String>,
 }
-

@@ -83,11 +83,14 @@ pub struct ProcessLifecycleEvent {
     pub occurred_at: String,
 }
 
+pub type ProcessEventKey = (u32, String, String, u32);
+pub type RecentLifecycleEventsMap = Arc<Mutex<HashMap<ProcessEventKey, Instant>>>;
+
 /// Process Monitor engine that periodically polls running processes
 /// and generates delta events (newly started / terminated processes).
 pub struct ProcessMonitor {
     known_processes: Arc<Mutex<HashMap<u32, ProcessInfo>>>,
-    recent_lifecycle_events: Arc<Mutex<HashMap<(u32, String, String, u32), Instant>>>,
+    recent_lifecycle_events: RecentLifecycleEventsMap,
 }
 
 impl Default for ProcessMonitor {
@@ -270,9 +273,10 @@ impl ProcessMonitor {
             }
             _ => {}
         }
-        let mut recent = self.recent_lifecycle_events.lock().map_err(|_| {
-            WindowsError::Process("recent process event lock was poisoned".into())
-        })?;
+        let mut recent = self
+            .recent_lifecycle_events
+            .lock()
+            .map_err(|_| WindowsError::Process("recent process event lock was poisoned".into()))?;
         recent.retain(|_, seen_at| seen_at.elapsed() <= std::time::Duration::from_secs(6));
         recent.insert(lifecycle_event_key(event), Instant::now());
         Ok(())
@@ -315,13 +319,11 @@ impl ProcessMonitor {
     }
 
     /// Detect a matching transition delivered by ETW and snapshot polling within the dedup window.
-    pub fn is_recent_duplicate(
-        &self,
-        event: &ProcessLifecycleEvent,
-    ) -> Result<bool, WindowsError> {
-        let mut recent = self.recent_lifecycle_events.lock().map_err(|_| {
-            WindowsError::Process("recent process event lock was poisoned".into())
-        })?;
+    pub fn is_recent_duplicate(&self, event: &ProcessLifecycleEvent) -> Result<bool, WindowsError> {
+        let mut recent = self
+            .recent_lifecycle_events
+            .lock()
+            .map_err(|_| WindowsError::Process("recent process event lock was poisoned".into()))?;
         recent.retain(|_, seen_at| seen_at.elapsed() <= std::time::Duration::from_secs(6));
         Ok(recent.contains_key(&lifecycle_event_key(event)))
     }
@@ -374,9 +376,10 @@ impl ProcessMonitor {
 
         // Replace known with current map
         *known = current_map;
-        let mut recent = self.recent_lifecycle_events.lock().map_err(|_| {
-            WindowsError::Process("recent process event lock was poisoned".into())
-        })?;
+        let mut recent = self
+            .recent_lifecycle_events
+            .lock()
+            .map_err(|_| WindowsError::Process("recent process event lock was poisoned".into()))?;
         recent.retain(|_, seen_at| seen_at.elapsed() <= std::time::Duration::from_secs(6));
         events.retain(|event| !recent.contains_key(&lifecycle_event_key(event)));
         events.sort_by(|left, right| {

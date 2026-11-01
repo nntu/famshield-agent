@@ -1,15 +1,16 @@
 use axum::{
     extract::{Path, Query, State},
     http::{HeaderMap, StatusCode},
-    response::IntoResponse,
     Json,
 };
+use chrono::Utc;
+use serde::Deserialize;
 use tracing::{info, warn};
 
 use crate::server::types::*;
 use crate::server::ServerState;
-use crate::server::{check_auth, extract_token, sync_dns_blocklist};
-use crate::service::{CreateRuleRequest, UpdateServerConfigRequest};
+use crate::server::{check_auth, sync_dns_blocklist};
+use crate::service::CreateRuleRequest;
 use famshield_storage::LocalRuleRecord;
 
 pub(crate) async fn handle_list_rules(
@@ -339,10 +340,9 @@ pub(crate) async fn handle_get_cloud_policy(
 }
 
 #[derive(Deserialize)]
-struct PauseFilterPayload {
-    seconds: Option<u64>,
+pub(crate) struct PauseFilterPayload {
+    pub(crate) seconds: Option<u64>,
 }
-
 
 pub(crate) async fn handle_sync_rules_to_cloud(
     State(state): State<ServerState>,
@@ -524,4 +524,3 @@ pub(crate) async fn handle_sync_rules_to_cloud(
         }
     }
 }
-

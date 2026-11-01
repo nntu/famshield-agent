@@ -1,16 +1,16 @@
 use axum::{
     extract::{Path, Query, State},
     http::{header, HeaderMap, StatusCode},
-    response::IntoResponse,
+    response::{IntoResponse, Response},
     Json,
 };
-use serde::{Deserialize, Serialize};
-use tracing::{info, warn};
+use serde::Deserialize;
+use tracing::warn;
 
+use super::dns::{get_latest_service_log_path, resolve_nats_url_from_storage, SystemLogsQuery};
+use crate::server::check_auth;
 use crate::server::types::*;
 use crate::server::ServerState;
-use crate::server::{check_auth, extract_token};
-use famshield_storage::QueryLogRecord;
 
 pub(crate) async fn handle_status(
     State(state): State<ServerState>,
@@ -121,7 +121,6 @@ pub(crate) async fn handle_get_system_info(
     Ok(Json(famshield_windows::get_system_info()))
 }
 
-
 pub(crate) async fn handle_list_evidence(
     State(state): State<ServerState>,
 
@@ -196,7 +195,6 @@ pub(crate) async fn handle_get_thumbnail(
         }
     }
 }
-
 
 pub(crate) async fn handle_start_session_helper(
     State(state): State<ServerState>,
@@ -582,14 +580,11 @@ pub(crate) async fn handle_check_update(State(state): State<ServerState>) -> imp
 }
 
 #[derive(Deserialize)]
-pub struct ResetReportsPayload {
+pub struct UninstallPayload {
     pub master_pin: String,
 
     pub otp_code: Option<String>,
-
-    pub scope: Option<Vec<String>>,
 }
-
 
 pub(crate) async fn handle_system_uninstall(
     State(state): State<ServerState>,
@@ -1020,7 +1015,6 @@ pub(crate) async fn handle_restart_service(
     })))
 }
 
-
 pub(crate) async fn handle_get_system_logs(
     State(state): State<ServerState>,
 
@@ -1126,7 +1120,6 @@ pub(crate) async fn handle_download_system_logs(
 // System Errors & NATS Streaming Handlers
 
 // -----------------------------------------------------------------------------
-
 
 pub(crate) async fn handle_list_errors(
     State(state): State<ServerState>,
@@ -1378,18 +1371,15 @@ pub(crate) async fn handle_push_errors_nats(
             })))
         }
 
-        Err(err) => {
-            Err((
-                StatusCode::BAD_GATEWAY,
-                Json(serde_json::json!({
+        Err(err) => Err((
+            StatusCode::BAD_GATEWAY,
+            Json(serde_json::json!({
 
-                    "success": false,
+                "success": false,
 
-                    "error": format!("Không thể kết nối NATS broker ({}): {}. Lỗi đã được lưu vào Outbox để tự động gửi lại.", nats_url, err)
+                "error": format!("Không thể kết nối NATS broker ({}): {}. Lỗi đã được lưu vào Outbox để tự động gửi lại.", nats_url, err)
 
-                })),
-            ))
-        }
+            })),
+        )),
     }
 }
-

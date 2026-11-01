@@ -2,8 +2,9 @@ use super::LocalAdminService;
 use crate::service::types::{
     AddKeywordRequest, KeywordConfigResponse, KeywordRuleDto, KeywordViolationDto, LocalAdminError,
 };
-use famshield_storage::CustomKeywordRecord;
 use chrono::Utc;
+use famshield_storage::CustomKeywordRecord;
+use sha2::Digest;
 
 impl LocalAdminService {
     pub fn is_keyboard_monitoring_enabled(&self) -> bool {
@@ -104,7 +105,7 @@ impl LocalAdminService {
             .unwrap_or_else(|| "Tùy chỉnh phụ huynh".to_string());
         let sev = req.severity.unwrap_or_else(|| "medium".to_string());
 
-        let record = famshield_storage::CustomKeywordRecord {
+        let record = CustomKeywordRecord {
             id: id.clone(),
             pattern: trimmed.to_string(),
             category: cat.clone(),
@@ -142,5 +143,4 @@ impl LocalAdminService {
             Ok(true)
         }
     }
-
 }

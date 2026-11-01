@@ -1,19 +1,19 @@
 use axum::{
-    extract::State,
-    http::{HeaderMap, StatusCode},
+    extract::{Query, State},
+    http::{header, HeaderMap, StatusCode},
     response::IntoResponse,
     Json,
 };
 use chrono::{Duration, Utc};
-use serde::{Deserialize, Serialize};
 use tracing::{info, warn};
 
+use super::dns::CaptureBlurPayload;
 use crate::server::types::*;
 use crate::server::ServerState;
-use crate::server::{check_auth, extract_token, generate_token, sync_dns_blocklist};
+use crate::server::{check_auth, generate_token, sync_dns_blocklist};
 use crate::service::{
-    probe_server_connection, BackupPayload, CreateRuleRequest, LocalAdminService, ServerConfig,
-    SystemSettings, UpdateServerConfigRequest, UpdateSystemSettingsRequest,
+    probe_server_connection, BackupPayload, CreateRuleRequest, ServerConfig, SystemSettings,
+    UpdateServerConfigRequest, UpdateSystemSettingsRequest,
 };
 
 pub(crate) async fn handle_cloud_enroll(
@@ -298,7 +298,6 @@ pub(crate) async fn handle_cloud_disenroll(
     })))
 }
 
-
 pub(crate) async fn handle_get_server_config(
     State(state): State<ServerState>,
 
@@ -493,7 +492,6 @@ pub(crate) async fn handle_setup_status(State(state): State<ServerState>) -> imp
     })
 }
 
-
 pub(crate) async fn handle_setup_initialize(
     State(state): State<ServerState>,
 
@@ -666,7 +664,6 @@ pub(crate) async fn handle_setup_initialize(
         .into_response()
 }
 
-
 pub(crate) async fn handle_get_protection_mode(
     State(state): State<ServerState>,
 
@@ -804,7 +801,6 @@ pub(crate) async fn handle_set_silent_mode(
     }))
 }
 
-
 pub(crate) async fn handle_export_backup(
     State(state): State<ServerState>,
 
@@ -914,7 +910,6 @@ pub(crate) async fn handle_restore_backup(
     }
 }
 
-
 pub(crate) async fn handle_get_capture_blur(
     State(state): State<ServerState>,
 
@@ -977,4 +972,3 @@ pub(crate) async fn handle_set_capture_blur(
 
     })))
 }
-

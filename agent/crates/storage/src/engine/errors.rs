@@ -5,9 +5,14 @@ use chrono::{DateTime, Utc};
 use rusqlite::params;
 use sha2::{Digest, Sha256};
 
+/// Computes a deterministic SHA-256 fingerprint ID for an error pattern
+pub fn compute_error_fingerprint(module: &str, severity: &str, message: &str) -> String {
+    StorageEngine::compute_error_fingerprint(module, severity, message)
+}
+
+impl StorageEngine {
     /// Computes a deterministic SHA-256 fingerprint ID for an error pattern
     pub fn compute_error_fingerprint(module: &str, severity: &str, message: &str) -> String {
-        use sha2::{Digest, Sha256};
         let mut hasher = Sha256::new();
         hasher.update(module.trim().to_ascii_lowercase().as_bytes());
         hasher.update(b":");
@@ -19,9 +24,6 @@ use sha2::{Digest, Sha256};
         let hash = format!("{:x}", hasher.finalize());
         format!("err-{}-{}", module, &hash[..16])
     }
-
-
-impl StorageEngine {
     // Centralized Error Logging & Remote Telemetry Sync with Smart Deduplication
     pub fn record_error_log(
         &self,
@@ -140,5 +142,4 @@ impl StorageEngine {
         let count = conn.execute("DELETE FROM error_logs", [])?;
         Ok(count)
     }
-
 }

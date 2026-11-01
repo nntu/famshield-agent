@@ -376,8 +376,11 @@ impl TelemetryPipeline {
         envelope: &TelemetryEnvelope,
         accepted_event_ids: &[String],
     ) -> Result<(), SyncError> {
-        let batch_ids: std::collections::HashSet<&str> =
-            envelope.events.iter().map(|event| event.event_id.as_str()).collect();
+        let batch_ids: std::collections::HashSet<&str> = envelope
+            .events
+            .iter()
+            .map(|event| event.event_id.as_str())
+            .collect();
         let accepted: Vec<String> = accepted_event_ids
             .iter()
             .filter(|id| batch_ids.contains(id.as_str()))

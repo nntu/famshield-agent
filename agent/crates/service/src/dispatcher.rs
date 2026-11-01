@@ -155,7 +155,9 @@ impl IpcDispatcher {
                             );
                             if let Ok(guard) = self.telemetry_pipeline.lock() {
                                 if let Some(ref tel) = *guard {
-                                    let cat = famshield_local_admin::service::classify_app_extended(cur_app);
+                                    let cat = famshield_local_admin::service::classify_app_extended(
+                                        cur_app,
+                                    );
                                     let _ = tel.queue_app_usage(
                                         cur_app,
                                         *dur_ms,
@@ -201,7 +203,8 @@ impl IpcDispatcher {
                         );
                         if let Ok(guard) = self.telemetry_pipeline.lock() {
                             if let Some(ref tel) = *guard {
-                                let cat = famshield_local_admin::service::classify_app_extended(&cur_app);
+                                let cat =
+                                    famshield_local_admin::service::classify_app_extended(&cur_app);
                                 let _ = tel.queue_app_usage(
                                     &cur_app,
                                     dur_ms,
