@@ -14,6 +14,7 @@ pub struct NatsConnectionWorker {
     nats_url: String,
     dispatcher: Arc<NatsDispatcher>,
     storage: StorageEngine,
+    telemetry_pipeline: Option<Arc<crate::telemetry::TelemetryPipeline>>,
 }
 
 impl NatsConnectionWorker {
@@ -28,7 +29,14 @@ impl NatsConnectionWorker {
             nats_url: nats_url.into(),
             dispatcher,
             storage,
+            telemetry_pipeline: None,
         }
+    }
+
+    /// Attach a TelemetryPipeline to enable WorkQueue-based event draining over NATS
+    pub fn with_telemetry_pipeline(mut self, pipeline: Arc<crate::telemetry::TelemetryPipeline>) -> Self {
+        self.telemetry_pipeline = Some(pipeline);
+        self
     }
 
     /// Check if endpoint is enrolled in Online Managed Mode.
@@ -135,12 +143,20 @@ impl NatsConnectionWorker {
             // Main message listening loop
             let mut connection_dropped = false;
             let mut rollup_interval = tokio::time::interval(Duration::from_secs(60));
+            let mut telemetry_interval = tokio::time::interval(Duration::from_secs(15));
+            let mut heartbeat_interval = tokio::time::interval(Duration::from_secs(60));
 
             while !connection_dropped {
                 tokio::select! {
                     _ = shutdown_rx.recv() => {
                         info!("NATS worker received shutdown signal, disconnecting cleanly.");
                         return;
+                    }
+                    _ = telemetry_interval.tick() => {
+                        self.publish_pending_telemetry(&client).await;
+                    }
+                    _ = heartbeat_interval.tick() => {
+                        self.publish_realtime_heartbeat(&client).await;
                     }
                     _ = rollup_interval.tick() => {
                         self.publish_periodic_rollup(&client).await;
@@ -293,6 +309,96 @@ impl NatsConnectionWorker {
             Err(e) => {
                 warn!("Failed to format rollup summary: {}", e);
             }
+        }
+    }
+
+    /// Drain pending Outbox events and publish to NATS JetStream WorkQueue
+    async fn publish_pending_telemetry(&self, client: &async_nats::Client) {
+        let Some(pipeline) = &self.telemetry_pipeline else {
+            return;
+        };
+
+        const MAX_BATCHES_PER_CYCLE: usize = 5;
+        let mut batches_sent = 0;
+
+        while batches_sent < MAX_BATCHES_PER_CYCLE {
+            match pipeline.prepare_next_batch(50) {
+                Ok(Some(envelope)) => {
+                    let subject = format!("devices.{}.events.telemetry", self.device_id);
+                    let event_ids: Vec<String> =
+                        envelope.events.iter().map(|e| e.event_id.clone()).collect();
+                    let batch_id = envelope.batch_id.clone();
+                    let count = envelope.event_count;
+
+                    match envelope.to_json() {
+                        Ok(json_str) => {
+                            match client.publish(subject.clone(), json_str.into()).await {
+                                Ok(_) => {
+                                    if let Err(e) =
+                                        pipeline.acknowledge_events(&envelope, &event_ids)
+                                    {
+                                        warn!("Failed to acknowledge NATS telemetry events: {}", e);
+                                        break;
+                                    }
+                                    info!(
+                                        "Pushed telemetry batch {} ({} events) to NATS WorkQueue successfully",
+                                        batch_id, count
+                                    );
+                                    batches_sent += 1;
+                                }
+                                Err(e) => {
+                                    warn!(
+                                        "Failed to publish telemetry to NATS subject {}: {}",
+                                        subject, e
+                                    );
+                                    let _ = pipeline.report_batch_failure(&envelope, 30);
+                                    break;
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            warn!("Failed to serialize telemetry envelope: {}", e);
+                            break;
+                        }
+                    }
+                }
+                Ok(None) => break,
+                Err(e) => {
+                    warn!("Failed to prepare telemetry batch from outbox: {}", e);
+                    break;
+                }
+            }
+        }
+    }
+
+    /// Send lightweight real-time heartbeat over NATS
+    async fn publish_realtime_heartbeat(&self, client: &async_nats::Client) {
+        let subject = format!("devices.{}.heartbeat", self.device_id);
+        let current_policy_ver = self
+            .storage
+            .get_meta("policy_version")
+            .ok()
+            .flatten()
+            .and_then(|s| s.parse::<u32>().ok())
+            .unwrap_or(1);
+        let outbox_depth = self
+            .telemetry_pipeline
+            .as_ref()
+            .and_then(|p| p.pending_count().ok())
+            .unwrap_or(0);
+
+        let hb_req = serde_json::json!({
+            "device_id": self.device_id,
+            "agent_version": env!("CARGO_PKG_VERSION"),
+            "policy_version": current_policy_ver,
+            "status": "healthy",
+            "wfp_active": true,
+            "dns_active": true,
+            "outbox_depth": outbox_depth,
+        });
+
+        if let Ok(data) = serde_json::to_vec(&hb_req) {
+            let _ = client.publish(subject, data.into()).await;
         }
     }
 }

@@ -211,12 +211,15 @@ impl ServiceController {
             .map(|u| famshield_core::normalize_nats_url(&u))
             .unwrap_or_else(|| famshield_core::normalize_nats_url(&server_url));
 
-        let nats_worker = Arc::new(NatsConnectionWorker::new(
-            device_id,
-            nats_url,
-            nats_dispatcher.clone(),
-            storage.clone(),
-        ));
+        let nats_worker = Arc::new(
+            NatsConnectionWorker::new(
+                device_id,
+                nats_url,
+                nats_dispatcher.clone(),
+                storage.clone(),
+            )
+            .with_telemetry_pipeline(telemetry_pipeline.clone()),
+        );
 
         Self {
             storage,
@@ -489,6 +492,8 @@ impl ServiceController {
         tokio::spawn(async move {
             let mut batch = Vec::with_capacity(32);
             let mut interval = tokio::time::interval(std::time::Duration::from_millis(500));
+            let mut recent_blocks: std::collections::HashMap<String, std::time::Instant> =
+                std::collections::HashMap::new();
             loop {
                 tokio::select! {
                     entry_opt = dns_log_rx.recv() => {
@@ -516,24 +521,48 @@ impl ServiceController {
                                 }
 
                                 if entry.action == "BLOCK" {
-                                    let event_id = format!("dns-block-{}", now.timestamp_micros());
-                                    let alert_payload = serde_json::json!({
-                                        "domain": entry.domain,
-                                        "qtype": entry.qtype,
-                                        "action": entry.action,
-                                        "reason": entry.reason,
-                                        "timestamp": now.to_rfc3339(),
-                                    });
-                                    let _ = dns_telemetry.queue_event(&TelemetryEvent::new(
-                                        event_id.clone(),
-                                        "dns_query",
-                                        now,
-                                        alert_payload,
-                                    ));
+                                    let now_instant = std::time::Instant::now();
+                                    if recent_blocks.len() > 100 {
+                                        recent_blocks.retain(|_, last_time| {
+                                            now_instant.duration_since(*last_time)
+                                                < std::time::Duration::from_secs(30)
+                                        });
+                                    }
 
-                                    // Queue visual evidence capture trigger for user session helper
-                                    let trigger_desc = format!("WEB_BLOCK: {} ({})", entry.domain, entry.reason);
-                                    dns_dispatcher.queue_capture_trigger(event_id, trigger_desc);
+                                    let is_dup = if let Some(last_time) =
+                                        recent_blocks.get(&entry.domain)
+                                    {
+                                        now_instant.duration_since(*last_time)
+                                            < std::time::Duration::from_secs(10)
+                                    } else {
+                                        false
+                                    };
+
+                                    if !is_dup {
+                                        recent_blocks.insert(entry.domain.clone(), now_instant);
+                                        let event_id =
+                                            format!("dns-block-{}", now.timestamp_micros());
+                                        let alert_payload = serde_json::json!({
+                                            "domain": entry.domain,
+                                            "qtype": entry.qtype,
+                                            "action": entry.action,
+                                            "reason": entry.reason,
+                                            "timestamp": now.to_rfc3339(),
+                                        });
+                                        let _ = dns_telemetry.queue_event(&TelemetryEvent::new(
+                                            event_id.clone(),
+                                            "dns_query",
+                                            now,
+                                            alert_payload,
+                                        ));
+
+                                        // Queue visual evidence capture trigger for user session helper
+                                        let trigger_desc = format!(
+                                            "WEB_BLOCK: {} ({})",
+                                            entry.domain, entry.reason
+                                        );
+                                        dns_dispatcher.queue_capture_trigger(event_id, trigger_desc);
+                                    }
                                 }
                             }
                             None => {
