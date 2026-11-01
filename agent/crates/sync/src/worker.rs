@@ -277,6 +277,14 @@ impl TelemetrySyncWorker {
             .unwrap_or(1);
 
         let optimal_upstream = self.storage.get_meta("dns_upstream").ok().flatten();
+        let is_nats_connected = self
+            .storage
+            .get_meta("nats_status")
+            .ok()
+            .flatten()
+            .as_deref()
+            == Some("connected");
+
         let hb_req = HeartbeatRequest {
             device_id: dev_id.clone(),
             agent_version: agent_version.clone(),
@@ -289,6 +297,7 @@ impl TelemetrySyncWorker {
             outbox_depth,
             dns_upstream_optimal: optimal_upstream,
             dns_avg_rtt_ms: None,
+            nats_connected: Some(is_nats_connected),
             pc_info: Some(crate::client::PcInfoDto::collect_local(uptime_seconds)),
         };
 

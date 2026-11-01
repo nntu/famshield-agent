@@ -98,6 +98,9 @@ pub struct StatusResponse {
 
     pub app_version: String,
 
+    #[serde(default)]
+    pub nats_status: String,
+
     #[serde(skip_serializing_if = "Option::is_none")]
     pub system_info: Option<famshield_windows::SystemInfo>,
 }

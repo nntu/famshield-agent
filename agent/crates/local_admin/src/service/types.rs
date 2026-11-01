@@ -43,6 +43,8 @@ pub struct ServerConfig {
     pub sync_interval_secs: u32,
     pub tls_verify: bool,
     pub connection_status: String,
+    #[serde(default)]
+    pub nats_status: String,
     pub last_sync_time: Option<String>,
     pub policy_version: u32,
 }

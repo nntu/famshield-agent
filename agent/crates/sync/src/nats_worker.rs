@@ -105,6 +105,11 @@ impl NatsConnectionWorker {
                         "Successfully connected to NATS broker at {}",
                         current_nats_url
                     );
+                    let _ = self.storage.set_meta("nats_status", "connected");
+                    let _ = self
+                        .storage
+                        .set_meta("nats_last_connected_at", &chrono::Utc::now().to_rfc3339());
+                    let _ = self.storage.delete_meta("nats_last_error");
                     backoff_secs = 2; // Reset backoff on success
                     c
                 }
@@ -113,6 +118,8 @@ impl NatsConnectionWorker {
                         "Failed to connect to NATS broker ({}): {}. Retrying in {}s...",
                         current_nats_url, e, backoff_secs
                     );
+                    let _ = self.storage.set_meta("nats_status", "disconnected");
+                    let _ = self.storage.set_meta("nats_last_error", &e.to_string());
                     tokio::select! {
                         _ = shutdown_rx.recv() => {
                             info!("NATS worker shutting down upon signal during backoff");
@@ -168,6 +175,7 @@ impl NatsConnectionWorker {
                             }
                             None => {
                                 warn!("NATS subscriber stream ended (connection dropped). Reconnecting...");
+                                let _ = self.storage.set_meta("nats_status", "disconnected");
                                 connection_dropped = true;
                             }
                         }

@@ -66,6 +66,15 @@ pub(crate) async fn handle_status(
         "STOPPED".to_string()
     };
 
+    let nats_status = state
+        .service
+        .storage()
+        .get_meta("nats_status")
+        .ok()
+        .flatten()
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "disconnected".to_string());
+
     Ok(Json(StatusResponse {
         protection_active: true,
 
@@ -102,6 +111,8 @@ pub(crate) async fn handle_status(
         evidence_count,
 
         app_version: env!("CARGO_PKG_VERSION").to_string(),
+
+        nats_status,
 
         system_info: Some(famshield_windows::get_system_info()),
     }))

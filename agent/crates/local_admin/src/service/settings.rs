@@ -63,8 +63,19 @@ impl LocalAdminService {
             .get_meta("version_check_url")?
             .filter(|s| !s.is_empty());
 
+        let nats_status = self
+            .storage
+            .get_meta("nats_status")?
+            .filter(|s| !s.is_empty())
+            .unwrap_or_else(|| "disconnected".to_string());
+
         let (operating_mode, connection_status) = if is_enrolled {
-            ("OnlineManaged".to_string(), "Connected".to_string())
+            let conn = if nats_status == "connected" {
+                "Connected (Real-time NATS)".to_string()
+            } else {
+                "Reconnecting (HTTP Fallback)".to_string()
+            };
+            ("OnlineManaged".to_string(), conn)
         } else {
             ("StandaloneFree".to_string(), "Disconnected".to_string())
         };
@@ -84,6 +95,7 @@ impl LocalAdminService {
             sync_interval_secs,
             tls_verify,
             connection_status,
+            nats_status,
             last_sync_time,
             policy_version,
         })

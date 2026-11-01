@@ -24,6 +24,8 @@ pub struct HeartbeatRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub dns_avg_rtt_ms: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub nats_connected: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub pc_info: Option<PcInfoDto>,
 }
 
