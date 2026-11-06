@@ -56,6 +56,21 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
                 {r.reason && <div className="text-slate-500 text-2xs mt-0.5">{r.reason}</div>}
               </div>
               <div className="flex items-center gap-2">
+                <span
+                  className={`px-2 py-0.5 rounded text-2xs font-mono font-bold ${
+                    r.action === 'ALLOW'
+                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                      : r.rule_type === 'application'
+                      ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                      : 'bg-rose-50 text-rose-700 border border-rose-200'
+                  }`}
+                >
+                  {r.action === 'ALLOW'
+                    ? (isVi ? 'CHO PHÉP' : 'ALLOW')
+                    : r.rule_type === 'application'
+                    ? (isVi ? 'GIỚI HẠN' : 'LIMIT')
+                    : (isVi ? 'CHẶN' : 'BLOCK')}
+                </span>
                 <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded text-2xs font-mono uppercase font-semibold">
                   {r.rule_type}
                 </span>

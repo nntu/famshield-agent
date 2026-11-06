@@ -49,10 +49,12 @@ function Ensure-MsvcEnvironment {
     }
 
     $candidates = @(
+        "C:\Program Files (x86)\Microsoft Visual Studio\18\BuildTools\VC\Auxiliary\Build\vcvars64.bat",
+        "C:\Program Files\Microsoft Visual Studio\18\BuildTools\VC\Auxiliary\Build\vcvars64.bat",
+        "C:\Program Files\Microsoft Visual Studio\18\Professional\VC\Auxiliary\Build\vcvars64.bat",
         "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvars64.bat",
         "C:\Program Files\Microsoft Visual Studio\2022\Professional\VC\Auxiliary\Build\vcvars64.bat",
-        "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat",
-        "C:\Program Files\Microsoft Visual Studio\18\Professional\VC\Auxiliary\Build\vcvars64.bat"
+        "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat"
     )
 
     $vcvars = $null
@@ -397,7 +399,7 @@ function Package-Agent {
     # 3. Locate and sign the generated installer executable
         $issContent = Get-Content $issFile -Raw
     $versionMatch = [regex]::Match($issContent, '#define MyAppVersion "(.*?)"')
-    $appVer = if ($versionMatch.Success) { $versionMatch.Groups[1].Value } else { "1.0.5" }
+    $appVer = if ($versionMatch.Success) { $versionMatch.Groups[1].Value } else { "1.0.6" }
     $installerExe = Join-Path $ProjectRoot "installer\Output\FamShieldSetup-$appVer.exe"
     if (Test-Path $installerExe) {
         Sign-Binary -FilePath $installerExe

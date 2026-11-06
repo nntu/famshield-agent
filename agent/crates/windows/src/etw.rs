@@ -1,8 +1,8 @@
 use crate::error::WindowsError;
 use std::sync::atomic::{AtomicU64, Ordering};
+use tracing::info;
 #[cfg(windows)]
 use tracing::warn;
-use tracing::info;
 
 static DROPPED_ETW_EVENTS: AtomicU64 = AtomicU64::new(0);
 

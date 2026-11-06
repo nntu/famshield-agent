@@ -40,6 +40,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'system_logs', label: t.nav_system_logs, icon: '🖥️' },
     { id: 'evidence', label: t.nav_evidence, icon: '🖼️' },
     { id: 'security', label: t.nav_security, icon: '⚙️' },
+    { id: 'author', label: lang === 'vi' ? 'Tác giả' : 'Author', icon: '✨' },
   ];
 
   return (
@@ -81,8 +82,8 @@ export const Navbar: React.FC<NavbarProps> = ({
                   ? `Có bản cập nhật mới v${latestVersion}! Bấm để mở Cài đặt & Cập nhật.`
                   : `New update v${latestVersion} available! Click to open Security & Updates.`
                 : lang === 'vi'
-                  ? `Phiên bản hiện tại: v${appVersion || '1.0.5'}. Bấm để kiểm tra bản mới.`
-                  : `Current version: v${appVersion || '1.0.5'}. Click to check updates.`
+                  ? `Phiên bản hiện tại: v${appVersion || '1.0.6'}. Bấm để kiểm tra bản mới.`
+                  : `Current version: v${appVersion || '1.0.6'}. Click to check updates.`
             }
             className={`px-2.5 py-0.5 rounded-full text-xs font-mono font-medium flex items-center gap-1.5 transition-all cursor-pointer ${
               updateAvailable
@@ -93,13 +94,13 @@ export const Navbar: React.FC<NavbarProps> = ({
             {updateAvailable ? (
               <>
                 <span aria-hidden="true">🚀</span>
-                <span>v{appVersion || '1.0.5'}</span>
+                <span>v{appVersion || '1.0.6'}</span>
                 <span className="text-2xs font-sans font-semibold text-amber-700 ml-0.5">
                   ({lang === 'vi' ? 'Bản mới' : 'Update'} v{latestVersion})
                 </span>
               </>
             ) : (
-              <span>v{appVersion || '1.0.5'}</span>
+              <span>v{appVersion || '1.0.6'}</span>
             )}
           </button>
         </div>
@@ -138,11 +139,15 @@ export const Navbar: React.FC<NavbarProps> = ({
           {onOpenAuthorModal && (
             <button
               type="button"
-              onClick={onOpenAuthorModal}
+              onClick={() => onTabChange('author')}
               title={lang === 'vi' ? 'Thông tin Tác giả & Mã nguồn mở' : 'Author & Open Source Info'}
-              className="flex items-center gap-1.5 bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200/80 px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
+              className={`flex items-center gap-1.5 border px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+                currentTab === 'author'
+                  ? 'bg-sky-600 text-white border-sky-600 shadow-xs'
+                  : 'bg-sky-50 hover:bg-sky-100 text-sky-700 border-sky-200/80'
+              }`}
             >
-              <Sparkles size={13} className="text-sky-600" />
+              <Sparkles size={13} className={currentTab === 'author' ? 'text-white' : 'text-sky-600'} />
               <span className="hidden sm:inline">{lang === 'vi' ? 'Tác Giả' : 'Author'}</span>
             </button>
           )}

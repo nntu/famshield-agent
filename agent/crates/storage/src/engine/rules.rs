@@ -68,11 +68,11 @@ impl StorageEngine {
                 payload: row.get(2)?,
                 enabled: row.get::<_, i32>(3)? == 1,
                 created_at: DateTime::parse_from_rfc3339(&created_str)
-                    .unwrap()
-                    .with_timezone(&Utc),
+                    .map(|dt| dt.with_timezone(&Utc))
+                    .unwrap_or_else(|_| Utc::now()),
                 updated_at: DateTime::parse_from_rfc3339(&updated_str)
-                    .unwrap()
-                    .with_timezone(&Utc),
+                    .map(|dt| dt.with_timezone(&Utc))
+                    .unwrap_or_else(|_| Utc::now()),
                 source: "local".to_string(),
             })
         })?;

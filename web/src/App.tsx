@@ -1,7 +1,16 @@
 import type React from 'react';
-import { Suspense, lazy, useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { api, setSessionToken } from './api';
 import { DashboardTab } from './components/DashboardTab';
+import { ActivityTab } from './components/ActivityTab';
+import { RulesTab } from './components/RulesTab';
+import { LogsTab } from './components/LogsTab';
+import { SystemLogsView } from './components/SystemLogsView';
+import { ErrorManagementView } from './components/ErrorManagementView';
+import { EvidenceTab } from './components/EvidenceTab';
+import { SecurityTab } from './components/SecurityTab';
+import { SetupWizard } from './components/SetupWizard';
+import { AuthorTab } from './components/AuthorTab';
 import { Navbar } from './components/Navbar';
 import { PinModal } from './components/PinModal';
 import type {
@@ -13,44 +22,6 @@ import type {
   TabType,
 } from './types';
 
-// Lazy-loaded tab modules for bundle splitting & faster initial paint
-const ActivityTab = lazy(() =>
-  import('./components/ActivityTab').then((m) => ({ default: m.ActivityTab }))
-);
-const RulesTab = lazy(() =>
-  import('./components/RulesTab').then((m) => ({ default: m.RulesTab }))
-);
-const LogsTab = lazy(() =>
-  import('./components/LogsTab').then((m) => ({ default: m.LogsTab }))
-);
-const SystemLogsView = lazy(() =>
-  import('./components/SystemLogsView').then((m) => ({ default: m.SystemLogsView }))
-);
-const ErrorManagementView = lazy(() =>
-  import('./components/ErrorManagementView').then((m) => ({ default: m.ErrorManagementView }))
-);
-const EvidenceTab = lazy(() =>
-  import('./components/EvidenceTab').then((m) => ({ default: m.EvidenceTab }))
-);
-const SecurityTab = lazy(() =>
-  import('./components/SecurityTab').then((m) => ({ default: m.SecurityTab }))
-);
-const SetupWizard = lazy(() =>
-  import('./components/SetupWizard').then((m) => ({ default: m.SetupWizard }))
-);
-const AuthorModal = lazy(() =>
-  import('./components/AuthorModal').then((m) => ({ default: m.AuthorModal }))
-);
-
-const TabSkeleton: React.FC<{ lang: Language }> = ({ lang }) => (
-  <div className="flex flex-col items-center justify-center py-24 text-slate-400 gap-3">
-    <div className="w-8 h-8 border-3 border-sky-500 border-t-transparent rounded-full animate-spin" />
-    <span className="text-xs font-medium text-slate-500">
-      {lang === 'vi' ? 'Đang tải dữ liệu mô-đun...' : 'Loading module...'}
-    </span>
-  </div>
-);
-
 export const App: React.FC = () => {
   const [lang, setLang] = useState<Language>(() => {
     return (localStorage.getItem('famshield_lang') as Language) || 'vi';
@@ -59,7 +30,6 @@ export const App: React.FC = () => {
   const [currentTab, setCurrentTab] = useState<TabType>('dashboard');
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [isPinModalOpen, setIsPinModalOpen] = useState<boolean>(false);
-  const [isAuthorModalOpen, setIsAuthorModalOpen] = useState<boolean>(false);
   const [isConfigured, setIsConfigured] = useState<boolean | null>(null);
 
   const [status, setStatus] = useState<StatusResponse | null>(null);
@@ -122,6 +92,7 @@ export const App: React.FC = () => {
         hash === 'evidence' ||
         hash === 'security' ||
         hash === 'activity' ||
+        hash === 'author' ||
         hash === 'dashboard'
       ) {
         setCurrentTab(hash as TabType);
@@ -243,14 +214,10 @@ export const App: React.FC = () => {
   }
 
   if (isConfigured === false) {
-    return (
-      <Suspense fallback={<TabSkeleton lang={lang} />}>
-        <SetupWizard lang={lang} onComplete={handleSetupComplete} />
-      </Suspense>
-    );
+    return <SetupWizard lang={lang} onComplete={handleSetupComplete} />;
   }
 
-  const appVersion = status?.app_version || updateInfo?.current_version || '1.0.5';
+  const appVersion = status?.app_version || updateInfo?.current_version || '1.0.6';
 
   return (
     <div className="w-full min-h-[100dvh] flex flex-col bg-slate-50 text-slate-800 antialiased">
@@ -265,64 +232,71 @@ export const App: React.FC = () => {
         latestVersion={updateInfo?.latest_version}
         onLogout={handleLogout}
         isAuthenticated={isAuthenticated}
-        onOpenAuthorModal={() => setIsAuthorModalOpen(true)}
+        onOpenAuthorModal={() => setCurrentTab('author')}
       />
 
       <main className="flex-1 w-full max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
-        <Suspense fallback={<TabSkeleton lang={lang} />}>
-          {currentTab === 'dashboard' && (
-            <DashboardTab
-              status={status}
-              recentLogs={logs}
-              lang={lang}
-              onNavigateTab={setCurrentTab}
-              onRefresh={refreshAllData}
-            />
-          )}
+        {currentTab === 'dashboard' && (
+          <DashboardTab
+            status={status}
+            recentLogs={logs}
+            lang={lang}
+            onNavigateTab={setCurrentTab}
+            onRefresh={refreshAllData}
+          />
+        )}
 
-          {currentTab === 'activity' && (
-            <ActivityTab lang={lang} onRefresh={refreshAllData} onShowToast={showToast} />
-          )}
+        {currentTab === 'activity' && (
+          <ActivityTab lang={lang} onRefresh={refreshAllData} onShowToast={showToast} />
+        )}
 
-          {currentTab === 'rules' && (
-            <RulesTab rules={rules} lang={lang} onRefresh={refreshAllData} onShowToast={showToast} />
-          )}
+        {currentTab === 'rules' && (
+          <RulesTab rules={rules} lang={lang} onRefresh={refreshAllData} onShowToast={showToast} />
+        )}
 
-          {currentTab === 'logs' && (
-            <LogsTab
-              logs={logs}
-              lang={lang}
-              onRefresh={refreshAllData}
-              autoRefresh={autoRefresh}
-              onToggleAutoRefresh={() => setAutoRefresh(!autoRefresh)}
-              onShowToast={showToast}
-            />
-          )}
+        {currentTab === 'logs' && (
+          <LogsTab
+            logs={logs}
+            lang={lang}
+            onRefresh={refreshAllData}
+            autoRefresh={autoRefresh}
+            onToggleAutoRefresh={() => setAutoRefresh(!autoRefresh)}
+            onShowToast={showToast}
+          />
+        )}
 
-          {currentTab === 'system_logs' && (
-            <div className="flex flex-col gap-6">
-              <SystemLogsView lang={lang} onShowToast={showToast} />
-              <ErrorManagementView lang={lang} onShowToast={showToast} />
-            </div>
-          )}
+        {currentTab === 'system_logs' && (
+          <div className="flex flex-col gap-6">
+            <SystemLogsView lang={lang} onShowToast={showToast} />
+            <ErrorManagementView lang={lang} onShowToast={showToast} />
+          </div>
+        )}
 
-          {currentTab === 'evidence' && (
-            <EvidenceTab
-              evidenceList={evidenceList}
-              lang={lang}
-              onRefresh={() => api.getEvidence(50).then(setEvidenceList)}
-            />
-          )}
+        {currentTab === 'evidence' && (
+          <EvidenceTab
+            evidenceList={evidenceList}
+            lang={lang}
+            onRefresh={() => api.getEvidence(50).then(setEvidenceList)}
+          />
+        )}
 
-          {currentTab === 'security' && (
-            <SecurityTab
-              status={status}
-              lang={lang}
-              onRefresh={refreshAllData}
-              onShowToast={showToast}
-            />
-          )}
-        </Suspense>
+        {currentTab === 'security' && (
+          <SecurityTab
+            status={status}
+            lang={lang}
+            onRefresh={refreshAllData}
+            onShowToast={showToast}
+            onNavigateTab={setCurrentTab}
+          />
+        )}
+
+        {currentTab === 'author' && (
+          <AuthorTab
+            lang={lang}
+            appVersion={appVersion}
+            onShowToast={showToast}
+          />
+        )}
       </main>
 
       {/* Global Application Footer */}
@@ -361,7 +335,7 @@ export const App: React.FC = () => {
           <div className="flex items-center gap-3 text-2xs">
             <button
               type="button"
-              onClick={() => setIsAuthorModalOpen(true)}
+              onClick={() => setCurrentTab('author')}
               className="text-sky-600 hover:text-sky-800 hover:underline cursor-pointer font-bold flex items-center gap-1"
             >
               <span>{lang === 'vi' ? 'Tác giả: Nguyễn Ngọc Tú' : 'Author: Nguyen Ngoc Tu'}</span>
@@ -386,17 +360,6 @@ export const App: React.FC = () => {
         onSuccess={handleAuthSuccess}
         appVersion={appVersion}
       />
-
-      {isAuthorModalOpen && (
-        <Suspense fallback={null}>
-          <AuthorModal
-            isOpen={isAuthorModalOpen}
-            onClose={() => setIsAuthorModalOpen(false)}
-            lang={lang}
-            appVersion={appVersion}
-          />
-        </Suspense>
-      )}
 
       {/* Floating Toast Box */}
       <div

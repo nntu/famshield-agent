@@ -528,11 +528,16 @@ impl TelemetrySyncWorker {
                     if pol.silent_mode { "true" } else { "false" },
                 );
 
-                if pol.monitor_only_mode {
-                    let _ = self.storage.set_meta("monitor_mode", "true");
-                    if let Some(blocklist) = &self.dns_blocklist {
-                        blocklist.set_monitor_mode(true);
-                    }
+                let _ = self.storage.set_meta(
+                    "monitor_mode",
+                    if pol.monitor_only_mode {
+                        "true"
+                    } else {
+                        "false"
+                    },
+                );
+                if let Some(blocklist) = &self.dns_blocklist {
+                    blocklist.set_monitor_mode(pol.monitor_only_mode);
                 }
 
                 // Cache full cloud policy object in storage for local UI and DNS sync

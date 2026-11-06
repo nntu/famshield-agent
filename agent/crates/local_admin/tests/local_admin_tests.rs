@@ -569,7 +569,10 @@ async fn test_centralized_server_settings_lifecycle() {
     assert_eq!(updated_cfg.device_id, "dev-884422");
     assert_eq!(updated_cfg.sync_interval_secs, 30);
     assert!(!updated_cfg.tls_verify);
-    assert_eq!(updated_cfg.connection_status, "Connected");
+    assert_eq!(
+        updated_cfg.connection_status,
+        "Reconnecting (HTTP Fallback)"
+    );
 
     // 3. Test connection probe
     let app = server.router();
@@ -1992,5 +1995,8 @@ async fn test_cloud_policy_and_category_domains_api() {
         json["category_custom_domains"]["adult"][0],
         "custom-xxx-site.com"
     );
-    assert_eq!(json["category_source_files"][0]["file_name"], "adult-blocklist.txt");
+    assert_eq!(
+        json["category_source_files"][0]["file_name"],
+        "adult-blocklist.txt"
+    );
 }

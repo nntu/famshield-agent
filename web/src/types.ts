@@ -156,7 +156,7 @@ export interface PushErrorsNatsResponse {
   nats_url?: string;
 }
 
-export type TabType = 'dashboard' | 'activity' | 'rules' | 'logs' | 'system_logs' | 'evidence' | 'security';
+export type TabType = 'dashboard' | 'activity' | 'rules' | 'logs' | 'system_logs' | 'evidence' | 'security' | 'author';
 export type Language = 'vi' | 'en';
 
 export interface SetupStatusResponse {
@@ -192,7 +192,7 @@ export interface ServerConfig {
   enrollment_code?: string;
   sync_interval_secs: number;
   tls_verify: boolean;
-  connection_status: 'Connected' | 'Disconnected' | 'Syncing' | 'Error';
+  connection_status: string;
   last_sync_time?: string | null;
   policy_version: number;
 }

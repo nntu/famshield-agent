@@ -354,7 +354,9 @@ pub(crate) async fn handle_update_cloud_policy(
         ));
     }
 
-    let mut current_policy = if let Ok(Some(cached)) = state.service.storage().get_meta("cached_cloud_policy") {
+    let mut current_policy = if let Ok(Some(cached)) =
+        state.service.storage().get_meta("cached_cloud_policy")
+    {
         serde_json::from_str::<serde_json::Value>(&cached).unwrap_or_else(|_| serde_json::json!({}))
     } else {
         serde_json::json!({
@@ -373,7 +375,8 @@ pub(crate) async fn handle_update_cloud_policy(
         })
     };
 
-    if let (Some(curr_obj), Some(patch_obj)) = (current_policy.as_object_mut(), payload.as_object()) {
+    if let (Some(curr_obj), Some(patch_obj)) = (current_policy.as_object_mut(), payload.as_object())
+    {
         for (k, v) in patch_obj {
             curr_obj.insert(k.clone(), v.clone());
         }
@@ -384,7 +387,11 @@ pub(crate) async fn handle_update_cloud_policy(
     }
 
     let serialized = current_policy.to_string();
-    if let Err(e) = state.service.storage().set_meta("cached_cloud_policy", &serialized) {
+    if let Err(e) = state
+        .service
+        .storage()
+        .set_meta("cached_cloud_policy", &serialized)
+    {
         warn!("Failed to persist updated cloud policy: {}", e);
         return Err((
             StatusCode::INTERNAL_SERVER_ERROR,

@@ -6,11 +6,13 @@ import type { Language } from '../../types';
 interface AuthorOpenSourceCardProps {
   lang: Language;
   onShowToast: (msg: string, type?: 'success' | 'error' | 'info') => void;
+  onNavigateTab?: (tab: any) => void;
 }
 
 export const AuthorOpenSourceCard: React.FC<AuthorOpenSourceCardProps> = ({
   lang,
   onShowToast,
+  onNavigateTab,
 }) => {
   const isVi = lang === 'vi';
   const [copiedRepoClone, setCopiedRepoClone] = useState(false);
@@ -83,7 +85,7 @@ export const AuthorOpenSourceCard: React.FC<AuthorOpenSourceCardProps> = ({
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           <span
             style={{
               background: 'rgba(52, 211, 153, 0.1)',
@@ -110,8 +112,29 @@ export const AuthorOpenSourceCard: React.FC<AuthorOpenSourceCardProps> = ({
               fontFamily: 'monospace',
             }}
           >
-            v1.0.3
+            v1.0.6
           </span>
+          {onNavigateTab && (
+            <button
+              type="button"
+              onClick={() => onNavigateTab('author')}
+              style={{
+                background: 'rgba(56, 189, 248, 0.2)',
+                color: '#38bdf8',
+                border: '1px solid rgba(56, 189, 248, 0.4)',
+                padding: '4px 12px',
+                borderRadius: 9999,
+                fontSize: '0.75rem',
+                fontWeight: 700,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
+              }}
+            >
+              <span>{isVi ? 'Xem Trang Tác Giả →' : 'View Author Page →'}</span>
+            </button>
+          )}
         </div>
       </div>
 

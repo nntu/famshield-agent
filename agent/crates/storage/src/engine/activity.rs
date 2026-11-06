@@ -127,9 +127,17 @@ impl StorageEngine {
     pub fn get_app_usage_today_ms(&self, app_name: &str) -> Result<i64, StorageError> {
         let conn = self.conn.lock().unwrap();
         let today_prefix = Utc::now().format("%Y-%m-%d").to_string();
+        let exe_name = if app_name.ends_with(".exe") {
+            app_name.to_string()
+        } else {
+            format!("{}.exe", app_name)
+        };
+        let base_name = app_name.trim_end_matches(".exe");
         let total: Option<i64> = conn.query_row(
-            "SELECT SUM(duration_ms) FROM usage_segments WHERE rule_id = ?1 AND start_utc LIKE ?2",
-            params![app_name, format!("{}%", today_prefix)],
+            "SELECT SUM(duration_ms) FROM usage_segments 
+             WHERE (rule_id = ?1 COLLATE NOCASE OR rule_id = ?2 COLLATE NOCASE) 
+               AND start_utc LIKE ?3",
+            params![exe_name, base_name, format!("{}%", today_prefix)],
             |row| row.get(0),
         )?;
         Ok(total.unwrap_or(0))

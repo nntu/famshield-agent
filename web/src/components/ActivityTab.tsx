@@ -25,7 +25,7 @@ import {
 } from 'lucide-react';
 import type { ColumnDef } from '@tanstack/react-table';
 import type React from 'react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../api';
 import { translations } from '../i18n';
 import type {
@@ -113,10 +113,12 @@ export const ActivityTab: React.FC<ActivityTabProps> = ({ lang, onRefresh, onSho
   const fetchActivity = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await api.getActivitySummary();
+      const [res] = await Promise.all([
+        api.getActivitySummary(),
+        fetchCategories(),
+        fetchTimeReport(),
+      ]);
       setData(res);
-      fetchCategories();
-      fetchTimeReport();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       onShowToast(
@@ -128,13 +130,53 @@ export const ActivityTab: React.FC<ActivityTabProps> = ({ lang, onRefresh, onSho
     }
   }, [isVi, onShowToast, fetchCategories, fetchTimeReport]);
 
+  // Initial parallel load on mount (single round-trip, no waterfall)
   useEffect(() => {
+    let isMounted = true;
+    (async () => {
+      setLoading(true);
+      try {
+        const [res, cats, rep] = await Promise.all([
+          api.getActivitySummary(),
+          api.getAppCategories().catch(() => []),
+          api.getTimeAggregatedReport({
+            period: selectedPeriod,
+            excludeSystem: appFilterMode === 'user_only',
+          }).catch(() => null),
+        ]);
+        if (isMounted) {
+          setData(res);
+          setCategories(cats);
+          setTimeReport(rep);
+        }
+      } catch (err: unknown) {
+        if (isMounted) {
+          const msg = err instanceof Error ? err.message : String(err);
+          onShowToast(
+            msg || (isVi ? 'Lỗi tải nhật ký hoạt động' : 'Failed to load activity logs'),
+            'error'
+          );
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    })();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // Re-fetch time report only when period or filter mode changes
+  const isFirstPeriodMount = useRef(true);
+  useEffect(() => {
+    if (isFirstPeriodMount.current) {
+      isFirstPeriodMount.current = false;
+      return;
+    }
     fetchTimeReport();
   }, [fetchTimeReport]);
-
-  useEffect(() => {
-    fetchActivity();
-  }, [fetchActivity]);
 
   useEffect(() => {
     if (!autoRefresh) return;
@@ -185,75 +227,100 @@ export const ActivityTab: React.FC<ActivityTabProps> = ({ lang, onRefresh, onSho
     return <Globe size={16} className="text-slate-500" />;
   };
 
-  // Filtered lists
-  const filteredTimeline = (data?.unified_timeline || []).filter((item) => {
-    const matchSearch =
-      item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.subtitle.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.category.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchCat =
-      selectedCategory === 'ALL' ||
-      item.category.toLowerCase().includes(selectedCategory.toLowerCase());
-    return matchSearch && matchCat;
-  });
+  // Filtered lists (memoized to prevent heavy UI recalculations on re-render)
+  const filteredTimeline = useMemo(() => {
+    const q = searchQuery.toLowerCase().trim();
+    const cat = selectedCategory.toLowerCase();
+    return (data?.unified_timeline || []).filter((item) => {
+      const matchSearch =
+        !q ||
+        item.title.toLowerCase().includes(q) ||
+        item.subtitle.toLowerCase().includes(q) ||
+        item.category.toLowerCase().includes(q);
+      const matchCat =
+        selectedCategory === 'ALL' ||
+        item.category.toLowerCase().includes(cat);
+      return matchSearch && matchCat;
+    });
+  }, [data?.unified_timeline, searchQuery, selectedCategory]);
 
-  const filteredApps = (data?.app_activities || []).filter((app) => {
-    const matchSearch =
-      app.app_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      app.app_title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      app.category.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchCat =
-      selectedCategory === 'ALL' ||
-      app.category.toLowerCase().includes(selectedCategory.toLowerCase()) ||
-      (app.category_id && app.category_id.toLowerCase() === selectedCategory.toLowerCase());
-    const matchSystem =
-      appFilterMode === 'all'
-        ? true
-        : appFilterMode === 'system_only'
-          ? Boolean(app.is_system)
-          : !app.is_system;
-    return matchSearch && matchCat && matchSystem;
-  });
+  const filteredApps = useMemo(() => {
+    const q = searchQuery.toLowerCase().trim();
+    const cat = selectedCategory.toLowerCase();
+    return (data?.app_activities || []).filter((app) => {
+      const matchSearch =
+        !q ||
+        app.app_name.toLowerCase().includes(q) ||
+        app.app_title.toLowerCase().includes(q) ||
+        app.category.toLowerCase().includes(q);
+      const matchCat =
+        selectedCategory === 'ALL' ||
+        app.category.toLowerCase().includes(cat) ||
+        (app.category_id && app.category_id.toLowerCase() === cat);
+      const matchSystem =
+        appFilterMode === 'all'
+          ? true
+          : appFilterMode === 'system_only'
+            ? Boolean(app.is_system)
+            : !app.is_system;
+      return matchSearch && matchCat && matchSystem;
+    });
+  }, [data?.app_activities, searchQuery, selectedCategory, appFilterMode]);
 
-  const filteredGroupedApps = (data?.grouped_apps || []).filter((app) => {
-    const matchSearch =
-      app.app_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      app.app_title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      app.category.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchCat =
-      selectedCategory === 'ALL' ||
-      app.category.toLowerCase().includes(selectedCategory.toLowerCase()) ||
-      (app.category_id && app.category_id.toLowerCase() === selectedCategory.toLowerCase());
-    const matchSystem =
-      appFilterMode === 'all'
-        ? true
-        : appFilterMode === 'system_only'
-          ? Boolean(app.is_system)
-          : !app.is_system;
-    return matchSearch && matchCat && matchSystem;
-  });
+  const filteredGroupedApps = useMemo(() => {
+    const q = searchQuery.toLowerCase().trim();
+    const cat = selectedCategory.toLowerCase();
+    return (data?.grouped_apps || []).filter((app) => {
+      const matchSearch =
+        !q ||
+        app.app_name.toLowerCase().includes(q) ||
+        app.app_title.toLowerCase().includes(q) ||
+        app.category.toLowerCase().includes(q);
+      const matchCat =
+        selectedCategory === 'ALL' ||
+        app.category.toLowerCase().includes(cat) ||
+        (app.category_id && app.category_id.toLowerCase() === cat);
+      const matchSystem =
+        appFilterMode === 'all'
+          ? true
+          : appFilterMode === 'system_only'
+            ? Boolean(app.is_system)
+            : !app.is_system;
+      return matchSearch && matchCat && matchSystem;
+    });
+  }, [data?.grouped_apps, searchQuery, selectedCategory, appFilterMode]);
 
-  const filteredWeb = (data?.web_activities || []).filter((web) => {
-    const matchSearch =
-      web.domain.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      web.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      web.source_app.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchCat =
-      selectedCategory === 'ALL' ||
-      web.category.toLowerCase().includes(selectedCategory.toLowerCase());
-    return matchSearch && matchCat;
-  });
+  const filteredWeb = useMemo(() => {
+    const q = searchQuery.toLowerCase().trim();
+    const cat = selectedCategory.toLowerCase();
+    return (data?.web_activities || []).filter((web) => {
+      const matchSearch =
+        !q ||
+        web.domain.toLowerCase().includes(q) ||
+        web.category.toLowerCase().includes(q) ||
+        web.source_app.toLowerCase().includes(q);
+      const matchCat =
+        selectedCategory === 'ALL' ||
+        web.category.toLowerCase().includes(cat);
+      return matchSearch && matchCat;
+    });
+  }, [data?.web_activities, searchQuery, selectedCategory]);
 
-  const filteredKeywords = (data?.keyword_violations || []).filter((kv) => {
-    const matchSearch =
-      kv.keyword_matched.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      kv.app_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      kv.category.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchCat =
-      selectedCategory === 'ALL' ||
-      kv.category.toLowerCase().includes(selectedCategory.toLowerCase());
-    return matchSearch && matchCat;
-  });
+  const filteredKeywords = useMemo(() => {
+    const q = searchQuery.toLowerCase().trim();
+    const cat = selectedCategory.toLowerCase();
+    return (data?.keyword_violations || []).filter((kv) => {
+      const matchSearch =
+        !q ||
+        kv.keyword_matched.toLowerCase().includes(q) ||
+        kv.app_name.toLowerCase().includes(q) ||
+        kv.category.toLowerCase().includes(q);
+      const matchCat =
+        selectedCategory === 'ALL' ||
+        kv.category.toLowerCase().includes(cat);
+      return matchSearch && matchCat;
+    });
+  }, [data?.keyword_violations, searchQuery, selectedCategory]);
 
   const appColumns = useMemo<ColumnDef<AppUsageSummary>[]>(
     () => [

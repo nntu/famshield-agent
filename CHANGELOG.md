@@ -12,39 +12,23 @@ Tất cả các thay đổi quan trọng của dự án **FamShield Windows Agen
 
 ## [Unreleased]
 
-### Added
-- **Quản Lý Danh Mục Web Chuyên Sâu & Khắc Phục Triệt Để Treo Giao Diện (Anti-Freeze Paginated Catalog & Source File Management)**:
-  - Loại bỏ hoàn toàn việc render hàng nghìn thẻ tag `<span>` trực tiếp trong card danh mục gây tràn bộ nhớ DOM và đơ/treo trình duyệt web (freeze UI).
-  - Triển khai màn hình chi tiết chuyên dụng **`CategoryDetailModal`**: Bảng dữ liệu tên miền phân trang hiệu năng cao (10 / 25 / 50 / 100 dòng mỗi trang), hỗ trợ tìm kiếm tức thì theo từ khóa, đảm bảo giao diện luôn mượt mà 60 FPS ngay cả khi danh mục chứa hơn 50.000 tên miền.
-  - Tích hợp công cụ **Nạp Tệp Danh Sách Chặn (Source File Import)**: Tự động phân tích các tệp văn bản `.txt`, `.list`, `.csv`, `.hosts`; hỗ trợ cú pháp hosts (`0.0.0.0 domain`) và Adblock (`||domain^`), tự động loại trừ dòng comment `#`, chuẩn hóa domain và loại trừ trùng lặp; lưu trữ siêu dữ liệu tệp nguồn (`CategorySourceFile`).
-  - Tích hợp công cụ **Xuất Tệp Văn Bản (.txt)**: Cho phép sao lưu và trích xuất danh sách tên miền của từng danh mục về máy tính.
-  - Bổ sung endpoint `POST /api/policy/cloud` tại Local Admin Server: Lưu trữ chính sách lọc danh mục vào SQLite metadata và kích hoạt `sync_dns_blocklist` nạp nóng vào bộ lọc DNS Sinkhole của máy trạm mà không làm gián đoạn mạng.
-- **Giám Sát Vòng Đời Tiến Trình Qua Kernel ETW (`ferrisetw`)**: Tích hợp provider `Microsoft-Windows-Kernel-Process` với hàng đợi bounded; event ETW được đối chiếu với snapshot polling để tránh phát telemetry trùng. Snapshot polling vẫn là fallback và cơ chế rà quota định kỳ.
-- **Theo Dõi Cửa Sổ Tương Tác Qua `SetWinEventHook`**: Cache foreground event-driven được dùng khi còn mới; cache hết hạn sau 10 giây để tracker đọc lại foreground bằng Win32. Vòng polling một giây vẫn phục vụ đo idle và fallback.
-- **Lưu Trữ & Khởi Tạo Danh Mục / Quy Tắc Phân Loại Trong SQLite (Database Seeding Migration V8)**: Loại bỏ hoàn toàn việc hardcode danh mục và quy tắc phân loại trong mã nguồn; thiết lập migration `V8__app_categories.sql` tạo 2 bảng `app_categories` và `app_category_rules`, tự động seed 8+ danh mục tiêu chuẩn và hơn 40 quy tắc phân loại tiến trình (ưu tiên xử lý từ cao xuống thấp). Nâng cấp `StorageEngine` và `LocalAdminService` truy vấn động và phân loại tiến trình linh hoạt từ cơ sở dữ liệu SQLite cục bộ.
-- **Tối Ưu Giám Sát Tiến Trình & Phân Định Hệ Thống (Process Monitoring Optimization)**: Tối ưu hoá bộ giám sát `ProcessMonitor` và vòng lặp service, nhận diện chính xác các tiến trình lõi hệ thống Windows (`is_system_process`). Khắc phục triệt để việc gán nhầm thời gian sử dụng 60s từ background tasks vào active screen time, giữ vững tính chuẩn xác cho dữ liệu thời gian thực.
-- **Bảng Danh Mục Phân Loại Ứng Dụng Chuẩn Hóa (Application Categories Catalog)**: Thiết lập hệ thống 8 danh mục ứng dụng quy chuẩn (Trò chơi, Trình duyệt Web, Mạng xã hội & Chat, Học tập & Làm việc, Lập trình & Kỹ thuật, Giải trí & Media, Tiện ích & Công cụ, Hệ thống Windows). Cung cấp API `GET /api/activity/apps/categories` trả về danh mục kèm số lượng app và thời lượng sử dụng.
-- **Ưu Tiên Hiển Thị Ứng Dụng Người Dùng (User Apps Priority Display)**: Triển khai thuật toán sắp xếp ưu tiên đưa ứng dụng người dùng (`!is_system`) lên hàng đầu, đẩy các tiến trình hệ thống xuống cuối; bổ sung bộ lọc đa chế độ (Ứng dụng người dùng / Tất cả / Chỉ hệ thống) trên giao diện Web Dashboard giúp phụ huynh dễ dàng quan sát mà không bị phân tâm bởi tiến trình Windows.
-- **Báo Cáo Tổng Hợp Theo Thời Gian & Xu Hướng Khung Giờ (Time-Aggregated Reports)**: Bổ sung API `GET /api/activity/apps/report` và thẻ giao diện `TimeAggregatedReportCard` phân tích chi tiết theo thời gian (Hôm nay, 7 ngày qua, 30 ngày qua, Tất cả), biểu đồ phân bổ thời gian theo 24 khung giờ trong ngày và bảng xếp hạng Top 5 ứng dụng người dùng.
-- **Đồng Bộ Dữ Liệu Ứng Dụng Lên Máy Chủ Đám Mây (App Usage Telemetry Sync)**: Bổ sung endpoint `POST /api/activity/apps/sync-to-server` và nút bấm đồng bộ nhanh trên Web Dashboard; tự động gắn nhãn danh mục chuẩn (`category_id`) vào payload `app_usage` gửi lên outbox telemetry, tương thích 100% với hợp đồng OpenAPI và Cloud Go Server.
-- **Kiến Trúc Nhúng Giao Diện Trực Tiếp (Single-Binary Embedded Web Admin via `rust-embed`)**: Nhúng toàn bộ bundle frontend React 19 (`web/dist`) trực tiếp vào file thực thi `famshield-service.exe` bằng `rust-embed`. Tự động định tuyến SPA với fallback `index.html` và MIME type detection (`mime_guess`), đạt 0ms disk I/O và loại trừ hoàn toàn rủi ro mất hoặc bị can thiệp file UI trên máy trạm.
-- **Cơ Chế Biên Dịch Tự Bảo Vệ (`build.rs`)**: Tự động sinh placeholder cho `web/dist` nếu mã nguồn được checkout trong môi trường CI/CD chưa build web, ngăn ngừa lỗi biên dịch Rust.
+---
 
-### Changed
-- **Tái Cấu Trúc Toàn Diện Backend Cục Bộ (Modularization & Anti-Monolith Refactor)**: Phân rã triệt để các file nguyên khối khổng lồ thành kiến trúc submodules chuyên biệt theo chuẩn idiomatic Rust (150–400 dòng/file), cắt giảm 75–85% token ngữ cảnh cho AI coding agents và ngăn ngừa lỗi truncation/editing:
-  - `agent/crates/local_admin/src/server.rs` (5,573 dòng) -> phân rã thành module `server/types.rs`, `server/assets.rs` và `server/handlers/` (`auth.rs`, `rules.rs`, `dns.rs`, `activity.rs`, `settings.rs`, `keywords.rs`, `system.rs`).
-  - `agent/crates/local_admin/src/service.rs` (2,390 dòng) -> phân rã thành `service/types.rs`, `service/classifier.rs`, `service/backup.rs`, `service/network.rs`, `service/activity.rs`, `service/dns.rs`, `service/settings.rs`, `service/keywords.rs`, `service/rules.rs`.
-  - `agent/crates/storage/src/engine.rs` (1,669 dòng) -> phân rã thành `storage/src/engine/` (`records.rs`, `rules.rs`, `dns.rs`, `evidence.rs`, `errors.rs`, `outbox.rs`, `activity.rs`, `keywords.rs`, `categories.rs`, `maintenance.rs`).
-  - Bảo tồn 100% tính tương thích ngược, giữ nguyên vẹn toàn bộ route endpoints, API contracts, re-exports và logic nghiệp vụ.
-- **Đảm Bảo Telemetry Chỉ Được Xác Nhận Sau ACK**: Outbox chỉ xóa sự kiện có trong danh sách accepted/duplicate của server; sự kiện chưa xác nhận được lên lịch retry. Error log chỉ chuyển sang synced sau ACK.
-- **Tối Ưu Báo Cáo Hoạt Động**: Tách điều kiện lọc thời gian để tận dụng index, gom usage theo giờ ngay trong SQLite, tái sử dụng app summary khi tạo category breakdown và chuẩn hóa timestamp RFC3339.
-- **Tinh Gọn Quy Trình Đóng Gói Installer & Build Script**: Loại bỏ việc copy đệ quy thư mục `web/dist` vào `Program Files` và `ProgramData` trong `build.ps1` và `installer/FamShield.iss`, biến installer thành gói triển khai tối giản và an toàn tuyệt đối trước can thiệp trái phép.
+## [1.0.6] - 2026-11-06
+
+> 📖 **Chi tiết kỹ thuật & mã nguồn thay đổi:** [`docs/releases/v1.0.6.md`](docs/releases/v1.0.6.md)
 
 ### Fixed
-- **Tự Động Nạp Môi Trường Visual Studio C++ & Ngăn Ngừa Xung Đột Linker**: Thêm cơ chế `Ensure-MsvcEnvironment` trong `build.ps1` và `test.ps1`, tự động phát hiện bộ công cụ MSVC (Visual Studio Build Tools / Professional / Community) và cấu hình biến môi trường `INCLUDE`, `LIB`, `PATH`. Đưa binary MSVC `link.exe` lên đầu `PATH` để loại trừ hoàn toàn xung đột với GNU `link.exe` từ MSYS2.
-- **Sửa Lỗi Mã Nguồn & Cảnh Báo Trực Thuộc `famshield-local-admin`**: Khắc phục lỗi thiếu trait `sha2::Digest` trong module `keywords.rs`, sửa phạm vi hiển thị `pub(crate)` cho struct `InspectDomainPayload`, loại bỏ toàn bộ cảnh báo `unused imports` và điều chỉnh `pub(crate) use` cho submodules.
-- **Cải Thiện Kiểm Thử Foreground Hook & ETW Listener**: Khởi tạo ngay cache cho `win_event_hook` qua `GetForegroundWindow()` khi bắt đầu theo dõi cửa sổ; bổ sung cơ chế fallback luồng sự kiện an toàn cho `start_etw_process_listener` khi chạy trong môi trường test không có đặc quyền quản trị viên.
-- **Đáp Ứng Cổng Chất Lượng Mã Nguồn Tuyệt Đối (0 Errors, 0 Warnings Clippy)**: Đơn giản hóa các biểu thức `assert!` so sánh boolean trong test suites, rút gọn định nghĩa type complexity cho process monitor và win event hook.
+- **Khắc Phục Lỗi Logic Giới Hạn Quota Thời Lượng Ứng Dụng**: Sửa lỗi lệch tên trường JSON giữa Web UI (`quota_minutes`) và bộ điều khiển `controller.rs` (`max_minutes_per_day`), đảm bảo ứng dụng dùng quá hạn mức luôn bị đóng cưỡng bức và khóa màn hình bảo vệ con trẻ.
+- **Khắc Phục Lỗi Đảo Ngược Danh Sách Cho Phép Khi Nhập Excel**: Chuẩn hóa việc phân tích cột `Hành Động` (`action`), khắc phục lỗi tự động gán tên miền whitelist tiếng Việt sang danh sách chặn `BLOCK` và bổ sung nhãn phân loại trong `ExcelImportModal`.
+- **Triệt Tiêu Nguy Cơ Crash Do Panic & Kẹt Cờ Monitor-Only**: Thay thế toàn bộ các lời gọi `parse_from_rfc3339().unwrap()` bằng cơ chế fallback an toàn (Zero Panic Rule 4); đồng bộ chuẩn xác cờ `monitor_mode` hai chiều khi Cloud cập nhật chính sách.
+- **Chuẩn Hóa Số Liệu Động & Bỏ Phân Biệt Hoa Thường Tên Tiến Trình**: Nâng cấp truy vấn thời lượng ứng dụng với `COLLATE NOCASE` và chuẩn hóa đuôi `.exe`; hiển thị số liệu thời gian sử dụng thực tế và tổng số lượt DNS/bằng chứng toàn diện trên Dashboard.
+
+### Added
+- **Loại Bỏ Triệt Để Lazy-Loading & Đạt Tốc Độ Chuyển Tab Tức Thì 0ms**: Chuyển toàn bộ các tab và modal sang nạp tĩnh trực tiếp trong bundle chính, loại bỏ `<Suspense>` và màn hình chờ tải mô-đun; tối ưu nạp dữ liệu song song trong `ActivityTab`.
+- **Tách Trang Tác Giả & Mã Nguồn Sang Phân Hệ Menu Riêng Biệt**: Bổ sung tab độc lập `✨ Tác giả` (`author`) lên thanh điều hướng chính `Navbar.tsx` với màn hình `AuthorTab.tsx` chi tiết về sứ mệnh, kiến trúc bảo mật và giấy phép MIT.
+- **Tái Cấu Trúc Giao Diện Bảo Mật & Ghép Nối Với Hệ Thống Submenu Phân Trang**: Phân tách 11 card phân tán của `SecurityTab` thành 4 trang chức năng chuyên biệt qua `SecurityTabNav`: Tài Khoản & Bảo Mật, Đám Mây & Ghép Nối, Mạng & Hệ Thống, Dữ Liệu & Khôi Phục.
+- **Quản Lý Danh Mục Web Phân Trang Chống Treo Giao Diện**: Bảng dữ liệu phân trang hiệu năng cao `CategoryDetailModal`, hỗ trợ nạp tệp danh sách chặn `.txt`, `.hosts`, Adblock và trích xuất danh mục.
 
 ---
 

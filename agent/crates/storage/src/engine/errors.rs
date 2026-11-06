@@ -75,11 +75,11 @@ impl StorageEngine {
                 stack_trace: row.get(4)?,
                 occurrence_count: row.get::<_, i64>(5)? as u32,
                 first_seen_at: DateTime::parse_from_rfc3339(&first_str)
-                    .unwrap()
-                    .with_timezone(&Utc),
+                    .map(|dt| dt.with_timezone(&Utc))
+                    .unwrap_or_else(|_| Utc::now()),
                 last_seen_at: DateTime::parse_from_rfc3339(&last_str)
-                    .unwrap()
-                    .with_timezone(&Utc),
+                    .map(|dt| dt.with_timezone(&Utc))
+                    .unwrap_or_else(|_| Utc::now()),
                 synced: row.get::<_, i32>(8)? == 1,
             })
         })?;

@@ -20,6 +20,7 @@ fn test_heartbeat_payload_serialization_and_deserialization() {
         outbox_depth: 4,
         dns_upstream_optimal: Some("1.1.1.1".to_string()),
         dns_avg_rtt_ms: Some(15),
+        nats_connected: Some(true),
         pc_info: Some(famshield_sync::PcInfoDto::collect_local(7200)),
     };
 

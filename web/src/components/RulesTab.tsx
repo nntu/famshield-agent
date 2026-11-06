@@ -258,7 +258,7 @@ export const RulesTab: React.FC<RulesTabProps> = ({ rules, lang, onRefresh, onSh
   const mergedBlockedItems = useMemo(() => {
     const list: { id: string; domain: string; source: 'local' | 'cloud'; enabled: boolean }[] = [];
     for (const r of localBlockedRules) {
-      list.push({ id: r.rule_id, domain: r.rule_id, source: 'local', enabled: r.enabled });
+      list.push({ id: r.rule_id, domain: r.rule_id, source: r.source || 'local', enabled: r.enabled });
     }
     for (const d of cloudBlockedList) {
       if (!list.some((item) => item.domain.toLowerCase() === d.toLowerCase())) {
@@ -272,7 +272,7 @@ export const RulesTab: React.FC<RulesTabProps> = ({ rules, lang, onRefresh, onSh
   const mergedAllowedItems = useMemo(() => {
     const list: { id: string; domain: string; source: 'local' | 'cloud'; enabled: boolean }[] = [];
     for (const r of localAllowedRules) {
-      list.push({ id: r.rule_id, domain: r.rule_id, source: 'local', enabled: r.enabled });
+      list.push({ id: r.rule_id, domain: r.rule_id, source: r.source || 'local', enabled: r.enabled });
     }
     for (const d of cloudAllowedList) {
       if (!list.some((item) => item.domain.toLowerCase() === d.toLowerCase())) {
@@ -449,6 +449,8 @@ export const RulesTab: React.FC<RulesTabProps> = ({ rules, lang, onRefresh, onSh
 
       const payload = JSON.stringify({
         quota_minutes: parseInt(appQuota) || 60,
+        max_minutes_per_day: parseInt(appQuota) || 60,
+        action: 'LIMIT',
       });
 
       await api.createRule({
@@ -739,8 +741,9 @@ export const RulesTab: React.FC<RulesTabProps> = ({ rules, lang, onRefresh, onSh
       for (const r of previewRules) {
         let payload: any = { action: 'BLOCK', reason: r.reason };
         if (r.rule_type === 'application') {
-          payload = { quota_minutes: r.quota || 60 };
-        } else if (r.reason.toLowerCase().includes('allow') || r.reason.toLowerCase().includes('whitelist')) {
+          const q = r.quota || 60;
+          payload = { quota_minutes: q, max_minutes_per_day: q, action: 'LIMIT' };
+        } else if (r.action === 'ALLOW' || r.reason.toLowerCase().includes('allow') || r.reason.toLowerCase().includes('whitelist')) {
           payload = { action: 'ALLOW', reason: r.reason };
         }
 

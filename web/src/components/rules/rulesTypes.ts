@@ -12,6 +12,7 @@ export interface RulesTabProps {
 export interface ParsedImportRule {
   rule_id: string;
   rule_type: 'domain' | 'application';
+  action?: 'BLOCK' | 'ALLOW' | 'LIMIT';
   reason: string;
   quota?: number;
   enabled: boolean;

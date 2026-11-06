@@ -34,7 +34,10 @@ impl NatsConnectionWorker {
     }
 
     /// Attach a TelemetryPipeline to enable WorkQueue-based event draining over NATS
-    pub fn with_telemetry_pipeline(mut self, pipeline: Arc<crate::telemetry::TelemetryPipeline>) -> Self {
+    pub fn with_telemetry_pipeline(
+        mut self,
+        pipeline: Arc<crate::telemetry::TelemetryPipeline>,
+    ) -> Self {
         self.telemetry_pipeline = Some(pipeline);
         self
     }

@@ -49,8 +49,8 @@ impl StorageEngine {
                 reason: row.get(3)?,
                 rule_id: row.get(4)?,
                 occurred_at: DateTime::parse_from_rfc3339(&occ_str)
-                    .unwrap()
-                    .with_timezone(&Utc),
+                    .map(|dt| dt.with_timezone(&Utc))
+                    .unwrap_or_else(|_| Utc::now()),
             })
         })?;
 
@@ -412,5 +412,17 @@ impl StorageEngine {
             logs.push(r?);
         }
         Ok(logs)
+    }
+    /// Return (total_queries_today, blocked_queries_today) based on today's UTC prefix.
+    pub fn get_dns_query_stats_today(&self) -> Result<(usize, usize), StorageError> {
+        let conn = self.conn.lock().unwrap();
+        let today_prefix = Utc::now().format("%Y-%m-%d").to_string();
+        let (total, blocked): (i64, i64) = conn.query_row(
+            "SELECT COUNT(*), COALESCE(SUM(CASE WHEN action = 'BLOCK' THEN 1 ELSE 0 END), 0)
+             FROM query_logs WHERE occurred_at LIKE ?1",
+            params![format!("{}%", today_prefix)],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )?;
+        Ok((total.max(0) as usize, blocked.max(0) as usize))
     }
 }

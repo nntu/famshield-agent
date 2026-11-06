@@ -1,13 +1,6 @@
 import type React from 'react';
 import { useState, useEffect } from 'react';
-import {
-  Globe,
-  Keyboard,
-  Lock,
-  Server,
-  Smartphone,
-  Trash2,
-} from 'lucide-react';
+import { Smartphone } from 'lucide-react';
 import { api } from '../api';
 import type {
   DnsConfigResponse,
@@ -18,6 +11,7 @@ import type {
   TotpStatusResponse,
 } from '../types';
 
+import { SecurityTabNav, type SecuritySubTab } from './security/SecurityTabNav';
 import { CentralServerCard } from './security/CentralServerCard';
 import { ProtectionModeCard } from './security/ProtectionModeCard';
 import { BackupRestoreCard } from './security/BackupRestoreCard';
@@ -35,6 +29,7 @@ interface SecurityTabProps {
   lang: Language;
   onRefresh: () => void;
   onShowToast: (msg: string, type?: 'success' | 'error' | 'info') => void;
+  onNavigateTab?: (tab: any) => void;
 }
 
 export const SecurityTab: React.FC<SecurityTabProps> = ({
@@ -42,8 +37,19 @@ export const SecurityTab: React.FC<SecurityTabProps> = ({
   lang,
   onRefresh,
   onShowToast,
+  onNavigateTab,
 }) => {
   const isVi = lang === 'vi';
+
+  // Submenu Tab State with persistence
+  const [activeSubTab, setActiveSubTabState] = useState<SecuritySubTab>(() => {
+    return (localStorage.getItem('famshield_security_subtab') as SecuritySubTab) || 'auth';
+  });
+
+  const setActiveSubTab = (tab: SecuritySubTab) => {
+    setActiveSubTabState(tab);
+    localStorage.setItem('famshield_security_subtab', tab);
+  };
 
   // Centralized Server Config State
   const [serverConfig, setServerConfig] = useState<ServerConfig | null>(null);
@@ -115,384 +121,195 @@ export const SecurityTab: React.FC<SecurityTabProps> = ({
   }, []);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-      {/* 0. QUICK NAVIGATION ANCHOR BAR */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 10,
-          flexWrap: 'wrap',
-          background: 'rgba(15, 23, 42, 0.85)',
-          border: '1px solid #1e293b',
-          borderRadius: 14,
-          padding: '12px 18px',
-          backdropFilter: 'blur(8px)',
-          position: 'sticky',
-          top: 70,
-          zIndex: 40,
-          boxShadow: '0 4px 16px rgba(0,0,0,0.2)',
-        }}
-      >
-        <span
-          style={{
-            fontSize: '0.8rem',
-            fontWeight: 700,
-            color: '#94a3b8',
-            textTransform: 'uppercase',
-            letterSpacing: '0.05em',
-          }}
-        >
-          {isVi ? 'Chuyển nhanh:' : 'Jump to:'}
-        </span>
+    <div className="flex flex-col gap-6">
+      {/* 0. SUBMENU NAVIGATION BAR */}
+      <SecurityTabNav
+        activeSubTab={activeSubTab}
+        setActiveSubTab={setActiveSubTab}
+        totpEnabled={Boolean(totpStatus?.enabled)}
+        operatingMode={status?.operating_mode}
+        isVi={isVi}
+      />
 
-        <button
-          type="button"
-          onClick={() =>
-            document.getElementById('section-2fa-totp')?.scrollIntoView({ behavior: 'smooth' })
-          }
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 6,
-            background: totpStatus?.enabled
-              ? 'rgba(52, 211, 153, 0.15)'
-              : 'rgba(234, 179, 8, 0.15)',
-            border: `1px solid ${totpStatus?.enabled ? 'rgba(52, 211, 153, 0.4)' : 'rgba(234, 179, 8, 0.4)'}`,
-            color: totpStatus?.enabled ? '#34d399' : '#fbbf24',
-            padding: '6px 14px',
-            borderRadius: 8,
-            fontSize: '0.82rem',
-            fontWeight: 700,
-            cursor: 'pointer',
-          }}
-        >
-          <Smartphone size={15} />
-          {isVi ? '🔐 Xác Thực 2 Lớp (2FA / OTP)' : '🔐 Two-Factor (2FA / OTP)'}
+      {/* ============================================================== */}
+      {/* SUB-PAGE 1: TÀI KHOẢN & BẢO MẬT (AUTH, PIN, 2FA, PROTECTION)   */}
+      {/* ============================================================== */}
+      {activeSubTab === 'auth' && (
+        <div className="flex flex-col gap-6">
+          {/* Prominent 2FA Activation Banner if not enabled */}
           {!totpStatus?.enabled && (
-            <span
-              style={{
-                background: '#f59e0b',
-                color: '#0f172a',
-                padding: '1px 6px',
-                borderRadius: 10,
-                fontSize: '0.7rem',
-                fontWeight: 800,
-              }}
-            >
-              {isVi ? 'Chưa Bật' : 'Off'}
-            </span>
-          )}
-        </button>
-
-        <button
-          type="button"
-          onClick={() =>
-            document.getElementById('section-master-pin')?.scrollIntoView({ behavior: 'smooth' })
-          }
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 6,
-            background: 'var(--accent-tint)',
-            border: '1px solid var(--accent-border)',
-            color: 'var(--accent)',
-            padding: '6px 14px',
-            borderRadius: 8,
-            fontSize: '0.82rem',
-            fontWeight: 600,
-            cursor: 'pointer',
-          }}
-        >
-          <Lock size={15} />
-          {isVi ? '🔑 Đổi Master PIN' : '🔑 Change PIN'}
-        </button>
-
-        <button
-          type="button"
-          onClick={() =>
-            document.getElementById('section-cloud-server')?.scrollIntoView({ behavior: 'smooth' })
-          }
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 6,
-            background: 'var(--accent-tint)',
-            border: '1px solid var(--accent-border)',
-            color: 'var(--accent)',
-            padding: '6px 14px',
-            borderRadius: 8,
-            fontSize: '0.82rem',
-            fontWeight: 600,
-            cursor: 'pointer',
-          }}
-        >
-          <Server size={15} />
-          {isVi ? '🌐 Máy Chủ Cloud' : '🌐 Cloud Server'}
-        </button>
-
-        <button
-          type="button"
-          onClick={() =>
-            document.getElementById('section-dns-config')?.scrollIntoView({ behavior: 'smooth' })
-          }
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 6,
-            background: 'var(--accent-tint)',
-            border: '1px solid var(--accent-border)',
-            color: 'var(--accent)',
-            padding: '6px 14px',
-            borderRadius: 8,
-            fontSize: '0.82rem',
-            fontWeight: 600,
-            cursor: 'pointer',
-          }}
-        >
-          <Globe size={15} />
-          {isVi ? '⚡ DNS & Bộ Nhớ Đệm' : '⚡ DNS & Cache'}
-        </button>
-
-        <button
-          type="button"
-          onClick={() =>
-            document
-              .getElementById('section-keywords-monitor')
-              ?.scrollIntoView({ behavior: 'smooth' })
-          }
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 6,
-            background: 'var(--accent-tint)',
-            border: '1px solid var(--accent-border)',
-            color: 'var(--accent)',
-            padding: '6px 14px',
-            borderRadius: 8,
-            fontSize: '0.82rem',
-            fontWeight: 600,
-            cursor: 'pointer',
-          }}
-        >
-          <Keyboard size={15} />
-          {isVi ? '⌨️ Giám Sát Từ Khóa' : '⌨️ Keywords'}
-        </button>
-
-        <button
-          type="button"
-          onClick={() =>
-            document.getElementById('section-danger-zone')?.scrollIntoView({ behavior: 'smooth' })
-          }
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 6,
-            background: 'rgba(239, 68, 68, 0.1)',
-            border: '1px solid rgba(239, 68, 68, 0.3)',
-            color: '#f87171',
-            padding: '6px 14px',
-            borderRadius: 8,
-            fontSize: '0.82rem',
-            fontWeight: 600,
-            cursor: 'pointer',
-          }}
-        >
-          <Trash2 size={15} />
-          {isVi ? '🗑️ Gỡ Cài Đặt' : '🗑️ Uninstall'}
-        </button>
-      </div>
-
-      {/* TOP PROMINENT 2FA ACTIVATION BANNER */}
-      {!totpStatus?.enabled && (
-        <div
-          style={{
-            background:
-              'linear-gradient(135deg, rgba(245, 158, 11, 0.18) 0%, rgba(15, 23, 42, 0.95) 100%)',
-            border: '1px solid rgba(245, 158, 11, 0.5)',
-            borderRadius: 16,
-            padding: '20px 24px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            flexWrap: 'wrap',
-            gap: 16,
-            boxShadow: '0 6px 24px rgba(245, 158, 11, 0.15)',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-            <div
-              style={{
-                background: 'rgba(245, 158, 11, 0.25)',
-                padding: 12,
-                borderRadius: 12,
-                color: '#f59e0b',
-              }}
-            >
-              <Smartphone size={28} />
-            </div>
-            <div>
-              <div
-                style={{
-                  fontWeight: 800,
-                  fontSize: '1.05rem',
-                  color: '#fef3c7',
-                  marginBottom: 4,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                }}
+            <div className="bg-gradient-to-r from-amber-500/15 via-slate-900/90 to-slate-900/95 border border-amber-500/40 rounded-2xl p-5 sm:p-6 flex items-center justify-between flex-wrap gap-4 shadow-md">
+              <div className="flex items-center gap-3.5">
+                <div className="bg-amber-500/20 p-3 rounded-xl text-amber-500 shrink-0">
+                  <Smartphone size={26} />
+                </div>
+                <div>
+                  <div className="font-extrabold text-sm sm:text-base text-amber-100 flex items-center gap-2 flex-wrap">
+                    <span>
+                      {isVi
+                        ? 'Bảo Vệ Tài Khoản Phụ Huynh: Chưa Kích Hoạt Xác Thực 2 Lớp (2FA / OTP)'
+                        : 'Parent Account Security: 2FA / OTP is Disabled'}
+                    </span>
+                    <span className="bg-amber-500 text-slate-950 px-2 py-0.5 rounded text-[11px] font-black">
+                      {isVi ? 'KHUYÊN DÙNG' : 'RECOMMENDED'}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-300 mt-1 max-w-2xl leading-relaxed">
+                    {isVi
+                      ? 'Bảo vệ bảng điều khiển chống nhìn lén Master PIN bằng mã OTP 6 chữ số sinh từ Google Authenticator, Microsoft Authenticator hoặc Apple Keychain (chuẩn RFC 6238, 100% ngoại tuyến).'
+                      : 'Protect the parental dashboard against shoulder-surfing using 6-digit TOTP codes from Google/Microsoft Authenticator or Apple Keychain (RFC 6238, 100% offline).'}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() =>
+                  document.getElementById('section-2fa-totp')?.scrollIntoView({ behavior: 'smooth' })
+                }
+                className="inline-flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold px-5 py-2.5 rounded-xl text-xs sm:text-sm cursor-pointer shadow-md transition whitespace-nowrap border-0"
               >
-                {isVi
-                  ? 'Bảo Vệ Tài Khoản Phụ Huynh: Chưa Kích Hoạt Xác Thực 2 Lớp (2FA / OTP)'
-                  : 'Parent Account Security: 2FA / OTP is Disabled'}
-                <span
-                  style={{
-                    background: '#f59e0b',
-                    color: '#0f172a',
-                    padding: '2px 8px',
-                    borderRadius: 6,
-                    fontSize: '0.72rem',
-                    fontWeight: 800,
-                  }}
-                >
-                  {isVi ? 'KHUYÊN DÙNG' : 'RECOMMENDED'}
-                </span>
-              </div>
-              <div style={{ fontSize: '0.85rem', color: '#cbd5e1', maxWidth: 680 }}>
-                {isVi
-                  ? 'Bảo vệ bảng điều khiển chống nhìn lén Master PIN bằng mã OTP 6 chữ số sinh từ Google Authenticator, Microsoft Authenticator hoặc Apple Keychain (chuẩn RFC 6238, 100% ngoại tuyến).'
-                  : 'Protect the parental dashboard against shoulder-surfing using 6-digit TOTP codes from Google/Microsoft Authenticator or Apple Keychain (RFC 6238, 100% offline).'}
-              </div>
+                <Smartphone size={16} />
+                <span>{isVi ? 'Thiết Lập 2FA Ngay' : 'Setup 2FA Now'}</span>
+              </button>
             </div>
+          )}
+
+          {/* 2FA TOTP Card */}
+          <div id="section-2fa-totp">
+            <TwoFactorCard
+              lang={lang}
+              totpStatus={totpStatus}
+              onRefreshTotp={fetchTotpStatus}
+              onShowToast={onShowToast}
+            />
           </div>
-          <button
-            type="button"
-            onClick={() =>
-              document.getElementById('section-2fa-totp')?.scrollIntoView({ behavior: 'smooth' })
-            }
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 8,
-              background: '#f59e0b',
-              color: '#0f172a',
-              border: 'none',
-              padding: '11px 24px',
-              borderRadius: 10,
-              fontSize: '0.92rem',
-              fontWeight: 800,
-              cursor: 'pointer',
-              boxShadow: '0 4px 16px rgba(245, 158, 11, 0.4)',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            <Smartphone size={18} />
-            {isVi ? '👉 Kích Hoạt 2FA Ngay' : '👉 Enable 2FA Now'}
-          </button>
+
+          {/* Change Master PIN */}
+          <div id="section-master-pin">
+            <ChangePinCard
+              lang={lang}
+              onShowToast={onShowToast}
+            />
+          </div>
+
+          {/* Protection Mode: Active Blocking vs Monitoring Only */}
+          <ProtectionModeCard
+            lang={lang}
+            status={status}
+            onRefresh={onRefresh}
+            onShowToast={onShowToast}
+          />
         </div>
       )}
 
-      {/* SECTION 1: CENTRALIZED MANAGEMENT SERVER SETTINGS */}
-      <CentralServerCard
-        lang={lang}
-        serverConfig={serverConfig}
-        setServerConfig={setServerConfig}
-        serverUrl={serverUrl}
-        setServerUrl={setServerUrl}
-        versionCheckUrl={versionCheckUrl}
-        setVersionCheckUrl={setVersionCheckUrl}
-        tenantId={tenantId}
-        setTenantId={setTenantId}
-        deviceName={deviceName}
-        setDeviceName={setDeviceName}
-        enrollCode={enrollCode}
-        setEnrollCode={setEnrollCode}
-        syncInterval={syncInterval}
-        setSyncInterval={setSyncInterval}
-        tlsVerify={tlsVerify}
-        setTlsVerify={setTlsVerify}
-        onRefreshServerConfig={fetchServerConfig}
-        onRefreshTab={onRefresh}
-        onShowToast={onShowToast}
-      />
+      {/* ============================================================== */}
+      {/* SUB-PAGE 2: ĐÁM MÂY & GHÉP NỐI (CLOUD SERVER, ENROLLMENT, UPDATE) */}
+      {/* ============================================================== */}
+      {activeSubTab === 'cloud' && (
+        <div className="flex flex-col gap-6">
+          {/* Centralized Cloud Server Config */}
+          <div id="section-cloud-server">
+            <CentralServerCard
+              lang={lang}
+              serverConfig={serverConfig}
+              setServerConfig={setServerConfig}
+              serverUrl={serverUrl}
+              setServerUrl={setServerUrl}
+              versionCheckUrl={versionCheckUrl}
+              setVersionCheckUrl={setVersionCheckUrl}
+              tenantId={tenantId}
+              setTenantId={setTenantId}
+              deviceName={deviceName}
+              setDeviceName={setDeviceName}
+              enrollCode={enrollCode}
+              setEnrollCode={setEnrollCode}
+              syncInterval={syncInterval}
+              setSyncInterval={setSyncInterval}
+              tlsVerify={tlsVerify}
+              setTlsVerify={setTlsVerify}
+              onRefreshServerConfig={fetchServerConfig}
+              onRefreshTab={onRefresh}
+              onShowToast={onShowToast}
+            />
+          </div>
 
-      {/* SECTION 2: PROTECTION MODE (CHỦ ĐỘNG CHẶN VS CHỈ GIÁM SÁT) */}
-      <ProtectionModeCard
-        lang={lang}
-        status={status}
-        onRefresh={onRefresh}
-        onShowToast={onShowToast}
-      />
+          {/* Software Updates & Version Check */}
+          <SoftwareUpdateCard
+            lang={lang}
+            serverConfig={serverConfig}
+            serverUrl={serverUrl}
+            setServerUrl={setServerUrl}
+            versionCheckUrl={versionCheckUrl}
+            setVersionCheckUrl={setVersionCheckUrl}
+            onRefreshServerConfig={fetchServerConfig}
+            onShowToast={onShowToast}
+          />
+        </div>
+      )}
 
-      {/* SECTION 3: BACKUP & RESTORE */}
-      <BackupRestoreCard
-        lang={lang}
-        onRefresh={onRefresh}
-        onShowToast={onShowToast}
-        onConfigRestored={fetchServerConfig}
-      />
+      {/* ============================================================== */}
+      {/* SUB-PAGE 3: MẠNG & HỆ THỐNG (DNS CONFIG, SYSTEM SETTINGS, KEYWORDS) */}
+      {/* ============================================================== */}
+      {activeSubTab === 'network' && (
+        <div className="flex flex-col gap-6">
+          {/* DNS Configuration & Cache Management */}
+          <div id="section-dns-config">
+            <DnsConfigCard
+              lang={lang}
+              dnsConfig={dnsConfig}
+              onRefreshDns={fetchDnsConfig}
+              onShowToast={onShowToast}
+            />
+          </div>
 
-      {/* SECTION 4: CHANGE MASTER PIN */}
-      <ChangePinCard
-        lang={lang}
-        onShowToast={onShowToast}
-      />
+          {/* Dynamic System Settings */}
+          <DynamicSettingsCard
+            lang={lang}
+            onShowToast={onShowToast}
+          />
 
-      {/* SECTION 5: KEYWORD MONITORING */}
-      <KeywordMonitoringCard
-        lang={lang}
-        keywordConfig={keywordConfig}
-        onUpdateKeywordConfig={setKeywordConfig}
-        onShowToast={onShowToast}
-      />
+          {/* Sensitive Keyword Monitoring */}
+          <div id="section-keywords-monitor">
+            <KeywordMonitoringCard
+              lang={lang}
+              keywordConfig={keywordConfig}
+              onUpdateKeywordConfig={setKeywordConfig}
+              onShowToast={onShowToast}
+            />
+          </div>
+        </div>
+      )}
 
-      {/* SECTION 6: 2FA TOTP */}
-      <TwoFactorCard
-        lang={lang}
-        totpStatus={totpStatus}
-        onRefreshTotp={fetchTotpStatus}
-        onShowToast={onShowToast}
-      />
+      {/* ============================================================== */}
+      {/* SUB-PAGE 4: DỮ LIỆU & BẢO TRÌ (BACKUP, AUTHOR, DANGER ZONE)     */}
+      {/* ============================================================== */}
+      {activeSubTab === 'maintenance' && (
+        <div className="flex flex-col gap-6">
+          {/* Backup & Restore Configuration */}
+          <BackupRestoreCard
+            lang={lang}
+            onRefresh={onRefresh}
+            onShowToast={onShowToast}
+            onConfigRestored={fetchServerConfig}
+          />
 
-      {/* SECTION 7: DNS CONFIG & CACHE */}
-      <DnsConfigCard
-        lang={lang}
-        dnsConfig={dnsConfig}
-        onRefreshDns={fetchDnsConfig}
-        onShowToast={onShowToast}
-      />
+          {/* Author & Open Source Licenses */}
+          <AuthorOpenSourceCard
+            lang={lang}
+            onShowToast={onShowToast}
+            onNavigateTab={onNavigateTab}
+          />
 
-      {/* SECTION 8: SOFTWARE UPDATES */}
-      <SoftwareUpdateCard
-        lang={lang}
-        serverConfig={serverConfig}
-        serverUrl={serverUrl}
-        setServerUrl={setServerUrl}
-        versionCheckUrl={versionCheckUrl}
-        setVersionCheckUrl={setVersionCheckUrl}
-        onRefreshServerConfig={fetchServerConfig}
-        onShowToast={onShowToast}
-      />
-
-      {/* SECTION 9: DYNAMIC SYSTEM SETTINGS */}
-      <DynamicSettingsCard
-        lang={lang}
-        onShowToast={onShowToast}
-      />
-
-      {/* SECTION 10: AUTHOR & OPEN SOURCE */}
-      <AuthorOpenSourceCard
-        lang={lang}
-        onShowToast={onShowToast}
-      />
-
-      {/* SECTION 11: DANGER ZONE */}
-      <DangerZoneCard
-        lang={lang}
-        totpEnabled={totpStatus?.enabled}
-        onShowToast={onShowToast}
-      />
+          {/* Danger Zone: Factory Reset & Uninstall */}
+          <div id="section-danger-zone">
+            <DangerZoneCard
+              lang={lang}
+              totpEnabled={totpStatus?.enabled}
+              onShowToast={onShowToast}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 };

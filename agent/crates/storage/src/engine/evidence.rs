@@ -98,4 +98,10 @@ impl StorageEngine {
         )?;
         Ok(affected)
     }
+    pub fn count_visual_evidence(&self) -> Result<usize, StorageError> {
+        let conn = self.conn.lock().unwrap();
+        let count: i64 =
+            conn.query_row("SELECT COUNT(*) FROM visual_evidence", [], |row| row.get(0))?;
+        Ok(count.max(0) as usize)
+    }
 }

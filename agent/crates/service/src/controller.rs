@@ -860,6 +860,8 @@ pub fn check_and_enforce_app_quota(
                     if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&r.payload) {
                         let max_minutes = parsed
                             .get("max_minutes_per_day")
+                            .or_else(|| parsed.get("quota_minutes"))
+                            .or_else(|| parsed.get("daily_quota_minutes"))
                             .and_then(|v| v.as_u64())
                             .unwrap_or(0);
                         if max_minutes > 0 {

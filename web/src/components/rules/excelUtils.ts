@@ -43,7 +43,7 @@ export async function exportRulesToExcel(rules: LocalRuleRecord[]): Promise<void
       const p = JSON.parse(r.payload || '{}');
       action = p.action || (r.rule_type === 'application' ? 'LIMIT' : 'BLOCK');
       reason = p.reason || '';
-      if (p.quota_minutes) quota = p.quota_minutes;
+      if (p.quota_minutes || p.max_minutes_per_day) quota = p.quota_minutes || p.max_minutes_per_day;
     } catch {
       // ignore
     }
@@ -100,12 +100,22 @@ export async function parseRulesFromExcelFile(file: File): Promise<ParsedImportR
           }
 
           const reason = (row['Lý Do'] || row['reason'] || 'import_from_excel').toString().trim();
-          const quotaRaw = row['Hạn Mức Phút (App)'] || row['quota_minutes'];
+          const quotaRaw = row['Hạn Mức Phút (App)'] || row['quota_minutes'] || row['max_minutes_per_day'];
           const quota = quotaRaw ? parseInt(quotaRaw, 10) : undefined;
+          const actionRaw = (row['Hành Động'] || row['action'] || row['hanh_dong'] || '')
+            .toString()
+            .trim()
+            .toUpperCase();
+          const action = (actionRaw.includes('ALLOW') || actionRaw.includes('CHO PHÉP'))
+            ? 'ALLOW'
+            : (actionRaw.includes('LIMIT') || actionRaw.includes('GIỚI HẠN'))
+            ? 'LIMIT'
+            : 'BLOCK';
 
           parsed.push({
             rule_id: ruleId,
             rule_type: rType,
+            action,
             reason,
             quota,
             enabled: true,

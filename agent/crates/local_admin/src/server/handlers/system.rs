@@ -23,19 +23,45 @@ pub(crate) async fn handle_status(
         return Err(StatusCode::UNAUTHORIZED);
     }
 
-    let logs = state.service.list_query_logs(200).unwrap_or_default();
+    let (total_queries_today, blocked_queries_today) = state
+        .service
+        .storage()
+        .get_dns_query_stats_today()
+        .unwrap_or_else(|_| {
+            let logs = state.service.list_query_logs(200).unwrap_or_default();
+            let blocked = logs.iter().filter(|l| l.action == "BLOCK").count();
+            (logs.len(), blocked)
+        });
 
-    let blocked_queries_today = logs.iter().filter(|l| l.action == "BLOCK").count();
+    let rules_count = state.service.list_rules().map(|r| r.len()).unwrap_or(0);
 
-    let total_queries_today = logs.len();
+    let evidence_count = state
+        .service
+        .storage()
+        .count_visual_evidence()
+        .unwrap_or_else(|_| {
+            state
+                .service
+                .list_visual_evidence(50)
+                .map(|e| e.len())
+                .unwrap_or(0)
+        });
 
-    let rules = state.service.list_rules().unwrap_or_default();
+    let used_today_ms = state
+        .service
+        .storage()
+        .get_total_screen_time_today_ms()
+        .unwrap_or(0);
+    let used_today_minutes = (used_today_ms / 60_000).max(0) as u32;
 
-    let rules_count = rules.len();
-
-    let evidence = state.service.list_visual_evidence(50).unwrap_or_default();
-
-    let evidence_count = evidence.len();
+    let daily_quota_minutes = state
+        .service
+        .storage()
+        .get_meta("daily_quota_minutes")
+        .ok()
+        .flatten()
+        .and_then(|s| s.parse::<u32>().ok())
+        .unwrap_or(120);
 
     let device_id = state
         .service
@@ -98,9 +124,9 @@ pub(crate) async fn handle_status(
 
         active_foreground_app: active_app,
 
-        daily_quota_minutes: 60,
+        daily_quota_minutes,
 
-        used_today_minutes: 27,
+        used_today_minutes,
 
         blocked_queries_today,
 

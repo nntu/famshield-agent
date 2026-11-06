@@ -26,8 +26,8 @@ export interface ReleaseMetadata {
 }
 
 const DEFAULT_METADATA: ReleaseMetadata = {
-  version: "1.0.5",
-  release_date: "2026-10-31",
+  version: "1.0.6",
+  release_date: "2026-11-06",
   channel: "stable",
   min_supported_version: "1.0.0",
   changelog: [
@@ -37,9 +37,9 @@ const DEFAULT_METADATA: ReleaseMetadata = {
     "Thu thập thông tin card mạng và danh sách địa chỉ IP đa giao diện qua sysinfo",
     "Nâng cấp đồng bộ dependencies workspace (Tokio 1.43, NATS 0.51) và tối ưu hóa index SQLite V7"
   ],
-  installer_url: "https://github.com/nntu/famshield-agent/releases/download/1.0.5/FamShieldSetup-1.0.5.exe",
-  service_binary_url: "https://github.com/nntu/famshield-agent/releases/download/1.0.5/famshield-service.exe",
-  service_sha256: "095d468088a2e131fc4ff5adb72f7abe87aff28502bae17780831558b268f062"
+  installer_url: "https://github.com/nntu/famshield-agent/releases/download/1.0.6/FamShieldSetup-1.0.6.exe",
+  service_binary_url: "https://github.com/nntu/famshield-agent/releases/download/1.0.6/famshield-service.exe",
+  service_sha256: "5ff0e82eae2b0a40f0291eff322823577bf787a297d51cf1606e56724a675087"
 };
 
 const CORS_HEADERS: Record<string, string> = {
