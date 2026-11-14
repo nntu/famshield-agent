@@ -13,7 +13,7 @@ members = [
 resolver = "2"
 
 [workspace.package]
-version = "1.0.6"
+version = "1.0.10"
 edition = "2021"
 authors = ["Nguyen Ngoc Tu <ngoctuct@gmail.com>", "FamShield Team"]
 license = "MIT"
@@ -44,7 +44,7 @@ hickory-proto = "0.26"
 axum = "0.8"
 tower = { version = "0.5", features = ["util"] }
 http-body-util = "0.1"
-rust-embed = "8.5"
+rust-embed = "8.14.0"
 mime_guess = "2.0"
 
 # Database & Cryptography

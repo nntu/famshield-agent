@@ -12,12 +12,18 @@ Tất cả các thay đổi quan trọng của dự án **FamShield Windows Agen
 
 ## [Unreleased]
 
+---
+
+## [1.0.10] - 2026-11-14
+
+> 📖 **Chi tiết kỹ thuật & mã nguồn thay đổi:** [`docs/releases/v1.0.10.md`](docs/releases/v1.0.10.md)
+
 ### Changed
-- **Tối Ưu Giám Sát DNS (`famshield-dns`)**: Áp dụng cơ chế parse DNS 1 lần duy nhất trên hot-path, pool tái sử dụng UDP socket upstream (`UpstreamSocketPool`), gộp truy vấn trùng lặp đang chờ xử lý (single-flight `InFlightMap`), trích xuất TTL thực tế và vá TTL trực tiếp trên wire bytes (`scan_ttl_offsets` + `patch_ttls` theo mô hình `numa` v0.25.0, không parse lại `Message` khi cache hit, bỏ qua gói `TC=1` và không phục vụ stale cho gói lỗi), đồng thời kích hoạt background prefetch (`DnsCache::get_with_prefetch`) và eviction theo `created_at` cũ nhất.
-- **Tối Ưu Blocklist & Whitelist (`famshield-dns`)**: Áp dụng mô hình *allow-after-hit* từ `numa` (chuẩn hóa domain 1 lần, chỉ kiểm tra whitelist/core-whitelist khi có hit từ blocklist, fast-path khi `HashSet` rỗng và loại bỏ cấp phát `Vec`/`format!` trong `matches_name_pattern`).
-- **Cải Tiến Thống Kê Domain & Program (`famshield-dns`, `famshield-storage`)**: Bổ sung bộ đếm `DnsStats` / `DnsStatsSnapshot` theo từng đường dẫn truy vấn (theo mô hình `numa::stats::ServerStats`), sửa lỗi gán nhầm fallback `'chrome.exe'` trong `get_domain_rollup_summaries` thành `'unknown'`, gộp `get_app_usage_grouped` theo `COLLATE NOCASE` để tránh trùng dòng hoa/thường, và bổ sung `StorageEngine::get_program_dns_summaries` thống kê DNS theo từng ứng dụng.
-- **Tập Trung Hóa Hằng Số Mạng & Helper Đặc Biệt (`famshield-core`)**: Gom các URL/IP mặc định bị lặp (`DEFAULT_SERVER_URL`, `DEFAULT_NATS_URL`, `DEFAULT_VERSION_CHECK_URL`, `DEFAULT_DOWNLOAD_LATEST_URL`, `DEFAULT_DNS_BIND_IP`, `DEFAULT_DNS_BIND_ADDR`, `DEFAULT_DNS_UPSTREAM_IP`, `DEFAULT_DNS_UPSTREAM_ADDR`, `DEFAULT_FALLBACK_UPSTREAM_IPS`) cùng `is_auto_keyword` và `is_system_dns_forwarder` vào `famshield-core`, thay thế các chuỗi hardcode rải rác tại `famshield-dns`, `famshield-service` và `famshield-local-admin`.
-- **Tham Số Hóa Cấu Hình Mặc Định Qua `config.json` (`famshield-core`, `famshield-service`, `famshield-local-admin`)**: Bổ sung `AgentConfig` đọc tệp tùy chọn `<data_dir>/config.json` theo mô hình ưu tiên 3 tầng (`SQLite meta > config.json > hằng số famshield-core`), hỗ trợ tùy biến `server_url`, `nats_url`, `version_check_url`, `download_latest_url`, `dns_bind_ip`, `dns_bind_port`, `dns_upstream`, `fallback_upstreams` và `system_dns_forwarders` với cơ chế validate/sanitize an toàn và fallback không panic.
+- **Tối Ưu Giám Sát DNS (`famshield-dns`)**: Áp dụng cơ chế parse DNS 1 lần duy nhất trên hot-path, pool tái sử dụng UDP socket upstream (`UpstreamSocketPool`), gộp truy vấn trùng lặp đang chờ xử lý (single-flight `InFlightMap`), vá TTL trực tiếp trên wire bytes (`scan_ttl_offsets` + `patch_ttls`), background prefetch và non-blocking `PortProgramLookup`.
+- **Tối Ưu Blocklist & Whitelist (`famshield-dns`)**: Áp dụng mô hình *allow-after-hit* (chuẩn hóa domain 1 lần, fast-path khi `HashSet` rỗng, loại bỏ cấp phát `Vec`/`format!`).
+- **Cải Tiến Thống Kê Domain & Program (`famshield-dns`, `famshield-storage`)**: Bổ sung `DnsStats` / `DnsStatsSnapshot`, sửa fallback `'chrome.exe'` thành `'unknown'`, gộp `get_app_usage_grouped` theo `COLLATE NOCASE` và thêm `get_program_dns_summaries`.
+- **Tập Trung Hóa Hằng Số & Tham Số Hóa `AgentConfig` (`famshield-core`, `famshield-service`, `famshield-local-admin`)**: Gom hằng số URL/IP mặc định vào `famshield-core` và bổ sung `AgentConfig` đọc `<data_dir>/config.json` theo mô hình 3 tầng (`SQLite meta > config.json > hằng số`) với validate/sanitize không panic.
+- **Nâng Cấp `rust-embed = "8.14.0"` & Đồng Bộ Phiên Bản `1.0.10`**: Cập nhật `rust-embed` (`8.13.0` -> `8.14.0`), xử lý clippy tại `controller.rs` và đồng bộ phiên bản workspace lên `1.0.10`.
 
 ---
 

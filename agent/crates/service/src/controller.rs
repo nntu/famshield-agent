@@ -486,7 +486,7 @@ impl ServiceController {
             tokio::sync::mpsc::unbounded_channel::<famshield_dns::DnsLogEntry>();
 
         let dns_proxy = DnsProxy::new(
-            &self.config.dns_bind_addr(),
+            self.config.dns_bind_addr(),
             configured_upstream,
             self.dns_blocklist.clone(),
             self.dns_cache.clone(),
