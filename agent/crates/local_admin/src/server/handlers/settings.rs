@@ -83,7 +83,7 @@ pub(crate) async fn handle_cloud_enroll(
         .ok()
         .flatten()
         .filter(|s| !s.trim().is_empty())
-        .unwrap_or_else(|| "https://famshield.ttcantho.io.vn".to_string());
+        .unwrap_or_else(|| state.service.config().server_url.clone());
 
     // Resolve unique device name with machine GUID disambiguation to prevent duplicate names
     let stored_name = state

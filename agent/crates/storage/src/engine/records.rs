@@ -40,6 +40,17 @@ pub struct HourlyFrequency {
     pub blocked_count: u64,
 }
 
+/// Aggregated DNS activity grouped by originating program/application.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ProgramDnsSummary {
+    pub app_name: String,
+    pub total_queries: usize,
+    pub allowed_count: usize,
+    pub blocked_count: usize,
+    pub unique_domains: usize,
+    pub last_seen_at: DateTime<Utc>,
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct QueryLogFilter {
     pub domain: Option<String>,

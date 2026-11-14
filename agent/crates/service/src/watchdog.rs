@@ -19,6 +19,7 @@ pub struct SystemWatchdog {
     is_updating: Arc<AtomicBool>,
     check_interval: Duration,
     telemetry_pipeline: Option<Arc<TelemetryPipeline>>,
+    dns_bind_ip: String,
 }
 
 impl SystemWatchdog {
@@ -27,6 +28,7 @@ impl SystemWatchdog {
             is_updating,
             check_interval: Duration::from_secs(3),
             telemetry_pipeline: None,
+            dns_bind_ip: famshield_core::DEFAULT_DNS_BIND_IP.to_string(),
         }
     }
 
@@ -37,6 +39,11 @@ impl SystemWatchdog {
 
     pub fn with_telemetry(mut self, telemetry: Arc<TelemetryPipeline>) -> Self {
         self.telemetry_pipeline = Some(telemetry);
+        self
+    }
+
+    pub fn with_dns_bind_ip(mut self, ip: impl Into<String>) -> Self {
+        self.dns_bind_ip = ip.into();
         self
     }
 
@@ -95,7 +102,7 @@ impl SystemWatchdog {
                     nrpt_counter += 1;
                     if nrpt_counter >= 3 {
                         nrpt_counter = 0;
-                        if let Err(e) = NrptManager::apply_nrpt_rule("127.0.0.2") {
+                        if let Err(e) = NrptManager::apply_nrpt_rule(&self.dns_bind_ip) {
                             warn!("Watchdog: NRPT rule drift detected or failed to reapply: {}", e);
                         }
                     }

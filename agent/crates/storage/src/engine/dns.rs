@@ -1,6 +1,7 @@
 use super::StorageEngine;
 use crate::engine::records::{
-    DomainQuerySummary, DomainRollupItem, HourlyFrequency, QueryLogFilter, QueryLogRecord,
+    DomainQuerySummary, DomainRollupItem, HourlyFrequency, ProgramDnsSummary, QueryLogFilter,
+    QueryLogRecord,
 };
 use crate::error::StorageError;
 use chrono::{DateTime, Utc};
@@ -130,7 +131,7 @@ impl StorageEngine {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare(
             "SELECT domain,
-                    COALESCE(NULLIF(rule_id, ''), 'chrome.exe') AS app_name,
+                    LOWER(COALESCE(NULLIF(TRIM(rule_id), ''), 'unknown')) AS app_name,
                     COUNT(*) AS total_hits,
                     SUM(CASE WHEN action = 'ALLOW' THEN 1 ELSE 0 END) AS allowed_hits,
                     SUM(CASE WHEN action = 'BLOCK' THEN 1 ELSE 0 END) AS blocked_hits,
@@ -151,6 +152,46 @@ impl StorageEngine {
                 total_hits: row.get::<_, i64>(2)? as usize,
                 allowed_hits: row.get::<_, i64>(3)? as usize,
                 blocked_hits: row.get::<_, i64>(4)? as usize,
+                last_seen_at,
+            })
+        })?;
+
+        let mut list = Vec::new();
+        for r in rows {
+            list.push(r?);
+        }
+        Ok(list)
+    }
+
+    /// Retrieve DNS query statistics aggregated per originating program/application.
+    pub fn get_program_dns_summaries(
+        &self,
+        limit: usize,
+    ) -> Result<Vec<ProgramDnsSummary>, StorageError> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT LOWER(COALESCE(NULLIF(TRIM(rule_id), ''), 'unknown')) AS app_name,
+                    COUNT(*) AS total_queries,
+                    SUM(CASE WHEN action = 'ALLOW' THEN 1 ELSE 0 END) AS allowed_count,
+                    SUM(CASE WHEN action = 'BLOCK' THEN 1 ELSE 0 END) AS blocked_count,
+                    COUNT(DISTINCT domain) AS unique_domains,
+                    MAX(occurred_at) AS last_seen_at
+             FROM query_logs
+             GROUP BY app_name
+             ORDER BY total_queries DESC, last_seen_at DESC
+             LIMIT ?1",
+        )?;
+        let rows = stmt.query_map(params![limit as i64], |row| {
+            let occ_str: String = row.get(5)?;
+            let last_seen_at = DateTime::parse_from_rfc3339(&occ_str)
+                .map(|dt| dt.with_timezone(&Utc))
+                .unwrap_or_else(|_| Utc::now());
+            Ok(ProgramDnsSummary {
+                app_name: row.get(0)?,
+                total_queries: row.get::<_, i64>(1)? as usize,
+                allowed_count: row.get::<_, i64>(2)? as usize,
+                blocked_count: row.get::<_, i64>(3)? as usize,
+                unique_domains: row.get::<_, i64>(4)? as usize,
                 last_seen_at,
             })
         })?;

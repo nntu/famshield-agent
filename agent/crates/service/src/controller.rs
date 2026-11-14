@@ -4,8 +4,7 @@ use tracing::{info, warn};
 
 use crate::dispatcher::IpcDispatcher;
 use famshield_dns::{
-    blocklist::BlocklistStore, cache::DnsCache, proxy::DnsProxy, DEFAULT_BIND_ADDR,
-    DEFAULT_UPSTREAM,
+    blocklist::BlocklistStore, cache::DnsCache, proxy::DnsProxy, DEFAULT_UPSTREAM,
 };
 use famshield_storage::StorageEngine;
 use famshield_sync::{
@@ -43,6 +42,7 @@ pub fn get_active_admin_port() -> u16 {
 
 /// Core service controller orchestrating DNS, WFP, Local IPC, Storage, Telemetry Sync, and NATS JetStream dispatcher.
 pub struct ServiceController {
+    config: famshield_core::AgentConfig,
     storage: StorageEngine,
     ipc_dispatcher: Arc<IpcDispatcher>,
     dns_blocklist: Arc<BlocklistStore>,
@@ -109,11 +109,19 @@ impl ServiceController {
         }
         let nats_dispatcher = Arc::new(nats_dispatcher);
 
+        let data_dir = get_data_dir();
+        let config_path = data_dir.join(famshield_core::DEFAULT_CONFIG_FILE_NAME);
+        let (config, config_diag) =
+            famshield_core::AgentConfig::load_or_create_with_diagnostics(&config_path);
+        if let Some(diag) = config_diag {
+            warn!("{}", diag);
+        }
+
         let configured_upstream = storage
             .get_meta("dns_upstream")
             .ok()
             .flatten()
-            .unwrap_or_else(|| "1.1.1.1".to_string());
+            .unwrap_or_else(|| config.dns_upstream.clone());
 
         let upstreams = match famshield_windows::NrptManager::get_system_dns_servers() {
             detected if !detected.is_empty() => {
@@ -125,19 +133,20 @@ impl ServiceController {
                 }
                 list
             }
-            _ => vec![
-                configured_upstream.clone(),
-                "8.8.8.8".to_string(),
-                "9.9.9.9".to_string(),
-            ],
+            _ => {
+                let mut list = vec![configured_upstream.clone()];
+                list.extend(config.fallback_upstreams.iter().cloned());
+                list
+            }
         };
         let dns_balancer = Arc::new(famshield_dns::NumaDnsBalancer::new(&upstreams));
 
         let is_updating = Arc::new(std::sync::atomic::AtomicBool::new(false));
 
-        let local_admin_svc = Arc::new(famshield_local_admin::LocalAdminService::new(
-            storage.clone(),
-        ));
+        let local_admin_svc = Arc::new(
+            famshield_local_admin::LocalAdminService::new(storage.clone())
+                .with_config(config.clone()),
+        );
         let local_admin_server = Arc::new(
             famshield_local_admin::LocalAdminServer::new(
                 local_admin_svc,
@@ -151,7 +160,6 @@ impl ServiceController {
         let telemetry_pipeline = Arc::new(TelemetryPipeline::new(&device_id, storage.clone()));
         ipc_dispatcher.set_telemetry(telemetry_pipeline.clone());
 
-        let data_dir = get_data_dir();
         let server_url_file = data_dir.join("server_url.txt");
         let bootstrap_file = data_dir.join("bootstrap.json");
 
@@ -193,7 +201,7 @@ impl ServiceController {
         }
 
         if server_url.is_empty() {
-            server_url = "https://famshield.ttcantho.io.vn".to_string();
+            server_url = config.server_url.clone();
         }
         let cloud_client = Arc::new(CloudSyncClient::new(&server_url));
 
@@ -222,6 +230,7 @@ impl ServiceController {
         );
 
         Self {
+            config,
             storage,
             ipc_dispatcher,
             dns_blocklist,
@@ -467,17 +476,17 @@ impl ServiceController {
             }
         };
 
-        // Apply NRPT rule to route root namespace '.' to FamShield local DNS proxy (127.0.0.2:53)
-        if let Err(e) = famshield_windows::NrptManager::apply_nrpt_rule("127.0.0.2") {
+        // Apply NRPT rule to route root namespace '.' to FamShield local DNS proxy
+        if let Err(e) = famshield_windows::NrptManager::apply_nrpt_rule(&self.config.dns_bind_ip) {
             tracing::warn!("Failed to apply NRPT DNS rule: {}", e);
         }
 
-        // 2. Start DNS proxy listener on 127.0.0.2:53 with real-time query logging
+        // 2. Start DNS proxy listener with real-time query logging
         let (dns_log_tx, mut dns_log_rx) =
             tokio::sync::mpsc::unbounded_channel::<famshield_dns::DnsLogEntry>();
 
         let dns_proxy = DnsProxy::new(
-            DEFAULT_BIND_ADDR,
+            &self.config.dns_bind_addr(),
             configured_upstream,
             self.dns_blocklist.clone(),
             self.dns_cache.clone(),
@@ -489,6 +498,7 @@ impl ServiceController {
         let dns_telemetry = self.telemetry_pipeline.clone();
         let dns_dispatcher = self.ipc_dispatcher.clone();
         let active_app_ref = self.local_admin_server.state().active_app.clone();
+        let dns_config = self.config.clone();
         tokio::spawn(async move {
             let mut batch = Vec::with_capacity(32);
             let mut interval = tokio::time::interval(std::time::Duration::from_millis(500));
@@ -500,11 +510,21 @@ impl ServiceController {
                         match entry_opt {
                             Some(entry) => {
                                 let now = chrono::Utc::now();
-                                let cur_app = active_app_ref.lock().await.clone();
-                                let app_name = if !cur_app.is_empty() && cur_app != "unknown" {
-                                    Some(cur_app)
-                                } else {
-                                    entry.rule_id.clone()
+                                let app_name = match entry.process_name.as_deref() {
+                                    Some(proc_name)
+                                        if !proc_name.is_empty()
+                                            && !dns_config.is_system_dns_forwarder(proc_name) =>
+                                    {
+                                        Some(proc_name.to_string())
+                                    }
+                                    _ => {
+                                        let cur_app = active_app_ref.lock().await.clone();
+                                        if !cur_app.is_empty() && cur_app != "unknown" {
+                                            Some(cur_app)
+                                        } else {
+                                            entry.rule_id.clone()
+                                        }
+                                    }
                                 };
                                 let record = famshield_storage::QueryLogRecord {
                                     domain: entry.domain.clone(),
@@ -620,7 +640,8 @@ impl ServiceController {
 
         // 6. Start Anti-Tampering & Self-Healing Watchdog (Session 0 auto-respawn + NRPT drift lock)
         let watchdog = crate::watchdog::SystemWatchdog::new(self.is_updating.clone())
-            .with_telemetry(self.telemetry_pipeline.clone());
+            .with_telemetry(self.telemetry_pipeline.clone())
+            .with_dns_bind_ip(self.config.dns_bind_ip.clone());
         let watchdog_shutdown_rx = shutdown_rx.resubscribe();
         tokio::spawn(async move {
             watchdog.run(watchdog_shutdown_rx).await;
@@ -729,19 +750,17 @@ impl ServiceController {
                                 }
                             }
 
-                            // Continuously enforce daily quota on running applications
+                            // Continuously enforce daily quota on running applications using the
+                            // already-refreshed ProcessMonitor snapshot (avoiding double enumeration).
                             if let Ok(rules) = storage.list_local_rules() {
                                 if rules.iter().any(|r| r.rule_type == "application" && r.enabled) {
-                                    if let Ok(procs) = famshield_windows::ProcessMonitor::enumerate_processes() {
-                                        let mut checked_procs = std::collections::HashSet::new();
-                                        for p in procs {
-                                            if checked_procs.insert(p.name.to_lowercase()) {
-                                                check_and_enforce_app_quota(
-                                                    &p.name,
-                                                    &storage,
-                                                    &telemetry_pipeline,
-                                                );
-                                            }
+                                    if let Ok(proc_names) = proc_monitor.running_process_names() {
+                                        for proc_name in proc_names {
+                                            check_and_enforce_app_quota(
+                                                &proc_name,
+                                                &storage,
+                                                &telemetry_pipeline,
+                                            );
                                         }
                                     }
                                 }

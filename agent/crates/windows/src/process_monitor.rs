@@ -232,6 +232,23 @@ impl ProcessMonitor {
         self.detect_changes_from_snapshot(current_list, chrono::Utc::now())
     }
 
+    /// Returns the deduplicated lowercase names of currently known running processes
+    /// from the in-memory snapshot without re-enumerating the OS process table.
+    pub fn running_process_names(&self) -> Result<Vec<String>, WindowsError> {
+        let known = self.known_processes.lock().map_err(|_| {
+            WindowsError::Process("process snapshot state lock was poisoned".into())
+        })?;
+        let mut seen = std::collections::HashSet::with_capacity(known.len());
+        let mut names = Vec::with_capacity(known.len());
+        for proc in known.values() {
+            let lower = proc.name.to_lowercase();
+            if seen.insert(lower.clone()) {
+                names.push(lower);
+            }
+        }
+        Ok(names)
+    }
+
     /// Seed the current process set without emitting synthetic start events at service startup.
     pub fn seed_current_snapshot(&self) -> Result<(), WindowsError> {
         let current = Self::enumerate_processes()?

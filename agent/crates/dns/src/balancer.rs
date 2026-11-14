@@ -129,8 +129,11 @@ impl NumaDnsBalancer {
 
         // Fallback default if empty
         if result.is_empty() {
-            if let Ok(addr) = "1.1.1.1:53".parse() {
-                result.push(Arc::new(UpstreamMetrics::new(addr, "1.1.1.1".to_string())));
+            if let Ok(addr) = famshield_core::DEFAULT_DNS_UPSTREAM_ADDR.parse() {
+                result.push(Arc::new(UpstreamMetrics::new(
+                    addr,
+                    famshield_core::DEFAULT_DNS_UPSTREAM_IP.to_string(),
+                )));
             }
         }
 

@@ -65,6 +65,7 @@ muda = "0.21"
 semver = "1.0"
 jpeg-encoder = "0.7"
 sysinfo = { version = "0.40.1", default-features = false, features = ["system", "network"] }
+listeners = "0.6.1"
 
 # Internal crates
 famshield-core = { path = "agent/crates/core" }

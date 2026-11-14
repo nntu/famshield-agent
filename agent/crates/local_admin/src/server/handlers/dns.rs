@@ -288,7 +288,7 @@ pub(crate) async fn handle_get_dns_config(
         .get_meta("dns_upstream")
         .ok()
         .flatten()
-        .unwrap_or_else(|| "1.1.1.1".to_string());
+        .unwrap_or_else(|| state.service.config().dns_upstream.clone());
 
     let (entries, hits, misses) = if let Some(ref cache) = state.dns_cache {
         cache.stats()
@@ -634,7 +634,7 @@ pub(crate) fn resolve_nats_url_from_storage(storage: &famshield_storage::Storage
         }
     }
 
-    "wss://famshield.ttcantho.io.vn/nats".to_string()
+    famshield_core::DEFAULT_NATS_URL.to_string()
 }
 
 #[derive(Deserialize)]

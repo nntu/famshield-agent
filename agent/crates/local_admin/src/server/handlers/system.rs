@@ -114,7 +114,7 @@ pub(crate) async fn handle_status(
 
         session_helper_status,
 
-        dns_proxy_addr: "127.0.0.2:53".to_string(),
+        dns_proxy_addr: state.service.config().dns_bind_addr(),
 
         wfp_status: "Active (Dynamic User-Mode Session)".to_string(),
 
@@ -282,7 +282,7 @@ pub(crate) async fn handle_get_update_urls(State(state): State<ServerState>) -> 
         .get_meta("server_url")
         .ok()
         .flatten()
-        .unwrap_or_else(|| "https://famshield.ttcantho.io.vn".to_string());
+        .unwrap_or_else(|| state.service.config().server_url.clone());
 
     let explicit_version_check_url = state
         .service
@@ -295,11 +295,11 @@ pub(crate) async fn handle_get_update_urls(State(state): State<ServerState>) -> 
     let auto_version_check_url = if is_enrolled {
         format!("{}/version.json", server_url.trim_end_matches('/'))
     } else {
-        "https://famshield.ttcantho.io.vn/version.json".to_string()
+        state.service.config().effective_version_check_url()
     };
 
     let effective_version_check_url = if !explicit_version_check_url.is_empty()
-        && !explicit_version_check_url.eq_ignore_ascii_case("auto")
+        && !famshield_core::is_auto_keyword(&explicit_version_check_url)
     {
         explicit_version_check_url.clone()
     } else {
@@ -348,7 +348,7 @@ pub(crate) async fn handle_update_urls(
 
     if let Some(v_url) = payload.version_check_url.as_deref() {
         let v_trimmed = v_url.trim();
-        if v_trimmed.is_empty() || v_trimmed.eq_ignore_ascii_case("auto") {
+        if famshield_core::is_auto_keyword(v_trimmed) {
             let _ = state.service.storage().delete_meta("version_check_url");
         } else {
             if !v_trimmed.starts_with("http://") && !v_trimmed.starts_with("https://") {
@@ -380,7 +380,7 @@ pub(crate) async fn handle_update_urls(
         .get_meta("server_url")
         .ok()
         .flatten()
-        .unwrap_or_else(|| "https://famshield.ttcantho.io.vn".to_string());
+        .unwrap_or_else(|| state.service.config().server_url.clone());
 
     let explicit_check = state
         .service
@@ -393,7 +393,7 @@ pub(crate) async fn handle_update_urls(
     let auto_check = if is_enrolled {
         format!("{}/version.json", current_server.trim_end_matches('/'))
     } else {
-        "https://famshield.ttcantho.io.vn/version.json".to_string()
+        state.service.config().effective_version_check_url()
     };
 
     let effective_check = if !explicit_check.is_empty() {
@@ -426,7 +426,7 @@ pub(crate) async fn handle_check_update(State(state): State<ServerState>) -> imp
                     .get_meta("server_url")
                     .ok()
                     .flatten()
-                    .unwrap_or_else(|| "https://famshield.ttcantho.io.vn".to_string());
+                    .unwrap_or_else(|| state.service.config().server_url.clone());
 
                 let fallback_dl = format!("{}/download/latest", s_url.trim_end_matches('/'));
                 let raw_dl = val
@@ -498,7 +498,7 @@ pub(crate) async fn handle_check_update(State(state): State<ServerState>) -> imp
         .ok()
         .flatten()
         .map(|s| s.trim().to_string())
-        .filter(|s| !s.is_empty() && !s.eq_ignore_ascii_case("auto"));
+        .filter(|s| !famshield_core::is_auto_keyword(s));
 
     let mut candidate_urls: Vec<(String, String)> = Vec::new();
 
@@ -508,7 +508,7 @@ pub(crate) async fn handle_check_update(State(state): State<ServerState>) -> imp
             if let Some(pos) = explicit.rfind('/') {
                 format!("{}/download/latest", &explicit[..pos])
             } else {
-                "https://famshield.ttcantho.io.vn/download/latest".to_string()
+                state.service.config().effective_download_latest_url()
             }
         } else {
             format!("{}/download/latest", explicit.trim_end_matches('/'))

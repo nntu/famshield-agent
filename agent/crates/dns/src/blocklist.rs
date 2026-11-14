@@ -143,85 +143,61 @@ impl BlocklistStore {
     /// Check if target domain matches Whitelist (either user whitelist or core system whitelist).
     /// Whitelist has the HIGHEST priority and automatically covers subdomains (e.g., "mail.thiendia.com").
     pub fn is_whitelisted(&self, target_domain: &str) -> bool {
-        let norm = target_domain
-            .trim()
-            .trim_end_matches('.')
-            .to_ascii_lowercase();
+        let norm = normalize_domain(target_domain);
         if norm.is_empty() {
             return false;
         }
+        self.is_whitelisted_normalized(&norm)
+    }
 
+    fn is_whitelisted_normalized(&self, norm: &str) -> bool {
         let wl = self.whitelist.load();
-        let core = self.core_whitelist.load();
-
-        if wl.contains(&norm) || core.contains(&norm) {
+        if find_in_set_normalized(norm, &wl) {
             return true;
         }
-
-        let mut s = norm.as_str();
-        while let Some(idx) = s.find('.') {
-            s = &s[idx + 1..];
-            if wl.contains(s) || core.contains(s) {
-                return true;
-            }
-        }
-
-        false
+        let core = self.core_whitelist.load();
+        find_in_set_normalized(norm, &core)
     }
 
     /// Check if target domain matches custom client blocked list (exact or parent subdomain).
     pub fn is_custom_blocked(&self, target_domain: &str) -> bool {
-        let norm = target_domain
-            .trim()
-            .trim_end_matches('.')
-            .to_ascii_lowercase();
+        let norm = normalize_domain(target_domain);
         if norm.is_empty() {
             return false;
         }
+        self.is_custom_blocked_normalized(&norm)
+    }
 
+    fn is_custom_blocked_normalized(&self, norm: &str) -> bool {
         let custom = self.custom_blocked.load();
-        if custom.contains(&norm) {
-            return true;
-        }
-
-        let mut s = norm.as_str();
-        while let Some(idx) = s.find('.') {
-            s = &s[idx + 1..];
-            if custom.contains(s) {
-                return true;
-            }
-        }
-
-        false
+        find_in_set_normalized(norm, &custom)
     }
 
     /// Check if target domain matches any name/brand pattern without dots (e.g. "thiendia").
     /// Matches if any label in domain equals the pattern (e.g. "thiendia.us", "thiendia.vn")
     /// or if a label contains the brand name (e.g. "thiendia-vip.com", "phim-thiendia.com").
     pub fn matches_name_pattern(&self, target_domain: &str) -> bool {
-        let norm = target_domain
-            .trim()
-            .trim_end_matches('.')
-            .to_ascii_lowercase();
+        let norm = normalize_domain(target_domain);
         if norm.is_empty() {
             return false;
         }
+        self.matches_name_pattern_normalized(&norm)
+    }
 
+    fn matches_name_pattern_normalized(&self, norm: &str) -> bool {
         let patterns = self.name_patterns.load();
         if patterns.is_empty() {
             return false;
         }
 
-        let labels: Vec<&str> = norm.split('.').collect();
-        for pat in patterns.iter() {
-            for label in &labels {
-                if *label == pat.as_str()
-                    || label.starts_with(&format!("{}-", pat))
-                    || label.ends_with(&format!("-{}", pat))
+        for label in norm.split('.') {
+            for pat in patterns.iter() {
+                let p = pat.as_str();
+                if label == p
+                    || label.strip_prefix(p).is_some_and(|r| r.starts_with('-'))
+                    || label.strip_suffix(p).is_some_and(|r| r.ends_with('-'))
+                    || (p.len() >= 4 && label.contains(p))
                 {
-                    return true;
-                }
-                if pat.len() >= 4 && label.contains(pat.as_str()) {
                     return true;
                 }
             }
@@ -232,28 +208,16 @@ impl BlocklistStore {
 
     /// Check if target domain matches general threat blocklist.
     pub fn is_in_general_blocklist(&self, target_domain: &str) -> bool {
-        let norm = target_domain
-            .trim()
-            .trim_end_matches('.')
-            .to_ascii_lowercase();
+        let norm = normalize_domain(target_domain);
         if norm.is_empty() {
             return false;
         }
+        self.is_in_general_blocklist_normalized(&norm)
+    }
 
+    fn is_in_general_blocklist_normalized(&self, norm: &str) -> bool {
         let general = self.domains.load();
-        if general.contains(&norm) {
-            return true;
-        }
-
-        let mut s = norm.as_str();
-        while let Some(idx) = s.find('.') {
-            s = &s[idx + 1..];
-            if general.contains(s) {
-                return true;
-            }
-        }
-
-        false
+        find_in_set_normalized(norm, &general)
     }
 
     /// Check if target domain should be blocked according to hierarchical priority:
@@ -261,36 +225,20 @@ impl BlocklistStore {
     /// 2. Client Custom Blocked Domains (Priority 2)
     /// 3. Name / Brand Patterns (Priority 3: e.g. "thiendia" blocks "thiendia.us", "thiendia.vn")
     /// 4. General threat/sinkhole blocklist (Priority 4)
+    ///
+    /// Optimization (from `numa`): normalize once and check whitelist *only after* a blocklist hit,
+    /// since the vast majority of queries are not blocked.
     pub fn is_blocked(&self, target_domain: &str) -> bool {
-        let norm = target_domain
-            .trim()
-            .trim_end_matches('.')
-            .to_ascii_lowercase();
+        let norm = normalize_domain(target_domain);
         if norm.is_empty() {
             return false;
         }
 
-        // PRIORITY 1: Whitelist is absolute — if whitelisted, never block!
-        if self.is_whitelisted(&norm) {
-            return false;
-        }
+        let hit = self.is_custom_blocked_normalized(&norm)
+            || self.matches_name_pattern_normalized(&norm)
+            || self.is_in_general_blocklist_normalized(&norm);
 
-        // PRIORITY 2: Client Custom Blocked Domains
-        if self.is_custom_blocked(&norm) {
-            return true;
-        }
-
-        // PRIORITY 3: Name / Brand Patterns
-        if self.matches_name_pattern(&norm) {
-            return true;
-        }
-
-        // PRIORITY 4: General Blocklist (threat feeds, sinkholes)
-        if self.is_in_general_blocklist(&norm) {
-            return true;
-        }
-
-        false
+        hit && !self.is_whitelisted_normalized(&norm)
     }
 
     /// Check if target domain should actually be blocked (blocked AND not in monitor mode AND not paused).
@@ -300,23 +248,24 @@ impl BlocklistStore {
 
     /// Human-readable block reason for auditing and telemetry logging.
     pub fn block_reason(&self, target_domain: &str) -> Option<&'static str> {
-        let norm = target_domain
-            .trim()
-            .trim_end_matches('.')
-            .to_ascii_lowercase();
-        if self.is_whitelisted(&norm) {
+        let norm = normalize_domain(target_domain);
+        if norm.is_empty() {
             return None;
         }
-        if self.is_custom_blocked(&norm) {
-            return Some("custom_domain_rule");
+        let reason = if self.is_custom_blocked_normalized(&norm) {
+            Some("custom_domain_rule")
+        } else if self.matches_name_pattern_normalized(&norm) {
+            Some("name_pattern_rule")
+        } else if self.is_in_general_blocklist_normalized(&norm) {
+            Some("threat_blocklist")
+        } else {
+            None
+        }?;
+
+        if self.is_whitelisted_normalized(&norm) {
+            return None;
         }
-        if self.matches_name_pattern(&norm) {
-            return Some("name_pattern_rule");
-        }
-        if self.is_in_general_blocklist(&norm) {
-            return Some("threat_blocklist");
-        }
-        None
+        Some(reason)
     }
 
     /// Atomically replace the whitelist (allowed domains).
@@ -445,4 +394,28 @@ impl BlocklistStore {
             })
             .sum()
     }
+}
+
+#[inline]
+fn normalize_domain(domain: &str) -> String {
+    domain.trim().trim_end_matches('.').to_ascii_lowercase()
+}
+
+/// Exact-or-parent suffix match on an already-normalized domain (from `numa`).
+#[inline]
+fn find_in_set_normalized(norm: &str, set: &HashSet<String>) -> bool {
+    if set.is_empty() {
+        return false;
+    }
+    if set.contains(norm) {
+        return true;
+    }
+    let mut s = norm;
+    while let Some(idx) = s.find('.') {
+        s = &s[idx + 1..];
+        if set.contains(s) {
+            return true;
+        }
+    }
+    false
 }

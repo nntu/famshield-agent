@@ -26,11 +26,24 @@ pub(crate) fn normalize_time_bound(value: Option<&str>) -> Option<String> {
 
 pub struct LocalAdminService {
     pub(crate) storage: StorageEngine,
+    pub(crate) config: famshield_core::AgentConfig,
 }
 
 impl LocalAdminService {
     pub fn new(storage: StorageEngine) -> Self {
-        Self { storage }
+        Self {
+            storage,
+            config: famshield_core::AgentConfig::default(),
+        }
+    }
+
+    pub fn with_config(mut self, config: famshield_core::AgentConfig) -> Self {
+        self.config = config;
+        self
+    }
+
+    pub fn config(&self) -> &famshield_core::AgentConfig {
+        &self.config
     }
 
     /// Dynamically classifies an application process using DB seeded rules in priority order,

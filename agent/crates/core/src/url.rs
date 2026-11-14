@@ -1,4 +1,32 @@
-//! URL utilities and normalization for NATS and Central Server connections.
+//! URL utilities, shared network defaults, and normalization for NATS and Central Server connections.
+
+pub const DEFAULT_SERVER_URL: &str = "https://famshield.ttcantho.io.vn";
+pub const DEFAULT_NATS_URL: &str = "wss://famshield.ttcantho.io.vn/nats";
+pub const DEFAULT_VERSION_CHECK_URL: &str = "https://famshield.ttcantho.io.vn/version.json";
+pub const DEFAULT_DOWNLOAD_LATEST_URL: &str = "https://famshield.ttcantho.io.vn/download/latest";
+
+pub const DEFAULT_DNS_BIND_IP: &str = "127.0.0.2";
+pub const DEFAULT_DNS_BIND_ADDR: &str = "127.0.0.2:53";
+pub const DEFAULT_DNS_UPSTREAM_IP: &str = "1.1.1.1";
+pub const DEFAULT_DNS_UPSTREAM_ADDR: &str = "1.1.1.1:53";
+pub const DEFAULT_FALLBACK_UPSTREAM_IPS: &[&str] = &["8.8.8.8", "9.9.9.9"];
+
+/// Returns `true` when a configuration field uses the `"auto"` sentinel keyword.
+#[inline]
+pub fn is_auto_keyword(value: &str) -> bool {
+    value.trim().eq_ignore_ascii_case("auto")
+}
+
+/// Returns `true` for Windows system processes that act as generic DNS forwarders
+/// (e.g. `svchost.exe` hosting `Dnscache`), where attribution should fall back to foreground app.
+#[inline]
+pub fn is_system_dns_forwarder(proc_name: &str) -> bool {
+    let base = proc_name.trim();
+    base.eq_ignore_ascii_case("svchost.exe")
+        || base.eq_ignore_ascii_case("dnscache")
+        || base.eq_ignore_ascii_case("services.exe")
+        || base.eq_ignore_ascii_case("system")
+}
 
 /// Normalize any server or NATS input URL into a valid WebSocket URL for `async-nats`.
 ///
@@ -13,7 +41,7 @@
 pub fn normalize_nats_url(input: &str) -> String {
     let trimmed = input.trim();
     if trimmed.is_empty() {
-        return "wss://famshield.ttcantho.io.vn/nats".to_string();
+        return DEFAULT_NATS_URL.to_string();
     }
 
     if let Some(rest) = trimmed.strip_prefix("https://") {

@@ -154,8 +154,8 @@ impl StorageEngine {
 
         let (predicate, query_values) = time_range_clause(start_time, end_time);
         let sql = format!(
-            "SELECT rule_id, SUM(duration_ms) as total_ms, COUNT(*) as sessions, MIN(start_utc), MAX(start_utc)
-             FROM usage_segments {predicate} GROUP BY rule_id ORDER BY total_ms DESC"
+            "SELECT MIN(rule_id) as app_name, SUM(duration_ms) as total_ms, COUNT(*) as sessions, MIN(start_utc), MAX(start_utc)
+             FROM usage_segments {predicate} GROUP BY rule_id COLLATE NOCASE ORDER BY total_ms DESC"
         );
 
         let mut stmt = conn.prepare(&sql)?;

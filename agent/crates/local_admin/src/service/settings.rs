@@ -17,7 +17,7 @@ impl LocalAdminService {
             .storage
             .get_meta("server_url")?
             .filter(|s| !s.is_empty())
-            .unwrap_or_else(|| "https://famshield.ttcantho.io.vn".to_string());
+            .unwrap_or_else(|| self.config.server_url.clone());
 
         let tenant_id = self
             .storage
@@ -121,7 +121,7 @@ impl LocalAdminService {
 
         if let Some(v_url) = &req.version_check_url {
             let trimmed = v_url.trim();
-            if trimmed.is_empty() || trimmed.eq_ignore_ascii_case("auto") {
+            if famshield_core::is_auto_keyword(trimmed) {
                 let _ = self.storage.delete_meta("version_check_url");
             } else {
                 if !trimmed.starts_with("http://") && !trimmed.starts_with("https://") {
@@ -259,7 +259,7 @@ impl LocalAdminService {
         let server_url = self
             .storage
             .get_meta("server_url")?
-            .unwrap_or_else(|| "https://famshield.ttcantho.io.vn".to_string());
+            .unwrap_or_else(|| self.config.server_url.clone());
 
         let version_check_url = self
             .storage
@@ -283,7 +283,7 @@ impl LocalAdminService {
         let dns_upstream = self
             .storage
             .get_meta("dns_upstream")?
-            .unwrap_or_else(|| "1.1.1.1".to_string());
+            .unwrap_or_else(|| self.config.dns_upstream.clone());
 
         let dns_block_action = self
             .storage
@@ -398,7 +398,7 @@ impl LocalAdminService {
         if let Some(v_url) = req.version_check_url {
             let trimmed = v_url.trim();
 
-            if trimmed.is_empty() || trimmed.eq_ignore_ascii_case("auto") {
+            if famshield_core::is_auto_keyword(trimmed) {
                 let _ = self.storage.delete_meta("version_check_url");
             } else {
                 if !trimmed.starts_with("http://") && !trimmed.starts_with("https://") {
@@ -418,7 +418,7 @@ impl LocalAdminService {
         if let Some(nats) = req.nats_url {
             let trimmed = nats.trim();
 
-            if trimmed.is_empty() || trimmed.eq_ignore_ascii_case("auto") {
+            if famshield_core::is_auto_keyword(trimmed) {
                 let _ = self.storage.delete_meta("nats_url");
             } else {
                 self.storage.set_meta("nats_url", trimmed)?;
